@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,7 +22,6 @@ func TestOAuthFlow(t *testing.T) {
 	defer cleanup()
 
 	t.Run("anonymous authentication flow", func(t *testing.T) {
-		// Request anonymous token
 		reqBody := auth.TokenRequest{
 			GrantType: auth.GrantTypeAnonymous,
 		}
@@ -58,9 +58,6 @@ func TestOAuthFlow(t *testing.T) {
 		if response.ExpiresIn <= 0 {
 			t.Error("ExpiresIn should be positive")
 		}
-		if response.SessionID == "" {
-			t.Error("Session ID is empty")
-		}
 
 		// Verify JWT contents
 		token, err := jwt.Parse(response.AccessToken, func(token *jwt.Token) (interface{}, error) {
@@ -75,8 +72,9 @@ func TestOAuthFlow(t *testing.T) {
 			t.Fatal("Failed to get JWT claims")
 		}
 
-		if claims["session_id"] != response.SessionID {
-			t.Error("Session ID in JWT doesn't match response")
+		sessionID, ok := claims["sid"].(string)
+		if !ok || sessionID == "" {
+			t.Error("Session ID missing from JWT claims")
 		}
 
 		exp, ok := claims["exp"].(float64)
@@ -127,13 +125,29 @@ func TestOAuthFlow(t *testing.T) {
 
 		// Verify refreshed token
 		if refreshedToken.AccessToken == initialToken.AccessToken {
-			t.Error("Access token should be different after refresh")
+			t.Errorf("Access token should be different after refresh.\nInitial: %s\nRefreshed: %s",
+				initialToken.AccessToken, refreshedToken.AccessToken)
 		}
 		if refreshedToken.RefreshToken == initialToken.RefreshToken {
-			t.Error("Refresh token should be different after refresh")
+			t.Errorf("Refresh token should be different after refresh.\nInitial: %s\nRefreshed: %s",
+				initialToken.RefreshToken, refreshedToken.RefreshToken)
 		}
-		if refreshedToken.SessionID != initialToken.SessionID {
-			t.Error("Session ID should remain the same after refresh")
+
+		// Verify both tokens are valid JWTs but different
+		initialClaims, err := validateAndGetClaims(initialToken.AccessToken)
+		if err != nil {
+			t.Fatalf("Failed to validate initial token: %v", err)
+		}
+		refreshedClaims, err := validateAndGetClaims(refreshedToken.AccessToken)
+		if err != nil {
+			t.Fatalf("Failed to validate refreshed token: %v", err)
+		}
+
+		if initialClaims["jti"] == refreshedClaims["jti"] {
+			t.Error("JWT IDs should be different after refresh")
+		}
+		if initialClaims["sid"] != refreshedClaims["sid"] {
+			t.Error("Session IDs in JWT claims should match")
 		}
 	})
 
@@ -242,4 +256,20 @@ func TestOAuthFlow(t *testing.T) {
 			t.Errorf("Expected status code %d, got %d", http.StatusSwitchingProtocols, resp.StatusCode)
 		}
 	})
+}
+
+func validateAndGetClaims(tokenString string) (jwt.MapClaims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return config.GetJWTSecret(), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("failed to get JWT claims")
+	}
+
+	return claims, nil
 }

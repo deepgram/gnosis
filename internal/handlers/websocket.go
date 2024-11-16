@@ -85,7 +85,7 @@ func validateTokenAndGetSession(tokenString string) (string, bool) {
 		return "", false
 	}
 
-	sessionID, ok := claims["session_id"].(string)
+	sessionID, ok := claims["sid"].(string)
 	if !ok {
 		return "", false
 	}

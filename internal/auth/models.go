@@ -16,7 +16,6 @@ type TokenResponse struct {
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
 	RefreshToken string `json:"refresh_token"`
-	SessionID    string `json:"session_id"`
 }
 
 type TokenRequest struct {

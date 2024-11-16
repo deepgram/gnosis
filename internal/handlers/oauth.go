@@ -8,6 +8,7 @@ import (
 	"github.com/deepgram/navi/internal/auth"
 	"github.com/deepgram/navi/internal/config"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var (
@@ -46,9 +47,10 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	// Generate JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"session_id": session.ID,
-		"exp":        time.Now().Add(jwtLifetime).Unix(),
-		"iat":        time.Now().Unix(),
+		"sid": session.ID,
+		"exp": time.Now().Add(jwtLifetime).Unix(),
+		"iat": time.Now().Unix(),
+		"jti": uuid.New().String(),
 	})
 
 	tokenString, err := token.SignedString(config.GetJWTSecret())
@@ -62,7 +64,6 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 		TokenType:    "Bearer",
 		ExpiresIn:    int(jwtLifetime.Seconds()),
 		RefreshToken: session.RefreshToken,
-		SessionID:    session.ID,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
