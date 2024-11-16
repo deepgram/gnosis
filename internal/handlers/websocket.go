@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -125,7 +126,7 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure,
 				websocket.CloseNormalClosure) {
-				// Log unexpected errors in production
+				log.Printf("Error reading message: %v", err)
 			}
 			break
 		}
@@ -135,9 +136,12 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		conn.SetWriteDeadline(time.Now().Add(manager.GetTimeouts().WriteWait))
-		if err := conn.WriteMessage(messageType, message); err != nil {
-			break
+		// Only process text messages as JSON
+		if messageType == websocket.TextMessage {
+			if err := HandleAssistantMessage(conn, messageType, message); err != nil {
+				log.Printf("Error handling assistant message: %v", err)
+				break
+			}
 		}
 	}
 }

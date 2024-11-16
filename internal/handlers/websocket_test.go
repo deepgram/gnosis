@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deepgram/navi/internal/assistant"
 	"github.com/deepgram/navi/internal/auth"
 	"github.com/deepgram/navi/internal/connections"
 	"github.com/gorilla/websocket"
@@ -139,27 +140,34 @@ func TestWebSocketPingPong(t *testing.T) {
 
 		// Test message exchange
 		testMessage := func(i int) error {
-			testMsg := []byte(fmt.Sprintf("test-%d", i))
-
-			if err := conn.SetWriteDeadline(time.Now().Add(testTimeouts.WriteWait)); err != nil {
-				return fmt.Errorf("failed to set write deadline: %v", err)
+			testMsg := assistant.UserMessage{
+				Content:   fmt.Sprintf("test-%d", i),
+				MessageID: fmt.Sprintf("msg-%d", i),
 			}
 
-			if err := conn.WriteMessage(websocket.TextMessage, testMsg); err != nil {
+			if err := conn.WriteJSON(testMsg); err != nil {
 				return fmt.Errorf("failed to write message: %v", err)
 			}
 
-			if err := conn.SetReadDeadline(time.Now().Add(testTimeouts.PongWait)); err != nil {
-				return fmt.Errorf("failed to set read deadline: %v", err)
+			// Should receive streaming response first
+			var streamResp assistant.AssistantResponse
+			if err := conn.ReadJSON(&streamResp); err != nil {
+				return fmt.Errorf("failed to read streaming response: %v", err)
+			}
+			if streamResp.Status != assistant.StatusStreaming {
+				return fmt.Errorf("expected streaming status, got %s", streamResp.Status)
 			}
 
-			_, response, err := conn.ReadMessage()
-			if err != nil {
-				return fmt.Errorf("failed to read response: %v", err)
+			// Should receive complete response
+			var completeResp assistant.AssistantResponse
+			if err := conn.ReadJSON(&completeResp); err != nil {
+				return fmt.Errorf("failed to read complete response: %v", err)
 			}
-
-			if string(response) != string(testMsg) {
-				return fmt.Errorf("expected echo response '%s', got: %s", testMsg, response)
+			if completeResp.Status != assistant.StatusComplete {
+				return fmt.Errorf("expected complete status, got %s", completeResp.Status)
+			}
+			if completeResp.Content != testMsg.Content {
+				return fmt.Errorf("expected content '%s', got: %s", testMsg.Content, completeResp.Content)
 			}
 
 			return nil
