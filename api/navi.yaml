@@ -1,0 +1,116 @@
+asyncapi: '2.5.0'
+info:
+  title: Navi by Deepgram
+  version: '1.0.0'
+  description: WebSocket interface for Navi, Deepgram's AI assistant.
+
+servers:
+  production:
+    url: wss://navi.deepgram.com
+    protocol: wss
+
+channels:
+  /auth:
+    publish:
+      message:
+        name: AuthMessage
+        contentType: application/json
+        payload:
+          type: object
+          required:
+            - type
+            - token
+          properties:
+            type:
+              type: string
+              enum: [AuthMessage]
+              default: AuthMessage
+            token:
+              type: string
+              description: Authentication token for the session
+
+  /assistant:
+    publish:
+      oneOf:
+        - name: ContextMessage
+          contentType: application/json
+          payload:
+            type: object
+            required:
+              - type
+              - context
+            properties:
+              type:
+                type: string
+                enum: [ContextMessage]
+                default: ContextMessage
+              context:
+                type: object
+                description: Context information for future user messages
+                properties:
+                  threadId:
+                    type: string
+                  metadata:
+                    type: object
+
+        - name: UserMessage
+          contentType: application/json
+          payload:
+            type: object
+            required:
+              - type
+              - content
+            properties:
+              type:
+                type: string
+                enum: [UserMessage]
+                default: UserMessage
+              content:
+                type: string
+
+    subscribe:
+      oneOf:
+        - name: UserMessageReceipt
+          contentType: application/json
+          payload:
+            type: object
+            required:
+              - type
+              - messageId
+              - status
+            properties:
+              type:
+                type: string
+                enum: [UserMessageReceipt]
+                default: UserMessageReceipt
+              messageId:
+                type: string
+                description: Unique identifier assigned to the user message
+              status:
+                type: string
+                enum: [received]
+              
+        - name: AssistantMessage
+          contentType: application/json
+          payload:
+            type: object
+            required:
+              - type
+              - messageId
+              - content
+            properties:
+              type:
+                type: string
+                enum: [AssistantMessage]
+                default: AssistantMessage
+              messageId:
+                type: string
+              content:
+                type: string
+              status:
+                type: string
+                enum: 
+                  - processing
+                  - generating
+                  - completed
+                  - error
