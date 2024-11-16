@@ -1,37 +1,18 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/deepgram/navi/internal/config"
+	"github.com/deepgram/navi/internal/connections"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 )
 
-type TimeoutConfig struct {
-	PongWait   time.Duration
-	PingPeriod time.Duration
-	WriteWait  time.Duration
-}
-
-type ConnectionManager struct {
-	connections sync.Map
-}
-
 var (
-	defaultTimeouts = TimeoutConfig{
-		PongWait:   30 * time.Second,
-		PingPeriod: 27 * time.Second, // (PongWait * 9) / 10
-		WriteWait:  10 * time.Second,
-	}
-
-	currentTimeouts = defaultTimeouts
-
-	manager  = &ConnectionManager{}
+	manager  = connections.NewManager(connections.DefaultTimeouts)
 	upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -40,22 +21,6 @@ var (
 		},
 	}
 )
-
-func SetTimeouts(timeouts TimeoutConfig) func() {
-	previous := currentTimeouts
-	currentTimeouts = timeouts
-	return func() {
-		currentTimeouts = previous
-	}
-}
-
-func (cm *ConnectionManager) addConnection(conn *websocket.Conn) {
-	cm.connections.Store(conn, struct{}{})
-}
-
-func (cm *ConnectionManager) removeConnection(conn *websocket.Conn) {
-	cm.connections.Delete(conn)
-}
 
 func extractToken(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
@@ -100,13 +65,14 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, valid := validateTokenAndGetSession(tokenString)
+	// sessionID, valid := validateTokenAndGetSession(tokenString)
+	_, valid := validateTokenAndGetSession(tokenString)
 	if !valid {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
 
-	fmt.Println("Session ID:", sessionID)
+	// fmt.Println("Session ID:", sessionID)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -114,16 +80,13 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	manager.addConnection(conn)
-	defer func() {
-		manager.removeConnection(conn)
-		conn.Close()
-	}()
+	manager.AddConnection(conn)
+	defer manager.RemoveConnection(conn)
 
 	// Set up ping/pong handlers
-	conn.SetReadDeadline(time.Now().Add(currentTimeouts.PongWait))
+	conn.SetReadDeadline(time.Now().Add(manager.GetTimeouts().PongWait))
 	conn.SetPongHandler(func(string) error {
-		return conn.SetReadDeadline(time.Now().Add(currentTimeouts.PongWait))
+		return conn.SetReadDeadline(time.Now().Add(manager.GetTimeouts().PongWait))
 	})
 
 	// Start ping ticker in separate goroutine
@@ -131,13 +94,13 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer close(done)
 
 	go func() {
-		ticker := time.NewTicker(currentTimeouts.PingPeriod)
+		ticker := time.NewTicker(manager.GetTimeouts().PingPeriod)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ticker.C:
-				deadline := time.Now().Add(currentTimeouts.WriteWait)
+				deadline := time.Now().Add(manager.GetTimeouts().WriteWait)
 				err := conn.WriteControl(websocket.PingMessage, []byte{}, deadline)
 				if err != nil {
 					return
@@ -155,16 +118,24 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Message handling loop
 	for {
-		conn.SetReadDeadline(time.Now().Add(currentTimeouts.PongWait))
+		conn.SetReadDeadline(time.Now().Add(manager.GetTimeouts().PongWait))
 		messageType, message, err := conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			if websocket.IsUnexpectedCloseError(err,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure,
+				websocket.CloseNormalClosure) {
 				// Log unexpected errors in production
 			}
 			break
 		}
 
-		conn.SetWriteDeadline(time.Now().Add(currentTimeouts.WriteWait))
+		// Handle close messages
+		if messageType == websocket.CloseMessage {
+			break
+		}
+
+		conn.SetWriteDeadline(time.Now().Add(manager.GetTimeouts().WriteWait))
 		if err := conn.WriteMessage(messageType, message); err != nil {
 			break
 		}

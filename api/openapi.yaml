@@ -1,0 +1,65 @@
+openapi: "3.0.0"
+
+info:
+  title: Navi by Deepgram
+  description: REST API for Navi, Deepgram's AI assistant.
+  termsOfService: https://deepgram.com/terms/
+  contact:
+    email: devrel@deepgram.com
+  license:
+    name: LicenseRef-Proprietary-Deepgram
+  version: 1.0.0
+
+servers:
+  - url: https://navi.deepgram.com
+    description: Production server
+
+paths:
+  /oauth/token:
+    post:
+      summary: Obtain or refresh authentication tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/AnonymousTokenRequest"
+                - $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Successful token response
+          content:
+            application/json:
+              schema:
+                $ref: "./schemas/components.yaml#/schemas/TokenResponse"
+        "400":
+          description: Invalid grant type or request format
+        "401":
+          description: Invalid refresh token
+
+components:
+  schemas:
+    AnonymousTokenRequest:
+      type: object
+      required:
+        - grant_type
+      properties:
+        grant_type:
+          type: string
+          enum: [anonymous]
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - grant_type
+        - refresh_token
+      properties:
+        grant_type:
+          type: string
+          enum: [refresh_token]
+        refresh_token:
+          type: string
+
+  securitySchemes:
+    $ref: "./schemas/components.yaml#/securitySchemes"

@@ -1,0 +1,37 @@
+asyncapi: 3.0.0
+
+info:
+  title: Navi by Deepgram
+  description: WebSocket interface for Navi, Deepgram's AI assistant.
+  termsOfService: https://deepgram.com/terms/
+  contact:
+    email: devrel@deepgram.com
+  license:
+    name: LicenseRef-Proprietary-Deepgram
+  version: 1.0.0
+
+servers:
+  production:
+    host: navi.deepgram.com
+    protocol: wss
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the REST authentication endpoint
+
+channels:
+  /ws:
+    address: /ws
+    messages:
+      message:
+        description: A simple test message
+        payload:
+          type: object
+          properties:
+            content:
+              type: string
+              description: The message content

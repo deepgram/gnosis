@@ -9,16 +9,17 @@ import (
 )
 
 func main() {
-	r := mux.NewRouter()
-
-	// OAuth endpoints
-	r.HandleFunc("/oauth/token", handlers.HandleToken).Methods("POST")
-
-	// WebSocket endpoint
-	r.HandleFunc("/ws", handlers.HandleWebSocket)
+	r := setupRouter()
 
 	log.Println("Server starting on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		log.Fatal("ListenAndServe error:", err)
 	}
+}
+
+func setupRouter() *mux.Router {
+	r := mux.NewRouter()
+	r.HandleFunc("/oauth/token", handlers.HandleToken).Methods("POST")
+	r.HandleFunc("/ws", handlers.HandleWebSocket)
+	return r
 }

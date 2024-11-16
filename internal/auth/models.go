@@ -20,7 +20,7 @@ type TokenResponse struct {
 
 type TokenRequest struct {
 	GrantType    string `json:"grant_type"`
-	RefreshToken string `json:"refresh_token,omitempty"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 const (
