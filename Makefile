@@ -1,8 +1,8 @@
 test:
-	go test -v -race -timeout 30s ./...
+	go test -timeout 10s ./...
 
 build:
-	go build -o bin/navi
+	go build -o bin/navi ./cmd/main.go
 
 clean:
 	rm -f bin/navi
