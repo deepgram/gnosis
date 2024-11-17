@@ -5,21 +5,26 @@ import (
 	"net/http"
 
 	"github.com/deepgram/navi/internal/handlers"
+	"github.com/deepgram/navi/internal/logger"
 	"github.com/gorilla/mux"
 )
 
 func main() {
+	logger.Info("Starting Navi server")
 	r := setupRouter()
 
-	log.Println("Server starting on :8080")
+	logger.Info("Server starting on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
-		log.Fatal("ListenAndServe error:", err)
+		logger.Error("ListenAndServe error: %v", err)
+		log.Fatal(err)
 	}
 }
 
 func setupRouter() *mux.Router {
+	logger.Debug("Setting up router")
 	r := mux.NewRouter()
 	r.HandleFunc("/oauth/token", handlers.HandleToken).Methods("POST")
-	r.HandleFunc("/ws", handlers.HandleWebSocket)
+	r.HandleFunc("/chat/completions", handlers.HandleChatCompletion).Methods("POST")
+	logger.Debug("Router setup complete")
 	return r
 }

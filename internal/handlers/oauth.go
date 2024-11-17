@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/deepgram/navi/internal/auth"
 	"github.com/deepgram/navi/internal/config"
+	"github.com/deepgram/navi/internal/logger"
+	"github.com/deepgram/navi/internal/services/auth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -17,16 +18,21 @@ var (
 )
 
 func HandleToken(w http.ResponseWriter, r *http.Request) {
+	logger.Debug("Handling token request")
 	if r.Method != http.MethodPost {
+		logger.Warn("Invalid method: %s", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req auth.TokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Error("Failed to decode token request: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	logger.Info("Processing token request with grant type: %s", req.GrantType)
 
 	var session auth.Session
 	var ok bool
@@ -55,6 +61,7 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	tokenString, err := token.SignedString(config.GetJWTSecret())
 	if err != nil {
+		logger.Error("Failed to sign JWT token: %v", err)
 		http.Error(w, "Error creating token", http.StatusInternalServerError)
 		return
 	}
@@ -68,4 +75,6 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+
+	logger.Info("Token generated successfully for session: %s", session.ID)
 }

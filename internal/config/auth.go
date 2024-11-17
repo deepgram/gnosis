@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"sync"
 )
 
@@ -11,14 +10,6 @@ var (
 	// In production, this should be loaded from environment variables
 	JWTSecret = []byte(getEnvOrDefault("JWT_SECRET", "your-256-bit-secret"))
 )
-
-// getEnvOrDefault returns the value of an environment variable or a default value
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
 
 // SetJWTSecret temporarily changes the JWT secret and returns a function to restore it
 // This is primarily used for testing

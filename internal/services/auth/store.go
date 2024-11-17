@@ -4,7 +4,32 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deepgram/navi/internal/logger"
 	"github.com/google/uuid"
+)
+
+type Session struct {
+	ID           string    `json:"id"`
+	RefreshToken string    `json:"refresh_token"`
+	CreatedAt    time.Time `json:"created_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
+type TokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type TokenRequest struct {
+	GrantType    string `json:"grant_type"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+const (
+	GrantTypeAnonymous = "anonymous"
+	GrantTypeRefresh   = "refresh_token"
 )
 
 type SessionStore struct {
@@ -19,6 +44,7 @@ func NewSessionStore() *SessionStore {
 }
 
 func (s *SessionStore) CreateSession() Session {
+	logger.Info("Creating new session")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -38,13 +64,20 @@ func (s *SessionStore) GetSession(refreshToken string) (Session, bool) {
 	defer s.mu.RUnlock()
 
 	session, exists := s.sessions[refreshToken]
-	if !exists || time.Now().After(session.ExpiresAt) {
+	if !exists {
+		logger.Warn("Session not found for refresh token")
+		return Session{}, false
+	}
+
+	if time.Now().After(session.ExpiresAt) {
+		logger.Warn("Expired session accessed")
 		return Session{}, false
 	}
 	return session, true
 }
 
 func (s *SessionStore) RefreshSession(oldRefreshToken string) (Session, bool) {
+	logger.Info("Attempting to refresh session")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -65,5 +98,6 @@ func (s *SessionStore) RefreshSession(oldRefreshToken string) (Session, bool) {
 	delete(s.sessions, oldRefreshToken)
 	s.sessions[newSession.RefreshToken] = newSession
 
+	logger.Info("Session refreshed successfully")
 	return newSession, true
 }
