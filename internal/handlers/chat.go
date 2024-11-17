@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/deepgram/navi/internal/logger"
-	"github.com/deepgram/navi/internal/services/chat"
+	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/codename-sage/internal/services/chat"
 	"github.com/sashabaranov/go-openai"
 )
 

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/deepgram/navi/internal/config"
-	"github.com/deepgram/navi/internal/logger"
-	"github.com/deepgram/navi/internal/services/auth"
+	"github.com/deepgram/codename-sage/internal/config"
+	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/codename-sage/internal/services/auth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )

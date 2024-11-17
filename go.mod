@@ -1,4 +1,4 @@
-module github.com/deepgram/navi
+module github.com/deepgram/codename-sage
 
 go 1.21
 

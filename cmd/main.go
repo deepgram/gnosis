@@ -4,8 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/deepgram/navi/internal/handlers"
-	"github.com/deepgram/navi/internal/logger"
+	"github.com/deepgram/codename-sage/internal/handlers"
+	"github.com/deepgram/codename-sage/internal/logger"
 	"github.com/gorilla/mux"
 )
 

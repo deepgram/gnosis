@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/deepgram/navi/internal/config"
-	"github.com/deepgram/navi/internal/logger"
-	"github.com/deepgram/navi/internal/services/kapa"
+	"github.com/deepgram/codename-sage/internal/config"
+	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/codename-sage/internal/services/kapa"
 	"github.com/sashabaranov/go-openai"
 )
 

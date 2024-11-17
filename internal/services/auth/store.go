@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepgram/navi/internal/logger"
+	"github.com/deepgram/codename-sage/internal/logger"
 	"github.com/google/uuid"
 )
 
