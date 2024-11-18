@@ -9,57 +9,39 @@ import (
 
 	"github.com/deepgram/codename-sage/internal/config"
 	"github.com/deepgram/codename-sage/internal/logger"
-	"github.com/deepgram/codename-sage/internal/services/auth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 var (
-	sessionStore = auth.NewSessionStore()
-	jwtLifetime  = 15 * time.Minute
+	jwtLifetime = 15 * time.Minute
 )
-
-type ClientConfig struct {
-	ID          string
-	Secret      string
-	AllowedURLs []string // For CORS and referrer checking
-	NoSecret    bool     // New field to indicate if client doesn't use a secret
-}
-
-var allowedClients = map[string]ClientConfig{
-	"slack_bot": {
-		ID:     config.GetEnvOrDefault("SAGE_SLACK_CLIENT_ID", ""),
-		Secret: config.GetEnvOrDefault("SAGE_SLACK_CLIENT_SECRET", ""),
-	},
-	"discord_bot": {
-		ID:     config.GetEnvOrDefault("SAGE_DISCORD_CLIENT_ID", ""),
-		Secret: config.GetEnvOrDefault("SAGE_DISCORD_CLIENT_SECRET", ""),
-	},
-	"widget": {
-		ID:       config.GetEnvOrDefault("SAGE_WIDGET_CLIENT_ID", ""),
-		NoSecret: true, // Widget doesn't use a secret
-		AllowedURLs: strings.Split(
-			config.GetEnvOrDefault("SAGE_WIDGET_ALLOWED_URLS", "https://deepgram.com,https://www.deepgram.com"),
-			",",
-		),
-	},
-}
 
 func init() {
 	// Validate required client configurations
-	for clientName, client := range allowedClients {
+	for clientType, client := range config.AllowedClients {
 		if client.ID == "" {
-			logger.Error("Missing required client ID for client: %s", clientName)
+			logger.Error("Missing required client ID for client: %s", clientType)
 		}
 
 		if !client.NoSecret && client.Secret == "" {
-			logger.Error("Missing required secret for client: %s", clientName)
+			logger.Error("Missing required secret for client: %s", clientType)
 		}
 
-		if clientName == "widget" && len(client.AllowedURLs) == 0 {
+		if clientType == "widget" && len(client.AllowedURLs) == 0 {
 			logger.Error("Missing required allowed URLs for widget client")
 		}
 	}
+}
+
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+}
+
+type TokenRequest struct {
+	GrantType string `json:"grant_type"`
 }
 
 func HandleToken(w http.ResponseWriter, r *http.Request) {
@@ -90,30 +72,19 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 	logger.Info("  Origin: %s", r.Header.Get("Origin"))
 
 	// Find the client config by matching ID value
-	var client ClientConfig
-	var clientKey string
-	var clientFound bool
-	for k, c := range allowedClients {
-		if c.ID == clientID {
-			clientKey = k
-			client = c
-			clientFound = true
-			break
-		}
-	}
+	clientType := config.GetClientTypeByID(clientID)
+	client := config.GetClientConfig(clientType)
 
-	logger.Debug("Client found: %t", clientFound)
-	logger.Debug("Client clientKey: %s", clientKey)
-	logger.Debug("Client config: %+v", client)
+	logger.Debug("Client type: %t", clientType)
 
-	if !clientFound {
+	if clientType == "" {
 		logger.Warn("Invalid client ID: %s", clientID)
 		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
 
 	// For widget.js requests, validate origin and referrer before proceeding
-	if clientKey == "widget" {
+	if clientType == "widget" {
 		if !validateWidgetRequest(r, client.AllowedURLs) {
 			logger.Warn("Invalid widget request origin")
 			http.Error(w, "Invalid request headers", http.StatusForbidden)
@@ -128,7 +99,7 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req auth.TokenRequest
+	var req TokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error("Failed to decode token request: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -137,26 +108,13 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info("Processing token request with grant type: %s", req.GrantType)
 
-	var session auth.Session
-	var ok bool
-
-	switch req.GrantType {
-	case auth.GrantTypeAnonymous:
-		session = sessionStore.CreateSession()
-	case auth.GrantTypeRefresh:
-		session, ok = sessionStore.RefreshSession(req.RefreshToken)
-		if !ok {
-			http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
-			return
-		}
-	default:
+	if req.GrantType != config.GrantTypeAnonymous {
 		http.Error(w, "Invalid grant type", http.StatusBadRequest)
 		return
 	}
 
 	// Generate JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sid": session.ID,
 		"exp": time.Now().Add(jwtLifetime).Unix(),
 		"iat": time.Now().Unix(),
 		"jti": uuid.New().String(),
@@ -169,17 +127,14 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := auth.TokenResponse{
-		AccessToken:  tokenString,
-		TokenType:    "Bearer",
-		ExpiresIn:    int(jwtLifetime.Seconds()),
-		RefreshToken: session.RefreshToken,
+	response := TokenResponse{
+		AccessToken: tokenString,
+		TokenType:   "Bearer",
+		ExpiresIn:   int(jwtLifetime.Seconds()),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
-
-	logger.Info("Token generated successfully for session: %s", session.ID)
 }
 
 func validateClientSecret(provided, stored string) bool {

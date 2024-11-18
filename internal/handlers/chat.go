@@ -23,8 +23,7 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, valid := validateTokenAndGetSession(tokenString)
-	if !valid {
+	if !validateToken(tokenString) {
 		logger.Error("Invalid authorization token")
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return

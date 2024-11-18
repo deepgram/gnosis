@@ -24,7 +24,8 @@ func extractToken(r *http.Request) string {
 	return parts[1]
 }
 
-func validateTokenAndGetSession(tokenString string) (string, bool) {
+// validateToken validates a token and returns true if it's valid, false otherwise
+func validateToken(tokenString string) bool {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			logger.Warn("Unexpected signing method: %v", token.Header["alg"])
@@ -35,18 +36,8 @@ func validateTokenAndGetSession(tokenString string) (string, bool) {
 
 	if err != nil || !token.Valid {
 		logger.Warn("Token validation failed: %v", err)
-		return "", false
+		return false
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", false
-	}
-
-	sessionID, ok := claims["sid"].(string)
-	if !ok {
-		return "", false
-	}
-
-	return sessionID, true
+	return true
 }
