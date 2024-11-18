@@ -95,6 +95,7 @@ func (s *Service) Query(ctx context.Context, question, queryContext string, tags
 
 	// Set headers
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", config.GetKapaAPIKey()))
 	httpReq.Header.Set("X-API-KEY", config.GetKapaAPIKey())
 
 	// Make the request

@@ -7,7 +7,7 @@ import (
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default value
-func getEnvOrDefault(key, defaultValue string) string {
+func GetEnvOrDefault(key, defaultValue string) string {
 	value := os.Getenv(key)
 	if value == "" && defaultValue == "" {
 		logger.Warn("Empty value and default for environment variable: %s", key)

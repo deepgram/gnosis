@@ -8,7 +8,7 @@ var (
 	jwtSecretMu sync.RWMutex
 	// JWTSecret is the secret key used to sign JWTs
 	// In production, this should be loaded from environment variables
-	JWTSecret = []byte(getEnvOrDefault("JWT_SECRET", "your-256-bit-secret"))
+	JWTSecret = []byte(GetEnvOrDefault("JWT_SECRET", "your-256-bit-secret"))
 )
 
 // SetJWTSecret temporarily changes the JWT secret and returns a function to restore it

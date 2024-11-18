@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	logger.Info("Starting Navi server")
+	logger.Info("Starting Sage server")
 	r := setupRouter()
 
 	logger.Info("Server starting on :8080")
