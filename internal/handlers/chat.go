@@ -23,11 +23,14 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !validateToken(tokenString) {
+	validation := validateToken(tokenString)
+	if !validation.Valid {
 		logger.Error("Invalid authorization token")
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
+
+	logger.Info("Request from client type: %s", validation.ClientType)
 
 	var req ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

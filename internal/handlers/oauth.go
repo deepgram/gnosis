@@ -44,6 +44,11 @@ type TokenRequest struct {
 	GrantType string `json:"grant_type"`
 }
 
+type CustomClaims struct {
+	jwt.RegisteredClaims
+	ClientType string `json:"ctp"`
+}
+
 func HandleToken(w http.ResponseWriter, r *http.Request) {
 	logger.Debug("Handling token request")
 	if r.Method != http.MethodPost {
@@ -113,12 +118,18 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"exp": time.Now().Add(jwtLifetime).Unix(),
-		"iat": time.Now().Unix(),
-		"jti": uuid.New().String(),
-	})
+	// Create custom claims with client type
+	claims := CustomClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtLifetime)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.New().String(),
+		},
+		ClientType: clientType,
+	}
+
+	// Generate JWT with custom claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	tokenString, err := token.SignedString(config.GetJWTSecret())
 	if err != nil {
