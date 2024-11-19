@@ -60,7 +60,7 @@ func NewService() *Service {
 	}
 }
 
-func (s *Service) Query(ctx context.Context, question, queryContext string, tags []string) (*QueryResponse, error) {
+func (s *Service) Query(ctx context.Context, question, product string, tags []string) (*QueryResponse, error) {
 	logger.Info("Querying Kapa with question: %s", question)
 
 	// Construct the request body
@@ -68,9 +68,9 @@ func (s *Service) Query(ctx context.Context, question, queryContext string, tags
 		IntegrationID: config.GetKapaIntegrationID(),
 		Query: fmt.Sprintf(`
 			Question: %s
-			Context: %s
+			Product: %v
 			Tags: %v
-		`, question, queryContext, tags),
+		`, question, product, tags),
 		User: &UserInfo{
 			Metadata: &UserMetadata{
 				StoreIP: false,
