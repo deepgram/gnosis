@@ -17,22 +17,20 @@ servers:
 paths:
   /v1/oauth/token:
     post:
-      summary: Obtain or refresh authentication tokens
+      summary: Obtain authentication tokens
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/AnonymousTokenRequest"
-                - $ref: "#/components/schemas/RefreshTokenRequest"
+              $ref: "#/components/schemas/TokenRequest"
       responses:
         "200":
           description: Successful token response
           content:
             application/json:
               schema:
-                $ref: "./schemas/components.yaml#/schemas/TokenResponse"
+                $ref: "#/components/schemas/TokenResponse"
         "400":
           description: Invalid grant type or request format
         "401":
@@ -65,7 +63,7 @@ paths:
 
 components:
   schemas:
-    AnonymousTokenRequest:
+    TokenRequest:
       type: object
       required:
         - grant_type
@@ -74,17 +72,20 @@ components:
           type: string
           enum: [anonymous]
 
-    RefreshTokenRequest:
+    TokenResponse:
       type: object
       required:
-        - grant_type
-        - refresh_token
+        - access_token
+        - token_type
+        - expires_in
       properties:
-        grant_type:
+        access_token:
           type: string
-          enum: [refresh_token]
-        refresh_token:
+        token_type:
           type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
 
     ChatCompletionRequest:
       type: object
@@ -97,6 +98,16 @@ components:
             $ref: "#/components/schemas/ChatMessage"
           minItems: 1
 
+    ChatCompletionResponse:
+      type: object
+      required:
+        - messages
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+
     ChatMessage:
       type: object
       required:
@@ -105,55 +116,14 @@ components:
       properties:
         role:
           type: string
-          enum: [system, user, assistant]
+          enum: [user, assistant]
         content:
           type: string
-        name:
-          type: string
-
-    ChatCompletionResponse:
-      type: object
-      required:
-        - id
-        - object
-        - created
-        - model
-        - choices
-      properties:
-        id:
-          type: string
-        object:
-          type: string
-          enum: [chat.completion]
-        created:
-          type: integer
-        model:
-          type: string
-        choices:
-          type: array
-          items:
-            type: object
-            required:
-              - index
-              - message
-              - finish_reason
-            properties:
-              index:
-                type: integer
-              message:
-                $ref: "#/components/schemas/ChatMessage"
-              finish_reason:
-                type: string
-                enum: [stop, length, content_filter]
-        usage:
-          type: object
-          properties:
-            prompt_tokens:
-              type: integer
-            completion_tokens:
-              type: integer
-            total_tokens:
-              type: integer
+      additionalProperties: false
 
   securitySchemes:
-    $ref: "./schemas/components.yaml#/securitySchemes"
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Use the access token to authenticate your requests
+
