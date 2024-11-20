@@ -52,6 +52,12 @@ type Repository struct {
 
 func NewService() *Service {
 	logger.Info("Initialising GitHub service")
+	token := config.GetGitHubToken()
+	if token == "" {
+		logger.Error("GitHub token is empty")
+	} else {
+		logger.Debug("GitHub token configured successfully")
+	}
 	return &Service{
 		client:  &http.Client{},
 		token:   config.GetGitHubToken(),
@@ -59,7 +65,7 @@ func NewService() *Service {
 		headers: map[string]string{
 			"Accept":               "application/vnd.github.v3+json",
 			"X-GitHub-Api-Version": "2022-11-28",
-			"Authorization":        fmt.Sprintf("Bearer %s", config.GetGitHubToken()),
+			"Authorization":        fmt.Sprintf("Bearer %s", token),
 		},
 	}
 }
@@ -144,12 +150,20 @@ func (s *Service) GetRepoReadme(ctx context.Context, repo string) (*ReadmeRespon
 	logger.Info("Getting README for repo: %s", repo)
 
 	url := fmt.Sprintf("%s/repos/%s/readme", s.baseURL, repo)
+	logger.Debug("Requesting README from URL: %s", url)
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		logger.Error("Failed to create request: %v", err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add headers logging
+	logger.Debug("Setting request headers")
+	for key, value := range s.headers {
+		req.Header.Set(key, value)
+		logger.Debug("Header set - %s: %s", key, value)
 	}
 
 	// Make request
@@ -159,6 +173,12 @@ func (s *Service) GetRepoReadme(ctx context.Context, repo string) (*ReadmeRespon
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Add response headers logging
+	logger.Debug("Response headers:")
+	for key, values := range resp.Header {
+		logger.Debug("  %s: %v", key, values)
+	}
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {

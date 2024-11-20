@@ -61,7 +61,8 @@ func NewService() *Service {
 }
 
 func (s *Service) Query(ctx context.Context, question, product string, tags []string) (*QueryResponse, error) {
-	logger.Info("Querying Kapa with question: %s", question)
+	logger.Info("Starting Kapa query")
+	logger.Debug("Query parameters - question: %s, product: %s, tags: %v", question, product, tags)
 
 	// Construct the request body
 	req := QueryRequest{
@@ -77,6 +78,7 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 			},
 		},
 	}
+	logger.Debug("Constructed query request with integration ID: %s", req.IntegrationID)
 
 	// Convert request to JSON
 	jsonData, err := json.Marshal(req)
@@ -84,9 +86,12 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 		logger.Error("Failed to marshal request: %v", err)
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+	logger.Debug("Request JSON: %s", string(jsonData))
 
 	// Create the HTTP request
 	url := fmt.Sprintf("%s/query/v1/projects/%s/chat/", s.baseURL, s.projectID)
+	logger.Debug("Full request URL: %s", url)
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		logger.Error("Failed to create request: %v", err)
@@ -94,17 +99,25 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 	}
 
 	// Set headers
+	logger.Debug("Setting request headers")
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", config.GetKapaAPIKey()))
 	httpReq.Header.Set("X-API-KEY", config.GetKapaAPIKey())
 
 	// Make the request
+	logger.Debug("Sending HTTP request to Kapa API")
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
 		logger.Error("Failed to make request: %v", err)
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	logger.Debug("Received response from Kapa API - Status: %d", resp.StatusCode)
+	logger.Debug("Response headers:")
+	for key, values := range resp.Header {
+		logger.Debug("  %s: %v", key, values)
+	}
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
@@ -120,6 +133,14 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	logger.Debug("Successfully received response from Kapa")
+	logger.Debug("Successfully parsed response - Answer length: %d chars", len(queryResp.Answer))
+	logger.Debug("Thread ID: %s, Question Answer ID: %s", queryResp.ThreadID, queryResp.QuestionAnswerID)
+	logger.Debug("Is Uncertain: %v, Number of Relevant Sources: %d", queryResp.IsUncertain, len(queryResp.RelevantSources))
+
+	for i, source := range queryResp.RelevantSources {
+		logger.Debug("Source %d: Title=%s, URL=%s, Internal=%v",
+			i+1, source.Title, source.SourceURL, source.ContainsInternalData)
+	}
+
 	return &queryResp, nil
 }

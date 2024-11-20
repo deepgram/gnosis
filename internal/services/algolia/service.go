@@ -45,7 +45,8 @@ func NewService() *Service {
 }
 
 func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, error) {
-	logger.Info("Searching Algolia with query: %s", query)
+	logger.Info("Starting Algolia search")
+	logger.Debug("Search parameters - query: %s", query)
 
 	// Construct the request body
 	req := SearchRequest{
@@ -54,6 +55,7 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 		HitsPerPage:          1,
 		Filters:              "type:content AND NOT content:null",
 	}
+	logger.Debug("Constructed search request with filters: %s", req.Filters)
 
 	// Convert request to JSON
 	jsonData, err := json.Marshal(req)
@@ -61,9 +63,12 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 		logger.Error("Failed to marshal request: %v", err)
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+	logger.Debug("Request JSON: %s", string(jsonData))
 
 	// Create the HTTP request
 	url := fmt.Sprintf("https://%s-dsn.algolia.net/1/indexes/%s/query", s.appID, s.indexName)
+	logger.Debug("Full request URL: %s", url)
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		logger.Error("Failed to create request: %v", err)
@@ -71,17 +76,25 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 	}
 
 	// Set headers
+	logger.Debug("Setting request headers")
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Algolia-API-Key", s.apiKey)
 	httpReq.Header.Set("X-Algolia-Application-ID", s.appID)
 
 	// Make the request
+	logger.Debug("Sending HTTP request to Algolia API")
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
 		logger.Error("Failed to make request: %v", err)
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	logger.Debug("Received response from Algolia API - Status: %d", resp.StatusCode)
+	logger.Debug("Response headers:")
+	for key, values := range resp.Header {
+		logger.Debug("  %s: %v", key, values)
+	}
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
@@ -97,6 +110,10 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	logger.Debug("Successfully received response from Algolia")
+	logger.Debug("Successfully parsed response - Found %d hits", len(searchResp.Hits))
+	for i, hit := range searchResp.Hits {
+		logger.Debug("Hit %d: Title=%s, URL=%s", i+1, hit.Title, hit.URL)
+	}
+
 	return &searchResp, nil
 }

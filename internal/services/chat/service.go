@@ -43,7 +43,7 @@ type Service struct {
 
 func NewService() *Service {
 	logger.Info("Initializing chat service")
-	client := openai.NewClient(string(config.GetOpenAIKey()))
+	client := openai.NewClient(config.GetOpenAIKey())
 	logger.Debug("OpenAI client initialized")
 	return &Service{
 		openaiClient: client,
@@ -51,7 +51,9 @@ func NewService() *Service {
 }
 
 func (s *Service) ProcessChat(ctx context.Context, messages []openai.ChatCompletionMessage) (*openai.ChatCompletionMessage, error) {
-	logger.Info("Processing chat request with %d messages", len(messages))
+	logger.Info("Starting chat processing")
+	logger.Debug("Processing %d messages", len(messages))
+
 	if len(messages) == 0 {
 		logger.Warn("Received empty messages array for chat processing")
 		return nil, fmt.Errorf("empty messages array")
@@ -62,9 +64,17 @@ func (s *Service) ProcessChat(ctx context.Context, messages []openai.ChatComplet
 		logger.Warn("Large message array received: %d messages", len(messages))
 	}
 
+	// Log message details at debug level
+	for i, msg := range messages {
+		logger.Debug("Message %d - Role: %s, Content length: %d",
+			i+1, msg.Role, len(msg.Content))
+	}
+
 	req := s.buildChatRequest(messages)
+	logger.Debug("Built chat request with model: %s", req.Model)
 
 	for {
+		logger.Debug("Making request to OpenAI")
 		resp, err := s.openaiClient.CreateChatCompletion(ctx, req)
 		if err != nil {
 			logger.Error("OpenAI request failed: %v", err)
@@ -77,15 +87,18 @@ func (s *Service) ProcessChat(ctx context.Context, messages []openai.ChatComplet
 		}
 
 		message := resp.Choices[0].Message
+		logger.Debug("Received message - Role: %s, Content length: %d, Tool calls: %d",
+			message.Role, len(message.Content), len(message.ToolCalls))
 
 		// Return if we have a content response
 		if message.Role == openai.ChatMessageRoleAssistant && message.Content != "" {
+			logger.Debug("Returning content response of length: %d", len(message.Content))
 			return &message, nil
 		}
 
 		// Handle tool calls
 		if message.Role == openai.ChatMessageRoleAssistant && len(message.ToolCalls) > 0 {
-			logger.Info("Processing %d tool calls", len(message.ToolCalls))
+			logger.Debug("Processing %d tool calls", len(message.ToolCalls))
 			// Add the assistant's message with tool calls
 			req.Messages = append(req.Messages, message)
 

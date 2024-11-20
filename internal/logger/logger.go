@@ -56,3 +56,9 @@ func Error(format string, v ...interface{}) {
 		log.Printf("[ERROR] "+format, v...)
 	}
 }
+
+func Fatal(format string, v ...interface{}) {
+	if currentLevel >= ERROR {
+		log.Printf("[FATAL] "+format, v...)
+	}
+}

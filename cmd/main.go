@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/deepgram/codename-sage/internal/handlers"
@@ -15,8 +14,7 @@ func main() {
 
 	logger.Info("Server starting on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
-		logger.Error("ListenAndServe error: %v", err)
-		log.Fatal(err)
+		logger.Fatal("ListenAndServe error: %v", err)
 	}
 }
 

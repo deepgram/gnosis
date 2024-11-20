@@ -18,6 +18,7 @@ var (
 )
 
 func init() {
+	logger.Info("Initializing OAuth handler")
 	// Validate required client configurations
 	for clientType, client := range config.AllowedClients {
 		if client.ID == "" {
@@ -32,6 +33,7 @@ func init() {
 			logger.Error("Missing required allowed URLs for widget client")
 		}
 	}
+	logger.Debug("OAuth handler initialization complete")
 }
 
 type TokenResponse struct {
@@ -50,9 +52,9 @@ type CustomClaims struct {
 }
 
 func HandleToken(w http.ResponseWriter, r *http.Request) {
-	logger.Debug("Handling token request")
+	logger.Debug("Handling token request from %s", r.RemoteAddr)
 	if r.Method != http.MethodPost {
-		logger.Warn("Invalid method: %s", r.Method)
+		logger.Warn("Invalid HTTP method %s from %s", r.Method, r.RemoteAddr)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -80,28 +82,34 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 	clientType := config.GetClientTypeByID(clientID)
 	client := config.GetClientConfig(clientType)
 
-	logger.Debug("Client type: %t", clientType)
+	logger.Debug("Identified client type: %s", clientType)
 
 	if clientType == "" {
-		logger.Warn("Invalid client ID: %s", clientID)
+		logger.Warn("Invalid client ID attempted access: %s from %s", clientID, r.RemoteAddr)
 		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
 
 	// For widget.js requests, validate origin and referrer before proceeding
 	if clientType == "widget" {
+		logger.Debug("Validating widget request from origin: %s", r.Header.Get("Origin"))
 		if !validateWidgetRequest(r, client.AllowedURLs) {
-			logger.Warn("Invalid widget request origin")
+			logger.Warn("Invalid widget request origin from %s", r.RemoteAddr)
 			http.Error(w, "Invalid request headers", http.StatusForbidden)
 			return
 		}
+		logger.Debug("Widget request validation successful")
 	}
 
 	// Only validate client secret for clients that require it
-	if !client.NoSecret && !validateClientSecret(clientSecret, client.Secret) {
-		logger.Warn("Invalid client secret for: %s", clientID)
-		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
-		return
+	if !client.NoSecret {
+		logger.Debug("Validating client secret for client type: %s", clientType)
+		if !validateClientSecret(clientSecret, client.Secret) {
+			logger.Warn("Invalid client secret attempt for client ID: %s from %s", clientID, r.RemoteAddr)
+			http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
+			return
+		}
+		logger.Debug("Client secret validation successful")
 	}
 
 	var req TokenRequest
@@ -131,12 +139,16 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 	// Generate JWT with custom claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
+	logger.Info("Generating JWT token for client type: %s", clientType)
 	tokenString, err := token.SignedString(config.GetJWTSecret())
 	if err != nil {
-		logger.Error("Failed to sign JWT token: %v", err)
+		logger.Error("JWT signing failed: %v", err)
 		http.Error(w, "Error creating token", http.StatusInternalServerError)
 		return
 	}
+
+	logger.Info("Successfully issued token to client ID: %s", clientID)
+	logger.Debug("Token expiry set to: %v", claims.ExpiresAt)
 
 	response := TokenResponse{
 		AccessToken: tokenString,
@@ -156,9 +168,10 @@ func validateWidgetRequest(r *http.Request, allowedURLs []string) bool {
 	origin := r.Header.Get("Origin")
 	referer := r.Header.Get("Referer")
 
-	// For widget requests, we must have either origin or referer to validate the domain
+	logger.Debug("Validating widget request - Origin: %s, Referer: %s", origin, referer)
+
 	if origin == "" && referer == "" {
-		logger.Warn("Widget request missing both Origin and Referer headers")
+		logger.Warn("Widget request missing both Origin and Referer headers from %s", r.RemoteAddr)
 		return false
 	}
 
@@ -195,5 +208,6 @@ func validateWidgetRequest(r *http.Request, allowedURLs []string) bool {
 	}
 
 	// At this point, we have validated at least one of origin or referer
+	logger.Debug("Widget request validation result: %v", true)
 	return true
 }
