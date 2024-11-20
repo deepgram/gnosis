@@ -2,12 +2,14 @@ package chat
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
 	"github.com/deepgram/codename-sage/internal/config"
 	"github.com/deepgram/codename-sage/internal/logger"
 	"github.com/deepgram/codename-sage/internal/services/algolia"
+	"github.com/deepgram/codename-sage/internal/services/github"
 	"github.com/deepgram/codename-sage/internal/services/kapa"
 	"github.com/sashabaranov/go-openai"
 )
@@ -21,6 +23,7 @@ Communicate these Deepgram service differences clearly:
 - 'https://api.deepgram.com/v1/read': Text Intelligence
 - 'https://api.deepgram.com/v1/speak': Text-to-speech (TTS)
 - 'wss://api.deepgram.com/v1/speak': Live Text-to-speech (TTS)
+- 'wss://api.deepgram.com/v1/agent': Voice Agent / Speech-to-speech (S2S) / Live Speech-to-speech (S2S)
 
 ## Request handling
 - If the question is asked in a language other than English, translate it to English before using the tools.
@@ -137,15 +140,20 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage) open
 			{
 				Type: "function",
 				Function: &openai.FunctionDefinition{
-					Name:        "search_code_samples",
-					Description: "Search for code samples for a specific programming language",
+					Name:        "search_starter_apps",
+					Description: "Search by language and topic for a getting started app",
 					Strict:      true,
 					Parameters: map[string]interface{}{
 						"type": "object",
 						"properties": map[string]interface{}{
-							"query": map[string]interface{}{
-								"type":        "string",
-								"description": "Search term or phrase to find relevant code samples",
+							"topics": map[string]interface{}{
+								"type":        "array",
+								"description": "The topics to search for",
+								"items": map[string]interface{}{
+									"type":        "string",
+									"enum":        []string{"live", "speech-to-text", "text-intelligence", "text-to-speech", "voice-agent"},
+									"description": "The topic to search for",
+								},
 							},
 							"language": map[string]interface{}{
 								"type":        "string",
@@ -153,7 +161,7 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage) open
 								"description": "The programming language of the code samples to retrieve",
 							},
 						},
-						"required":             []string{"query", "language"},
+						"required":             []string{"topics", "language"},
 						"additionalProperties": false,
 					},
 				},
@@ -174,7 +182,7 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage) open
 							"product": map[string]interface{}{
 								"type":        "string",
 								"description": "The product the question is about",
-								"enum":        []string{"speech-to-text", "text-intelligence", "text-to-speech", ""},
+								"enum":        []string{"speech-to-text", "text-intelligence", "text-to-speech", "voice-agent"},
 							},
 							"tags": map[string]interface{}{
 								"type":        "array",
@@ -231,27 +239,50 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 
 		return response, nil
 
-	case "search_code_samples":
-		var params struct {
-			Query    string `json:"query"`
-			Language string `json:"language"`
-		}
-		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
-			return "", fmt.Errorf("invalid parameters: %v", err)
-		}
-		// TODO: Implement code samples search
-		return "Here's a code sample: ```python\nprint('Hello, world!')\n```", nil
-
 	case "search_starter_apps":
 		var params struct {
-			Query    string `json:"query"`
-			Language string `json:"language"`
+			Topics   []string `json:"topics"`
+			Language string   `json:"language"`
 		}
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			return "", fmt.Errorf("invalid parameters: %v", err)
 		}
-		// TODO: Implement code samples search
-		return "Here's a code sample: ```python\nprint('Hello, world!')\n```", nil
+
+		githubService := github.NewService()
+		searchResult, err := githubService.SearchRepos(ctx, "deepgram-starters", params.Language, params.Topics)
+		if err != nil {
+			return "", fmt.Errorf("github search failed: %w", err)
+		}
+
+		if len(searchResult.Items) == 0 {
+			return "No relevant code samples found.", nil
+		}
+
+		// Get the first repo (should be the most relevant)
+		repo := searchResult.Items[0]
+
+		// Get the README for the repo
+		readmeResult, err := githubService.GetRepoReadme(ctx, repo.FullName)
+		if err != nil {
+			return "", fmt.Errorf("github readme failed: %w", err)
+		}
+
+		readmeContents, err := base64.StdEncoding.DecodeString(readmeResult.Content)
+		if err != nil {
+			return "", fmt.Errorf("unable to decode contents: %w", err)
+		}
+
+		response := fmt.Sprintf("Found relevant starter app:\n\nRepo: %s\nDescription: %s\nInstructions to use:\n%s",
+			repo.HTMLURL,
+			repo.Description,
+			string(readmeContents),
+		)
+
+		logger.Info("Starter app search response: %s", response)
+
+		// Return a markdown response
+		return response, nil
+
 	case "ask_kapa":
 		var params struct {
 			Question string   `json:"question"`
@@ -275,6 +306,7 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 
 		// Return the answer
 		return resp.Answer, nil
+
 	default:
 		return "", fmt.Errorf("unknown function: %s", tool.Function.Name)
 	}
