@@ -15,7 +15,7 @@ servers:
     description: Production server
 
 paths:
-  /oauth/token:
+  /v1/oauth/token:
     post:
       summary: Obtain or refresh authentication tokens
       requestBody:
@@ -38,7 +38,7 @@ paths:
         "401":
           description: Invalid refresh token
 
-  /chat/completions:
+  /v1/chat/completions:
     post:
       summary: Create a chat completion
       security:

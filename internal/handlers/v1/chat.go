@@ -1,4 +1,4 @@
-package handlers
+package v1
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/deepgram/codename-sage/internal/logger"
 	"github.com/deepgram/codename-sage/internal/services/chat"
+	"github.com/deepgram/codename-sage/internal/services/oauth"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -17,7 +18,7 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 	logger.Debug("Starting chat completion handler")
 	logger.Info("Received chat completion request")
 
-	tokenString := extractToken(r)
+	tokenString := oauth.ExtractToken(r)
 	if tokenString == "" {
 		logger.Error("Missing authorization token")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -25,7 +26,7 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.Debug("Token extracted, proceeding with validation")
-	validation := validateToken(tokenString)
+	validation := oauth.ValidateToken(tokenString)
 	if !validation.Valid {
 		logger.Error("Invalid authorization token: %v", validation)
 		http.Error(w, "Invalid token", http.StatusUnauthorized)

@@ -21,8 +21,12 @@ func main() {
 func setupRouter() *mux.Router {
 	logger.Debug("Setting up router")
 	r := mux.NewRouter()
-	r.HandleFunc("/oauth/token", handlers.HandleToken).Methods("POST")
-	r.HandleFunc("/chat/completions", handlers.HandleChatCompletion).Methods("POST")
+
+	// v1 routes
+	v1 := r.PathPrefix("/v1").Subrouter()
+	v1.HandleFunc("/oauth/token", handlers.HandleTokenV1).Methods("POST")
+	v1.HandleFunc("/chat/completions", handlers.HandleChatCompletionV1).Methods("POST")
+
 	logger.Debug("Router setup complete")
 	return r
 }

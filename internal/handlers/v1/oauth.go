@@ -1,4 +1,4 @@
-package handlers
+package v1
 
 import (
 	"crypto/subtle"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/deepgram/codename-sage/internal/config"
 	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/codename-sage/internal/services/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -44,11 +45,6 @@ type TokenResponse struct {
 
 type TokenRequest struct {
 	GrantType string `json:"grant_type"`
-}
-
-type CustomClaims struct {
-	jwt.RegisteredClaims
-	ClientType string `json:"ctp"`
 }
 
 func HandleToken(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +123,7 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create custom claims with client type
-	claims := CustomClaims{
+	claims := oauth.CustomClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtLifetime)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

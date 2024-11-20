@@ -1,4 +1,4 @@
-package handlers
+package oauth
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func extractToken(r *http.Request) string {
+func ExtractToken(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		logger.Debug("No Authorization header found")
@@ -33,8 +33,13 @@ type TokenValidationResult struct {
 	ClientType string
 }
 
+type CustomClaims struct {
+	jwt.RegisteredClaims
+	ClientType string `json:"ctp"`
+}
+
 // Update the validateToken function to return client type
-func validateToken(tokenString string) TokenValidationResult {
+func ValidateToken(tokenString string) TokenValidationResult {
 	result := TokenValidationResult{Valid: false}
 
 	if tokenString == "" {

@@ -53,12 +53,12 @@ func Warn(format string, v ...interface{}) {
 
 func Error(format string, v ...interface{}) {
 	if currentLevel >= ERROR {
-		log.Printf("[ERROR] "+format, v...)
+		log.New(os.Stderr, "", log.LstdFlags).Printf("[ERROR] "+format, v...)
 	}
 }
 
 func Fatal(format string, v ...interface{}) {
 	if currentLevel >= ERROR {
-		log.Printf("[FATAL] "+format, v...)
+		log.New(os.Stderr, "", log.LstdFlags).Printf("[FATAL] "+format, v...)
 	}
 }
