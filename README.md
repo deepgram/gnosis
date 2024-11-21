@@ -6,8 +6,9 @@ Sage is a lightweight API gateway that provides secure, managed access to variou
 
 - Add support for streaming responses. I'd like to be able to stream back to the client as the LLM is processing the request.
 - Add support for tool calls. I'd like to be able to augment (safely) the system prompt and add tool calls to the LLM, with the built-in system prompt and tool calls being unaffected (and filtered from the responses), allowing for the client apps to use their own tool calls on top of the Sage-provided ones.
-- Introduce the react app into another part of the directory structure, and have Sage build and serve it as widget.js when requested by the client.
-- Add a /v1/sessions/{session_id} endpoint that allows a client with a server session to request a JWT token for a client session without going through the entire OAuth flow - allowing for browser-clients to securely use Sage without exposing any client secrets.
+- Introduce the react app into another part of the directory structure, and have Sage build and serve it as widget.js when requested by the client. When it serves the widget.js, it should introduce a unique ID into the global namespace. The server session should store information about the user so when a JWT is requested from POST /v1/sessions, we can check the session for the same user information and return a JWT if no bad-actor behavior is detected (i.e. different IPs, user agents, etc).
+- Add a POST /v1/sessions endpoint that allows a client with a server session to request a JWT token for a client session without going through the entire OAuth flow - allowing for browser-clients to securely use Sage without exposing any client secrets.
+- Turn on/off different tool calls based on whether or not the server has included the required environment variables.
 
 ## Features
 
