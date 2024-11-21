@@ -22,6 +22,9 @@ func setupRouter() *mux.Router {
 	logger.Debug("Setting up router")
 	r := mux.NewRouter()
 
+	// Static routes
+	r.HandleFunc("/widget.js", handlers.HandleWidgetJS).Methods("GET")
+
 	// v1 routes
 	v1 := r.PathPrefix("/v1").Subrouter()
 	v1.HandleFunc("/oauth/token", handlers.HandleTokenV1).Methods("POST")
