@@ -68,29 +68,71 @@ Sage is a lightweight API gateway that provides secure, managed access to variou
 ## Installation
 
 1. Clone the repository:
-   `git clone https://github.com/deepgram/codename-sage.git`
+
+```sh
+git clone https://github.com/deepgram/codename-sage.git
+```
 
 2. Navigate to the project directory:
-   `cd codename-sage`
+
+```sh
+cd codename-sage
+```
 
 3. Install dependencies:
-   `go mod download`
+
+```sh
+go mod download
+```
 
 ## Configuration
 
 Create a .env file in the project root with the following variables:
 
-```env
+```sh
+# JWT Secret
+
 JWT_SECRET=your-256-bit-secret
+
+# OpenAI API Key
+
 OPENAI_KEY=your-openai-key
-KAPA_INTEGRATION_ID=your-kapa-integration-id
-KAPA_PROJECT_ID=your-kapa-project-id
-KAPA_API_KEY=your-kapa-api-key
+
+# Kapa Credentials
+
+KAPA_INTEGRATION_ID=kapa-integration-id
+KAPA_PROJECT_ID=kapa-project-id
+KAPA_API_KEY=kapa-api-key
+
+# Slack Bot Client Credentials
+
+SAGE_SLACK_CLIENT_ID=your_slack_client_id
+SAGE_SLACK_CLIENT_SECRET=your_slack_client_secret
+
+# Discord Bot Client Credentials
+
+SAGE_DISCORD_CLIENT_ID=your_discord_client_id
+SAGE_DISCORD_CLIENT_SECRET=your_discord_client_secret
+
+# Widget Client Credentials
+
+SAGE_WIDGET_CLIENT_ID=your_widget_client_id
+SAGE_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
+
+# Algolia Credentials
+
+ALGOLIA_APP_ID=your_algolia_app_id
+ALGOLIA_API_KEY=your_algolia_api_key
+ALGOLIA_INDEX_NAME=your_index_name
+
+# GitHub Token
+
+GITHUB_TOKEN=your_github_token
 ```
 
 Optional environment variables:
 
-```env
+```sh
 LOG_LEVEL=INFO (DEBUG|INFO|WARN|ERROR)
 ```
 
@@ -113,12 +155,12 @@ The service will start on port 8080 by default.
 
 ## API Endpoints
 
-### POST /oauth/token
+### POST /v1/oauth/token
 
 Authenticate and receive JWT tokens
 Supports anonymous authentication and token refresh
 
-### POST /chat/completions
+### POST /v1/chat/completions
 
 Send chat completion requests
 Requires valid JWT token in Authorization header
@@ -155,15 +197,15 @@ make clean
 
 ```text
 /cmd
-  main.go # Application entry point
+   main.go # Application entry point
 /internal
-/config # Configuration management
-/handlers # HTTP request handlers
-/logger # Logging utilities
-/services # Business logic
-/types # Shared types and interfaces
+   /config # Configuration management
+   /handlers # HTTP request handlers
+   /logger # Logging utilities
+   /services # Business logic
+   /types # Shared types and interfaces
 /api
-  openapi.yaml # API documentation
+   openapi.yaml # API documentation
 ```
 
 ## Contributing
