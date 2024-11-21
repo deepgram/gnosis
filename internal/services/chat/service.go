@@ -205,6 +205,13 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 		}
 	}
 
+	// Pretty print the request object as JSON for debugging
+	if jsonBytes, err := json.MarshalIndent(req, "", "  "); err == nil {
+		logger.Debug("OpenAI request:\n%s", string(jsonBytes))
+	} else {
+		logger.Error("Failed to marshal OpenAI request for debugging: %v", err)
+	}
+
 	return req
 }
 
