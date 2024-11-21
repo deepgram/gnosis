@@ -7,11 +7,14 @@ import (
 	"github.com/deepgram/codename-sage/internal/logger"
 	"github.com/deepgram/codename-sage/internal/services/chat"
 	"github.com/deepgram/codename-sage/internal/services/oauth"
-	"github.com/sashabaranov/go-openai"
 )
 
 type ChatCompletionRequest struct {
-	Messages []openai.ChatCompletionMessage `json:"messages"`
+	Messages []chat.ChatMessage `json:"messages"`
+}
+
+type ChatCompletionResponse struct {
+	Messages []chat.ChatMessage `json:"messages"`
 }
 
 func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
@@ -44,9 +47,20 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Messages) == 0 {
-		logger.Warn("Received chat completion request with empty messages array")
+		logger.Error("Request must contain at least one message")
+		http.Error(w, "Request must contain at least one message", http.StatusBadRequest)
+		return
 	}
-	logger.Info("Chat completion request validated, processing with %d messages", len(req.Messages))
+	logger.Info("Chat completion request received, processing with %d messages", len(req.Messages))
+
+	for _, msg := range req.Messages {
+		if msg.Role != "user" && msg.Role != "assistant" {
+			logger.Error("Invalid message role: %s", msg.Role)
+			http.Error(w, "Message role must be 'user' or 'assistant'", http.StatusBadRequest)
+			return
+		}
+	}
+
 	logger.Debug("Initializing chat service")
 
 	chatService := chat.NewService()
@@ -57,14 +71,15 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger.Debug("Setting response headers")
-	w.Header().Set("Content-Type", "application/json")
+	resp := ChatCompletionResponse{
+		Messages: append(req.Messages, *response),
+	}
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		logger.Error("Failed to encode response: %v", err)
 		return
 	}
 
 	logger.Info("Chat completion response generated successfully")
-	logger.Debug("Handler completed successfully")
 }

@@ -50,7 +50,12 @@ func NewService() *Service {
 	}
 }
 
-func (s *Service) ProcessChat(ctx context.Context, messages []openai.ChatCompletionMessage) (*openai.ChatCompletionMessage, error) {
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage) (*ChatMessage, error) {
 	logger.Info("Starting chat processing")
 	logger.Debug("Processing %d messages", len(messages))
 
@@ -70,7 +75,16 @@ func (s *Service) ProcessChat(ctx context.Context, messages []openai.ChatComplet
 			i+1, msg.Role, len(msg.Content))
 	}
 
-	req := s.buildChatRequest(messages)
+	// Convert our ChatMessage type to OpenAI's type
+	openaiMessages := make([]openai.ChatCompletionMessage, len(messages))
+	for i, msg := range messages {
+		openaiMessages[i] = openai.ChatCompletionMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+	}
+
+	req := s.buildChatRequest(openaiMessages)
 	logger.Debug("Built chat request with model: %s", req.Model)
 
 	for {
@@ -93,7 +107,11 @@ func (s *Service) ProcessChat(ctx context.Context, messages []openai.ChatComplet
 		// Return if we have a content response
 		if message.Role == openai.ChatMessageRoleAssistant && message.Content != "" {
 			logger.Debug("Returning content response of length: %d", len(message.Content))
-			return &message, nil
+			// Convert response back to our ChatMessage type
+			return &ChatMessage{
+				Role:    message.Role,
+				Content: message.Content,
+			}, nil
 		}
 
 		// Handle tool calls
