@@ -10,11 +10,12 @@ import (
 )
 
 type ChatCompletionRequest struct {
-	Messages []chat.ChatMessage `json:"messages"`
-}
-
-type ChatCompletionResponse struct {
-	Messages []chat.ChatMessage `json:"messages"`
+	Messages         []chat.ChatMessage `json:"messages"`
+	Temperature      float32            `json:"temperature,omitempty"`
+	MaxTokens        int                `json:"max_tokens,omitempty"`
+	TopP             float32            `json:"top_p,omitempty"`
+	PresencePenalty  float32            `json:"presence_penalty,omitempty"`
+	FrequencyPenalty float32            `json:"frequency_penalty,omitempty"`
 }
 
 func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
@@ -51,32 +52,43 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Request must contain at least one message", http.StatusBadRequest)
 		return
 	}
-	logger.Info("Chat completion request received, processing with %d messages", len(req.Messages))
 
-	for _, msg := range req.Messages {
-		if msg.Role != "user" && msg.Role != "assistant" {
-			logger.Error("Invalid message role: %s", msg.Role)
-			http.Error(w, "Message role must be 'user' or 'assistant'", http.StatusBadRequest)
-			return
-		}
+	if req.Temperature < 0 || req.Temperature > 2 {
+		logger.Error("Invalid temperature value: %f", req.Temperature)
+		http.Error(w, "Temperature must be between 0 and 2", http.StatusBadRequest)
+		return
 	}
 
-	logger.Debug("Initializing chat service")
+	if req.TopP < 0 || req.TopP > 1 {
+		logger.Error("Invalid top_p value: %f", req.TopP)
+		http.Error(w, "Top_p must be between 0 and 1", http.StatusBadRequest)
+		return
+	}
+
+	if req.MaxTokens < 0 || req.MaxTokens > 4096 {
+		logger.Error("Invalid max_tokens value: %d", req.MaxTokens)
+		http.Error(w, "Max_tokens must be between 1 and 4096", http.StatusBadRequest)
+		return
+	}
 
 	chatService := chat.NewService()
-	response, err := chatService.ProcessChat(r.Context(), req.Messages)
+	config := &chat.ChatConfig{
+		Temperature:      req.Temperature,
+		MaxTokens:        req.MaxTokens,
+		TopP:             req.TopP,
+		PresencePenalty:  req.PresencePenalty,
+		FrequencyPenalty: req.FrequencyPenalty,
+	}
+
+	response, err := chatService.ProcessChat(r.Context(), req.Messages, config)
 	if err != nil {
 		logger.Error("Chat service error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	resp := ChatCompletionResponse{
-		Messages: append(req.Messages, *response),
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		logger.Error("Failed to encode response: %v", err)
 		return
 	}
