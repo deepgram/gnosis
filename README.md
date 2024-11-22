@@ -2,63 +2,44 @@
 
 Sage is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
 
-## TODO
+## Roadmap
 
-- Add support for streaming responses. I'd like to be able to stream back to the client as the LLM is processing the request.
-- Add support for tool calls. I'd like to be able to augment (safely) the system prompt and add tool calls to the LLM, with the built-in system prompt and tool calls being unaffected (and filtered from the responses), allowing for the client apps to use their own tool calls on top of the Sage-provided ones.
-- Introduce the react app into another part of the directory structure, and have Sage build and serve it as widget.js when requested by the client. When it serves the widget.js, it should introduce a unique ID into the global namespace. The server session should store information about the user so when a JWT is requested from POST /v1/sessions, we can check the session for the same user information and return a JWT if no bad-actor behavior is detected (i.e. different IPs, user agents, etc).
-- Add a POST /v1/sessions endpoint that allows a client with a server session to request a JWT token for a client session without going through the entire OAuth flow - allowing for browser-clients to securely use Sage without exposing any client secrets.
-- Turn on/off different tool calls based on whether or not the server has included the required environment variables.
+### API Enhancements
+
+- [ ] Implement streaming responses for real-time LLM processing feedback
+- [ ] Add configurable tool calls system:
+  - Allow clients to safely augment system prompts
+  - Support custom tool calls alongside Sage's built-in ones
+  - Enable/disable tool calls based on environment configuration
+- [ ] Add `POST /v1/sessions` endpoint for secure browser-client authentication:
+  - Skip OAuth flow for validated server sessions
+  - Implement session validation (IP, user agent, etc.)
+  - Return JWT tokens for verified clients
+
+### Widget Integration
+
+- [ ] Integrate React widget application:
+  - Move widget code to dedicated directory
+  - Implement build process for `widget.js`
+  - Generate unique widget IDs per instance
+  - Add session tracking for security validation
+
+### Security Improvements
+
+- [ ] Enhance session management:
+  - Track user information across requests
+  - Implement bad actor detection
+  - Add rate limiting per session
+- [ ] Improve environment-based feature toggling
 
 ## Features
 
-### Authentication & Security
-
-- Secure JWT-based authentication flow
-- Anonymous session support for quick access
-- Token refresh mechanism
-- Environment-based configuration for sensitive data
-- Rate limiting and request validation
-
-### API Integration
-
-- Seamless integration with OpenAI's GPT-4
-- Direct connection to Kapa.ai knowledge base
-- Extensible architecture for additional AI services
-- Structured response formatting
-- Comprehensive error handling
-
-### Performance & Reliability
-
-- Lightweight, stateless design
-- Concurrent request handling
-- Graceful error recovery
-- Structured logging with configurable levels
-- Request context management
-
-### Development Experience
-
-- Clear project structure following Go best practices
-- Comprehensive API documentation using OpenAPI 3.0
-- Environment-based configuration
-- Docker support for consistent deployments
-- Built-in development tools and commands
-
-### Monitoring & Debugging
-
-- Detailed logging with configurable verbosity
-- Request tracing capabilities
-- Error tracking and reporting
-- Performance metrics collection
-- Debug endpoints for development
-
-### Standards Compliance
-
-- RESTful API design
-- OpenAPI 3.0 specification
-- JSON response formatting
-- Standard HTTP status codes
-- Bearer token authentication
+- **Authentication & Security**: JWT-based auth, anonymous sessions, rate limiting
+- **API Integration**: OpenAI GPT-4, Kapa.ai knowledge base, extensible architecture
+- **Performance**: Lightweight stateless design, concurrent request handling
+- **Development**: Go best practices, OpenAPI 3.0 docs, environment-based config
+- **Monitoring**: Structured logging, request tracing, error tracking
+- **Standards**: RESTful API, OpenAPI 3.0, JSON responses, bearer auth
 
 ## Prerequisites
 
@@ -71,15 +52,10 @@ Sage is a lightweight API gateway that provides secure, managed access to variou
 
 ```sh
 git clone https://github.com/deepgram/codename-sage.git
-```
-
-2. Navigate to the project directory:
-
-```sh
 cd codename-sage
 ```
 
-3. Install dependencies:
+2. Install dependencies:
 
 ```sh
 go mod download
@@ -87,53 +63,34 @@ go mod download
 
 ## Configuration
 
-Create a .env file in the project root with the following variables:
+Create a `.env` file in the project root:
 
 ```sh
-# JWT Secret
-
+# Required
 JWT_SECRET=your-256-bit-secret
-
-# OpenAI API Key
-
 OPENAI_KEY=your-openai-key
 
-# Kapa Credentials
-
+# Optional Services
 KAPA_INTEGRATION_ID=kapa-integration-id
 KAPA_PROJECT_ID=kapa-project-id
 KAPA_API_KEY=kapa-api-key
-
-# Slack Bot Client Credentials
-
-SAGE_SLACK_CLIENT_ID=your_slack_client_id
-SAGE_SLACK_CLIENT_SECRET=your_slack_client_secret
-
-# Discord Bot Client Credentials
-
-SAGE_DISCORD_CLIENT_ID=your_discord_client_id
-SAGE_DISCORD_CLIENT_SECRET=your_discord_client_secret
-
-# Widget Client Credentials
-
-SAGE_WIDGET_CLIENT_ID=your_widget_client_id
-SAGE_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
-
-# Algolia Credentials
 
 ALGOLIA_APP_ID=your_algolia_app_id
 ALGOLIA_API_KEY=your_algolia_api_key
 ALGOLIA_INDEX_NAME=your_index_name
 
-# GitHub Token
-
 GITHUB_TOKEN=your_github_token
-```
 
-Optional environment variables:
+# Client Credentials
+SAGE_SLACK_CLIENT_ID=your_slack_client_id
+SAGE_SLACK_CLIENT_SECRET=your_slack_client_secret
+SAGE_DISCORD_CLIENT_ID=your_discord_client_id
+SAGE_DISCORD_CLIENT_SECRET=your_discord_client_secret
+SAGE_WIDGET_CLIENT_ID=your_widget_client_id
+SAGE_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
 
-```sh
-LOG_LEVEL=INFO (DEBUG|INFO|WARN|ERROR)
+# Optional
+LOG_LEVEL=INFO # DEBUG|INFO|WARN|ERROR
 ```
 
 ## Usage
@@ -153,59 +110,26 @@ make build
 
 The service will start on port 8080 by default.
 
-## API Endpoints
-
-### POST /v1/oauth/token
-
-Authenticate and receive JWT tokens
-Supports anonymous authentication and token refresh
-
-### POST /v1/chat/completions
-
-Send chat completion requests
-Requires valid JWT token in Authorization header
+## API Documentation
 
 See [api/openapi.yaml](./api/openapi.yaml) for detailed API documentation.
 
+Key endpoints:
+
+- `POST /v1/oauth/token`: Authentication endpoint
+- `POST /v1/chat/completions`: Chat completion endpoint
+
 ## Development
 
-Run tests:
-
 ```sh
+# Run tests
 make test
-```
 
-Run linter:
-
-```sh
+# Run linter
 make lint
-```
 
-Build binary:
-
-```sh
-make build
-```
-
-Clean build artifacts:
-
-```sh
+# Clean build artifacts
 make clean
-```
-
-## Project Structure
-
-```text
-/cmd
-   main.go # Application entry point
-/internal
-   /config # Configuration management
-   /handlers # HTTP request handlers
-   /logger # Logging utilities
-   /services # Business logic
-   /types # Shared types and interfaces
-/api
-   openapi.yaml # API documentation
 ```
 
 ## Contributing
@@ -219,8 +143,6 @@ make clean
 ## License
 
 This project is proprietary software owned by Deepgram. All rights reserved.
-
-See [LICENSE](./LICENSE) for full terms.
 
 ## Security
 
