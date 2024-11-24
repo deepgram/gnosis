@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/deepgram/codename-sage/internal/config"
-	"github.com/deepgram/codename-sage/internal/logger"
-	"github.com/deepgram/codename-sage/internal/services/algolia"
-	"github.com/deepgram/codename-sage/internal/services/github"
-	"github.com/deepgram/codename-sage/internal/services/kapa"
-	"github.com/deepgram/codename-sage/internal/services/tools"
+	"github.com/deepgram/gnosis/internal/config"
+	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/internal/services/algolia"
+	"github.com/deepgram/gnosis/internal/services/github"
+	"github.com/deepgram/gnosis/internal/services/kapa"
+	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
 )
@@ -129,7 +129,7 @@ func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, confi
 			logger.Debug("Returning content response of length: %d", len(message.Content))
 
 			return &ChatResponse{
-				ID:      fmt.Sprintf("sage-%s", uuid.New().String()[:8]),
+				ID:      fmt.Sprintf("gnosis-%s", uuid.New().String()[:5]),
 				Created: time.Now().Unix(),
 				Choices: []Choice{
 					{

@@ -1,4 +1,4 @@
-module github.com/deepgram/codename-sage
+module github.com/deepgram/gnosis
 
 go 1.21
 

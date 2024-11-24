@@ -3,14 +3,14 @@ package main
 import (
 	"net/http"
 
-	"github.com/deepgram/codename-sage/internal/handlers"
-	"github.com/deepgram/codename-sage/internal/logger"
-	"github.com/deepgram/codename-sage/internal/services/tools"
+	"github.com/deepgram/gnosis/internal/handlers"
+	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/gorilla/mux"
 )
 
 func main() {
-	logger.Info("Starting Sage server")
+	logger.Info("Starting Gnosis server")
 
 	// Initialize tools
 	if err := tools.InitializeTools(); err != nil {

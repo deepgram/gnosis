@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/deepgram/codename-sage/internal/config"
-	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/gnosis/internal/config"
+	"github.com/deepgram/gnosis/internal/logger"
 	"github.com/golang-jwt/jwt/v5"
 )
 

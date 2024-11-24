@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deepgram/codename-sage/internal/config"
-	"github.com/deepgram/codename-sage/internal/logger"
-	"github.com/deepgram/codename-sage/internal/services/oauth"
+	"github.com/deepgram/gnosis/internal/config"
+	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/internal/services/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )

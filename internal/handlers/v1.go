@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	v1 "github.com/deepgram/codename-sage/internal/handlers/v1"
+	v1 "github.com/deepgram/gnosis/internal/handlers/v1"
 )
 
 // v1/oauth.go

@@ -1,6 +1,6 @@
-# Sage
+# Gnosis
 
-Sage is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
+Gnosis is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
 
 ## Roadmap
 
@@ -9,7 +9,7 @@ Sage is a lightweight API gateway that provides secure, managed access to variou
 - [ ] Implement streaming responses for real-time LLM processing feedback
 - [ ] Add configurable tool calls system:
   - Allow clients to safely augment system prompts
-  - Support custom tool calls alongside Sage's built-in ones
+  - Support custom tool calls alongside Gnosis's built-in ones
   - Enable/disable tool calls based on environment configuration
 - [ ] Add `POST /v1/sessions` endpoint for secure browser-client authentication:
   - Skip OAuth flow for validated server sessions
@@ -51,8 +51,8 @@ Sage is a lightweight API gateway that provides secure, managed access to variou
 1. Clone the repository:
 
 ```sh
-git clone https://github.com/deepgram/codename-sage.git
-cd codename-sage
+git clone https://github.com/deepgram/gnosis.git
+cd gnosis
 ```
 
 2. Install dependencies:
@@ -82,12 +82,12 @@ ALGOLIA_INDEX_NAME=your_index_name
 GITHUB_TOKEN=your_github_token
 
 # Client Credentials
-SAGE_SLACK_CLIENT_ID=your_slack_client_id
-SAGE_SLACK_CLIENT_SECRET=your_slack_client_secret
-SAGE_DISCORD_CLIENT_ID=your_discord_client_id
-SAGE_DISCORD_CLIENT_SECRET=your_discord_client_secret
-SAGE_WIDGET_CLIENT_ID=your_widget_client_id
-SAGE_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
+GNOSIS_SLACK_CLIENT_ID=your_slack_client_id
+GNOSIS_SLACK_CLIENT_SECRET=your_slack_client_secret
+GNOSIS_DISCORD_CLIENT_ID=your_discord_client_id
+GNOSIS_DISCORD_CLIENT_SECRET=your_discord_client_secret
+GNOSIS_WIDGET_CLIENT_ID=your_widget_client_id
+GNOSIS_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
 
 # Optional
 LOG_LEVEL=INFO # DEBUG|INFO|WARN|ERROR
@@ -105,7 +105,7 @@ Or build and run the binary:
 
 ```sh
 make build
-./bin/sage
+./bin/gnosis
 ```
 
 The service will start on port 8080 by default.

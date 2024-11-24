@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/gnosis/internal/logger"
 )
 
 func GetKapaProjectID() string {

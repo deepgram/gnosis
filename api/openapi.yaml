@@ -1,8 +1,8 @@
 openapi: "3.0.0"
 
 info:
-  title: Sage by Deepgram
-  description: REST API for Sage, Deepgram's AI assistant.
+  title: Gnosis by Deepgram
+  description: REST API for Gnosis, Deepgram's AI assistant.
   termsOfService: https://deepgram.com/terms/
   contact:
     email: devrel@deepgram.com
@@ -11,7 +11,7 @@ info:
   version: 1.0.0
 
 servers:
-  - url: https://sage.deepgram.com
+  - url: https://gnosis.deepgram.com
     description: Production server
 
 paths:

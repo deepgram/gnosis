@@ -1,6 +1,6 @@
 package config
 
-import "github.com/deepgram/codename-sage/internal/logger"
+import "github.com/deepgram/gnosis/internal/logger"
 
 // GetOpenAIKey returns the current OpenAI key
 func GetOpenAIKey() string {

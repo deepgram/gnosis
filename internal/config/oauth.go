@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/gnosis/internal/logger"
 )
 
 var (
@@ -49,18 +49,18 @@ type ClientConfig struct {
 // AllowedClients is a map of client types to their configurations
 var AllowedClients = map[string]ClientConfig{
 	"slack_bot": {
-		ID:     GetEnvOrDefault("SAGE_SLACK_CLIENT_ID", ""),
-		Secret: GetEnvOrDefault("SAGE_SLACK_CLIENT_SECRET", ""),
+		ID:     GetEnvOrDefault("GNOSIS_SLACK_CLIENT_ID", ""),
+		Secret: GetEnvOrDefault("GNOSIS_SLACK_CLIENT_SECRET", ""),
 	},
 	"discord_bot": {
-		ID:     GetEnvOrDefault("SAGE_DISCORD_CLIENT_ID", ""),
-		Secret: GetEnvOrDefault("SAGE_DISCORD_CLIENT_SECRET", ""),
+		ID:     GetEnvOrDefault("GNOSIS_DISCORD_CLIENT_ID", ""),
+		Secret: GetEnvOrDefault("GNOSIS_DISCORD_CLIENT_SECRET", ""),
 	},
 	"widget": {
-		ID:       GetEnvOrDefault("SAGE_WIDGET_CLIENT_ID", ""),
+		ID:       GetEnvOrDefault("GNOSIS_WIDGET_CLIENT_ID", ""),
 		NoSecret: true, // Widget doesn't use a secret
 		AllowedURLs: strings.Split(
-			GetEnvOrDefault("SAGE_WIDGET_ALLOWED_URLS", "https://deepgram.com,https://www.deepgram.com"),
+			GetEnvOrDefault("GNOSIS_WIDGET_ALLOWED_URLS", "https://deepgram.com,https://www.deepgram.com"),
 			",",
 		),
 	},

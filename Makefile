@@ -8,10 +8,10 @@ dev:
 	go run ./cmd/main.go
 
 build:
-	go build -o bin/sage ./cmd/main.go
+	go build -o bin/gnosis ./cmd/main.go
 
 clean:
-	rm -f bin/sage
+	rm -f bin/gnosis
 
 lint:
 	npx prettier --write .

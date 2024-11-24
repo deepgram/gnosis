@@ -8,8 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/deepgram/codename-sage/internal/config"
-	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/gnosis/internal/config"
+	"github.com/deepgram/gnosis/internal/logger"
 )
 
 type Service struct {

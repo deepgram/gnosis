@@ -1,11 +1,11 @@
 package tools
 
 import (
-	"github.com/deepgram/codename-sage/internal/config"
-	"github.com/deepgram/codename-sage/internal/logger"
-	"github.com/deepgram/codename-sage/internal/services/algolia"
-	"github.com/deepgram/codename-sage/internal/services/github"
-	"github.com/deepgram/codename-sage/internal/services/kapa"
+	"github.com/deepgram/gnosis/internal/config"
+	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/internal/services/algolia"
+	"github.com/deepgram/gnosis/internal/services/github"
+	"github.com/deepgram/gnosis/internal/services/kapa"
 	"github.com/sashabaranov/go-openai"
 )
 

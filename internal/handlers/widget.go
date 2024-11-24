@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/gnosis/internal/logger"
 )
 
 func HandleWidgetJS(w http.ResponseWriter, r *http.Request) {
@@ -18,8 +18,8 @@ func HandleWidgetJS(w http.ResponseWriter, r *http.Request) {
 	// For now, return a simple console.log
 	// This will be replaced with actual widget code later
 	js := `
-		console.log("Deepgram Sage Widget loaded");
-		window.SAGE_WIDGET_ID = "sage-" + Math.random().toString(36).substring(2);
+		console.log("Deepgram Gnosis Widget loaded");
+		window.GNOSIS_WIDGET_ID = "gnosis-" + Math.random().toString(36).substring(2);
 	`
 
 	w.Write([]byte(js))

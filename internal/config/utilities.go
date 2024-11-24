@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 
-	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/gnosis/internal/logger"
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default value
