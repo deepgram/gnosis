@@ -12,6 +12,7 @@ import (
 	"github.com/deepgram/codename-sage/internal/services/algolia"
 	"github.com/deepgram/codename-sage/internal/services/github"
 	"github.com/deepgram/codename-sage/internal/services/kapa"
+	"github.com/deepgram/codename-sage/internal/services/tools"
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
 )
@@ -30,6 +31,7 @@ Communicate these Deepgram service differences clearly:
 ## Request handling
 - If the question is asked in a language other than English, translate it to English before using the tools.
 - If someone asks for the cost of any product, use 'search_algolia' for "pricing" specifically.
+- Only use tool calls if the data isn't already present in the chat history.
 
 ## Response handling
 - Always respond in the same language as the question.
@@ -183,7 +185,7 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 			Role:    openai.ChatMessageRoleSystem,
 			Content: systemPrompt,
 		}}, messages...),
-		Tools: s.getTools(), // Move tools to separate function for clarity
+		Tools: tools.GetConfiguredTools(),
 	}
 
 	// Apply optional configurations if provided
@@ -213,48 +215,6 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 	}
 
 	return req
-}
-
-// Move tools to separate function for cleaner code
-func (s *Service) getTools() []openai.Tool {
-	logger.Info("Loading tools configuration")
-	config, err := config.LoadToolsConfig("config/tools.json")
-	if err != nil {
-		logger.Error("Failed to load tools config: %v", err)
-		return nil
-	}
-
-	var tools []openai.Tool
-	for _, toolDef := range config.Tools {
-		// Only add tool if corresponding service is configured
-		switch toolDef.Name {
-		case "search_algolia":
-			if !algolia.IsConfigured() {
-				continue
-			}
-		case "search_starter_apps":
-			if !github.IsConfigured() {
-				continue
-			}
-		case "ask_kapa":
-			if !kapa.IsConfigured() {
-				continue
-			}
-		}
-
-		tools = append(tools, openai.Tool{
-			Type: "function",
-			Function: &openai.FunctionDefinition{
-				Name:        toolDef.Name,
-				Description: toolDef.Description,
-				Parameters:  toolDef.Parameters,
-			},
-		})
-		logger.Info("Added tool: %s", toolDef.Name)
-	}
-
-	logger.Info("Finished loading tools - %d tools available", len(tools))
-	return tools
 }
 
 func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (string, error) {

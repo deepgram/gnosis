@@ -5,11 +5,18 @@ import (
 
 	"github.com/deepgram/codename-sage/internal/handlers"
 	"github.com/deepgram/codename-sage/internal/logger"
+	"github.com/deepgram/codename-sage/internal/services/tools"
 	"github.com/gorilla/mux"
 )
 
 func main() {
 	logger.Info("Starting Sage server")
+
+	// Initialize tools
+	if err := tools.InitializeTools(); err != nil {
+		logger.Fatal("Failed to initialize tools: %v", err)
+	}
+
 	r := setupRouter()
 
 	logger.Info("Server starting on :8080")
