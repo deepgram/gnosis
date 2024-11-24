@@ -7,30 +7,15 @@ Gnosis is a lightweight API gateway that provides secure, managed access to vari
 ### API Enhancements
 
 - [ ] Implement streaming responses for real-time LLM processing feedback
-- [ ] Add configurable tool calls system:
+- [x] Add configurable tool calls system:
   - Allow clients to safely augment system prompts
   - Support custom tool calls alongside Gnosis's built-in ones
   - Enable/disable tool calls based on environment configuration
-- [ ] Add `POST /v1/sessions` endpoint for secure browser-client authentication:
-  - Skip OAuth flow for validated server sessions
-  - Implement session validation (IP, user agent, etc.)
-  - Return JWT tokens for verified clients
+- [ ] Add session cookies for certain special routes
 
 ### Widget Integration
 
-- [ ] Integrate React widget application:
-  - Move widget code to dedicated directory
-  - Implement build process for `widget.js`
-  - Generate unique widget IDs per instance
-  - Add session tracking for security validation
-
-### Security Improvements
-
-- [ ] Enhance session management:
-  - Track user information across requests
-  - Implement bad actor detection
-  - Add rate limiting per session
-- [ ] Improve environment-based feature toggling
+- [ ] Serve widget from /widget.js (loaded from disk on runtime)
 
 ## Features
 
