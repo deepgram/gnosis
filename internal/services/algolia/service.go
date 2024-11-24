@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
 )
 
 type Service struct {
+	mu        sync.RWMutex
 	client    *http.Client
 	appID     string
 	apiKey    string
@@ -46,6 +48,7 @@ func NewService() *Service {
 	}
 
 	return &Service{
+		mu:        sync.RWMutex{},
 		client:    &http.Client{},
 		appID:     appID,
 		apiKey:    apiKey,
@@ -54,6 +57,9 @@ func NewService() *Service {
 }
 
 func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	logger.Info(logger.SERVICE, "Starting Algolia search")
 	logger.Debug(logger.SERVICE, "Search parameters - query: %s", query)
 

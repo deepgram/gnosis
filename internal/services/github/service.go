@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
 )
 
 type Service struct {
+	mu      sync.RWMutex
 	client  *http.Client
 	token   string
 	baseURL string
@@ -60,6 +62,7 @@ func NewService() *Service {
 	}
 
 	return &Service{
+		mu:      sync.RWMutex{},
 		client:  &http.Client{},
 		token:   token,
 		baseURL: "https://api.github.com",
@@ -72,6 +75,9 @@ func NewService() *Service {
 }
 
 func (s *Service) SearchRepos(ctx context.Context, org, language string, topics []string) (*ReposSearchResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	logger.Info(logger.SERVICE, "Starting GitHub repository search")
 	logger.Debug(logger.SERVICE, "Search parameters - org: %s, language: %s, topics: %v", org, language, topics)
 
@@ -148,6 +154,9 @@ func (s *Service) SearchRepos(ctx context.Context, org, language string, topics 
 }
 
 func (s *Service) GetRepoReadme(ctx context.Context, repo string) (*ReadmeResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	logger.Info(logger.SERVICE, "Getting README for repo: %s", repo)
 
 	url := fmt.Sprintf("%s/repos/%s/readme", s.baseURL, repo)

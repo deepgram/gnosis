@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/deepgram/gnosis/internal/config"
@@ -42,6 +43,7 @@ Communicate these Deepgram service differences clearly:
 `
 
 type Service struct {
+	mu             sync.RWMutex
 	openaiClient   *openai.Client
 	algoliaService *algolia.Service
 	githubService  *github.Service
@@ -54,6 +56,7 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 	client := openai.NewClient(config.GetOpenAIKey())
 	logger.Debug(logger.SERVICE, "OpenAI client initialized")
 	return &Service{
+		mu:             sync.RWMutex{},
 		openaiClient:   client,
 		algoliaService: algoliaService,
 		githubService:  githubService,
@@ -95,6 +98,9 @@ type ChatConfig struct {
 
 // Update ProcessChat to accept config
 func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, config *ChatConfig) (*ChatResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	logger.Info(logger.SERVICE, "Starting chat processing")
 	logger.Debug(logger.SERVICE, "Processing %d messages with model: %s", len(messages), "gpt-4o-mini")
 

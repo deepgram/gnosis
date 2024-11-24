@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
 )
 
 type Service struct {
+	mu        sync.RWMutex
 	client    *http.Client
 	projectID string
 	baseURL   string
@@ -63,6 +65,7 @@ func NewService() *Service {
 	}
 
 	return &Service{
+		mu:        sync.RWMutex{},
 		client:    &http.Client{},
 		projectID: projectID,
 		baseURL:   "https://api.kapa.ai",
@@ -70,6 +73,9 @@ func NewService() *Service {
 }
 
 func (s *Service) Query(ctx context.Context, question, product string, tags []string) (*QueryResponse, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	logger.Info(logger.SERVICE, "Starting Kapa query")
 	logger.Debug(logger.SERVICE, "Query parameters - question: %s, product: %s, tags: %v", question, product, tags)
 
