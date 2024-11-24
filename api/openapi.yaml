@@ -2,7 +2,7 @@ openapi: "3.0.0"
 
 info:
   title: Gnosis by Deepgram
-  description: REST API for Gnosis, Deepgram's AI assistant.
+  description: Gnosis app REST API, Deepgram's AI assistant.
   termsOfService: https://deepgram.com/terms/
   contact:
     email: devrel@deepgram.com
