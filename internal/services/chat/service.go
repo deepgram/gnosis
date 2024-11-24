@@ -49,6 +49,7 @@ type Service struct {
 	githubService  *github.Service
 	kapaService    *kapa.Service
 	toolsService   *tools.Service
+	systemPrompt   *SystemPrompt
 }
 
 func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service, toolsService *tools.Service) *Service {
@@ -62,6 +63,7 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 		githubService:  githubService,
 		kapaService:    kapaService,
 		toolsService:   toolsService,
+		systemPrompt:   NewSystemPrompt(systemPrompt),
 	}
 }
 
@@ -107,6 +109,16 @@ func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, confi
 	if len(messages) == 0 {
 		logger.Warn(logger.SERVICE, "Received empty messages array for chat processing")
 		return nil, fmt.Errorf("empty messages array")
+	}
+
+	// Check if first message is a system message
+	if messages[0].Role == "system" {
+		s.systemPrompt.SetCustom(messages[0].Content)
+		// Remove the system message from the array
+		messages = messages[1:]
+		if len(messages) == 0 {
+			return nil, fmt.Errorf("empty messages array after system prompt")
+		}
 	}
 
 	// Convert our ChatMessage type to OpenAI's type
@@ -190,14 +202,13 @@ func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, confi
 
 // Update buildChatRequest to use config
 func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, config *ChatConfig) openai.ChatCompletionRequest {
-	// Set default values if not provided
 	model := "gpt-4o-mini"
 
 	req := openai.ChatCompletionRequest{
 		Model: model,
 		Messages: append([]openai.ChatCompletionMessage{{
 			Role:    openai.ChatMessageRoleSystem,
-			Content: systemPrompt,
+			Content: s.systemPrompt.String(),
 		}}, messages...),
 		Tools: s.toolsService.GetTools(),
 	}

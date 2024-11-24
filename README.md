@@ -7,10 +7,9 @@ Gnosis is a lightweight API gateway that provides secure, managed access to vari
 ### API Enhancements
 
 - [ ] Implement streaming responses for real-time LLM processing feedback
-- [x] Add configurable tool calls system:
-  - Allow clients to safely augment system prompts
-  - Support custom tool calls alongside Gnosis's built-in ones
-  - Enable/disable tool calls based on environment configuration
+- [x] Allow clients to safely augment system prompts
+- [ ] Support custom tool calls alongside Gnosis's built-in ones
+- [x] Enable/disable tool calls based on environment configuration
 - [ ] Add session cookies for certain special routes
 
 ### Widget Integration
