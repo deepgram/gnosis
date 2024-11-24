@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/deepgram/gnosis/internal/config"
@@ -35,6 +36,7 @@ type RedisStore struct {
 }
 
 type MemoryStore struct {
+	mu       sync.RWMutex
 	sessions map[string]*SessionClaims
 }
 
@@ -103,11 +105,15 @@ func (rs *RedisStore) Delete(ctx context.Context, sessionID string) error {
 
 // Memory Store implementation
 func (ms *MemoryStore) Set(ctx context.Context, sessionID string, claims *SessionClaims) error {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
 	ms.sessions[sessionID] = claims
 	return nil
 }
 
 func (ms *MemoryStore) Get(ctx context.Context, sessionID string) (*SessionClaims, error) {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
 	claims, exists := ms.sessions[sessionID]
 	if !exists {
 		return nil, nil
@@ -116,6 +122,8 @@ func (ms *MemoryStore) Get(ctx context.Context, sessionID string) (*SessionClaim
 }
 
 func (ms *MemoryStore) Delete(ctx context.Context, sessionID string) error {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
 	delete(ms.sessions, sessionID)
 	return nil
 }

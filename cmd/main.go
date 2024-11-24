@@ -5,12 +5,18 @@ import (
 
 	"github.com/deepgram/gnosis/internal/handlers"
 	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/internal/services"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/gorilla/mux"
 )
 
 func main() {
 	logger.Info("Starting Gnosis server")
+
+	// Initialize services
+	if err := services.InitializeServices(); err != nil {
+		logger.Fatal("Failed to initialize services: %v", err)
+	}
 
 	// Initialize tools
 	if err := tools.InitializeTools(); err != nil {

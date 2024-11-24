@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"sync"
+
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
 	"github.com/deepgram/gnosis/internal/services/algolia"
@@ -9,9 +11,14 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-var configuredTools []openai.Tool
+var (
+	configuredTools []openai.Tool
+	toolsMu         sync.RWMutex
+)
 
 func InitializeTools() error {
+	toolsMu.Lock()
+	defer toolsMu.Unlock()
 	logger.Info("Initializing tools configuration")
 	toolsConfig, err := config.LoadToolsConfig("config/tools.json")
 	if err != nil {
@@ -54,5 +61,7 @@ func InitializeTools() error {
 }
 
 func GetConfiguredTools() []openai.Tool {
+	toolsMu.RLock()
+	defer toolsMu.RUnlock()
 	return configuredTools
 }
