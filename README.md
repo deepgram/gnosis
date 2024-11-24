@@ -17,14 +17,18 @@ Gnosis is a lightweight API gateway that provides secure, managed access to vari
 
 - [ ] Serve widget from /widget.js (loaded from disk on runtime)
 
+### Deployment
+
+- [ ] Host inside VPN for access to internal tools API
+
 ## Features
 
-- **Authentication & Security**: JWT-based auth, anonymous sessions, rate limiting
-- **API Integration**: OpenAI GPT-4, Kapa.ai knowledge base, extensible architecture
+- **Authentication & Security**: JWT-based auth, anonymous sessions
+- **API Integration**: OpenAI, Kapa.ai, Algolia, GitHub
 - **Performance**: Lightweight stateless design, concurrent request handling
-- **Development**: Go best practices, OpenAPI 3.0 docs, environment-based config
-- **Monitoring**: Structured logging, request tracing, error tracking
-- **Standards**: RESTful API, OpenAPI 3.0, JSON responses, bearer auth
+- **Development**: Go best practices, environment-based config
+- **Monitoring**: Structured logging with configurable levels
+- **Standards**: RESTful API, OpenAPI 3.0 spec, JSON responses, Bearer scheme
 
 ## Prerequisites
 
