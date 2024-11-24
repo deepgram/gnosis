@@ -217,115 +217,43 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 
 // Move tools to separate function for cleaner code
 func (s *Service) getTools() []openai.Tool {
-	logger.Info("Building list of available tools based on service configurations")
+	logger.Info("Loading tools configuration")
+	config, err := config.LoadToolsConfig("config/tools.json")
+	if err != nil {
+		logger.Error("Failed to load tools config: %v", err)
+		return nil
+	}
+
 	var tools []openai.Tool
+	for _, toolDef := range config.Tools {
+		// Only add tool if corresponding service is configured
+		switch toolDef.Name {
+		case "search_algolia":
+			if !algolia.IsConfigured() {
+				continue
+			}
+		case "search_starter_apps":
+			if !github.IsConfigured() {
+				continue
+			}
+		case "ask_kapa":
+			if !kapa.IsConfigured() {
+				continue
+			}
+		}
 
-	// Check Algolia service
-	logger.Debug("Checking Algolia service configuration")
-	if algolia.IsConfigured() {
-		logger.Info("Adding Algolia search tool")
 		tools = append(tools, openai.Tool{
 			Type: "function",
 			Function: &openai.FunctionDefinition{
-				Name:        "search_algolia",
-				Description: "Search for additional product information like pricing, tutorials, and documentation",
-				Strict:      true,
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"query": map[string]interface{}{
-							"type":        "string",
-							"description": "Search term or phrase to find relevant results",
-						},
-					},
-					"required":             []string{"query"},
-					"additionalProperties": false,
-				},
+				Name:        toolDef.Name,
+				Description: toolDef.Description,
+				Parameters:  toolDef.Parameters,
 			},
 		})
-	} else {
-		logger.Debug("Skipping Algolia tool - service not configured")
+		logger.Info("Added tool: %s", toolDef.Name)
 	}
 
-	// Check GitHub service
-	logger.Debug("Checking GitHub service configuration")
-	if github.IsConfigured() {
-		logger.Info("Adding GitHub starter apps search tool")
-		tools = append(tools, openai.Tool{
-			Type: "function",
-			Function: &openai.FunctionDefinition{
-				Name:        "search_starter_apps",
-				Description: "Search by language and topic for a getting started app",
-				Strict:      true,
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"topics": map[string]interface{}{
-							"type":        "array",
-							"description": "The topics to search for",
-							"items": map[string]interface{}{
-								"type":        "string",
-								"enum":        []string{"live", "speech-to-text", "text-intelligence", "text-to-speech", "voice-agent"},
-								"description": "The topic to search for",
-							},
-						},
-						"language": map[string]interface{}{
-							"type":        "string",
-							"enum":        []string{"python", "javascript", "java", "csharp", "go", "ruby", "php", "swift", "kotlin", "rust", "typescript", "c", "c++", "objective-c"},
-							"description": "The programming language of the code samples to retrieve",
-						},
-					},
-					"required":             []string{"topics", "language"},
-					"additionalProperties": false,
-				},
-			},
-		})
-	} else {
-		logger.Debug("Skipping GitHub tool - service not configured")
-	}
-
-	// Check Kapa service
-	logger.Debug("Checking Kapa service configuration")
-	if kapa.IsConfigured() {
-		logger.Info("Adding Kapa Q&A tool")
-		tools = append(tools, openai.Tool{
-			Type: "function",
-			Function: &openai.FunctionDefinition{
-				Name:        "ask_kapa",
-				Description: "Search for answers to technical questions about a product",
-				Strict:      true,
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"question": map[string]interface{}{
-							"type":        "string",
-							"description": "Summary of the technical question to answer about a product",
-						},
-						"product": map[string]interface{}{
-							"type":        "string",
-							"description": "The product the question is about",
-							"enum":        []string{"speech-to-text", "text-intelligence", "text-to-speech", "voice-agent"},
-						},
-						"tags": map[string]interface{}{
-							"type":        "array",
-							"description": "Relevant tags to categorize the question",
-							"items": map[string]interface{}{
-								"type":        "string",
-								"enum":        []string{"general", "technical", "billing", "account", "security", "api", "sdk", "tool", "other"},
-								"description": "Tag for categorizing the question",
-							},
-						},
-					},
-					"required":             []string{"question", "product", "tags"},
-					"additionalProperties": false,
-				},
-			},
-		})
-	} else {
-		logger.Debug("Skipping Kapa tool - service not configured")
-	}
-
-	logger.Info("Finished building tools list - %d tools available", len(tools))
+	logger.Info("Finished loading tools - %d tools available", len(tools))
 	return tools
 }
 
