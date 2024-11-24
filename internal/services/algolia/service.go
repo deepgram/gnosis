@@ -117,3 +117,18 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 
 	return &searchResp, nil
 }
+
+func IsConfigured() bool {
+	logger.Debug("Checking if Algolia service is configured")
+	isConfigured := config.GetAlgoliaAppID() != "" &&
+		config.GetAlgoliaAPIKey() != "" &&
+		config.GetAlgoliaIndexName() != ""
+
+	if isConfigured {
+		logger.Info("Algolia service is properly configured")
+	} else {
+		logger.Warn("Algolia service is not fully configured - some environment variables are missing")
+	}
+
+	return isConfigured
+}

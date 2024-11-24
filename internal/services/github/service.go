@@ -196,3 +196,16 @@ func (s *Service) GetRepoReadme(ctx context.Context, repo string) (*ReadmeRespon
 	logger.Debug("Successfully received README for repo: %s", repo)
 	return &readme, nil
 }
+
+func IsConfigured() bool {
+	logger.Debug("Checking if GitHub service is configured")
+	isConfigured := config.GetGitHubToken() != ""
+
+	if isConfigured {
+		logger.Info("GitHub service is properly configured")
+	} else {
+		logger.Warn("GitHub service is not configured - GITHUB_TOKEN is missing")
+	}
+
+	return isConfigured
+}

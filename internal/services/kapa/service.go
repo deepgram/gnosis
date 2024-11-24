@@ -144,3 +144,18 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 
 	return &queryResp, nil
 }
+
+func IsConfigured() bool {
+	logger.Debug("Checking if Kapa service is configured")
+	isConfigured := config.GetKapaProjectID() != "" &&
+		config.GetKapaAPIKey() != "" &&
+		config.GetKapaIntegrationID() != ""
+
+	if isConfigured {
+		logger.Info("Kapa service is properly configured")
+	} else {
+		logger.Warn("Kapa service is not fully configured - some environment variables are missing")
+	}
+
+	return isConfigured
+}

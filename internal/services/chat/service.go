@@ -119,8 +119,8 @@ func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, confi
 		}
 
 		message := resp.Choices[0].Message
-		logger.Debug("Received message - Role: %s, Content length: %d, Tool calls: %d",
-			message.Role, len(message.Content), len(message.ToolCalls))
+		logger.Debug("Received message - Role: %s, Content length: %d",
+			message.Role, len(message.Content))
 
 		// Return if we have a content response
 		if message.Role == openai.ChatMessageRoleAssistant && message.Content != "" {
@@ -217,8 +217,14 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 
 // Move tools to separate function for cleaner code
 func (s *Service) getTools() []openai.Tool {
-	return []openai.Tool{
-		{
+	logger.Info("Building list of available tools based on service configurations")
+	var tools []openai.Tool
+
+	// Check Algolia service
+	logger.Debug("Checking Algolia service configuration")
+	if algolia.IsConfigured() {
+		logger.Info("Adding Algolia search tool")
+		tools = append(tools, openai.Tool{
 			Type: "function",
 			Function: &openai.FunctionDefinition{
 				Name:        "search_algolia",
@@ -236,8 +242,16 @@ func (s *Service) getTools() []openai.Tool {
 					"additionalProperties": false,
 				},
 			},
-		},
-		{
+		})
+	} else {
+		logger.Debug("Skipping Algolia tool - service not configured")
+	}
+
+	// Check GitHub service
+	logger.Debug("Checking GitHub service configuration")
+	if github.IsConfigured() {
+		logger.Info("Adding GitHub starter apps search tool")
+		tools = append(tools, openai.Tool{
 			Type: "function",
 			Function: &openai.FunctionDefinition{
 				Name:        "search_starter_apps",
@@ -265,8 +279,16 @@ func (s *Service) getTools() []openai.Tool {
 					"additionalProperties": false,
 				},
 			},
-		},
-		{
+		})
+	} else {
+		logger.Debug("Skipping GitHub tool - service not configured")
+	}
+
+	// Check Kapa service
+	logger.Debug("Checking Kapa service configuration")
+	if kapa.IsConfigured() {
+		logger.Info("Adding Kapa Q&A tool")
+		tools = append(tools, openai.Tool{
 			Type: "function",
 			Function: &openai.FunctionDefinition{
 				Name:        "ask_kapa",
@@ -298,8 +320,13 @@ func (s *Service) getTools() []openai.Tool {
 					"additionalProperties": false,
 				},
 			},
-		},
+		})
+	} else {
+		logger.Debug("Skipping Kapa tool - service not configured")
 	}
+
+	logger.Info("Finished building tools list - %d tools available", len(tools))
+	return tools
 }
 
 func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (string, error) {
@@ -334,7 +361,8 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			hit.Content,
 			hit.URL)
 
-		logger.Info("Algolia search response: %s", response)
+		logger.Debug("Algolia search response: %s", response)
+		logger.Info("Algolia search result found")
 
 		return response, nil
 
