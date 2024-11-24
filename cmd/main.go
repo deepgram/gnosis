@@ -11,28 +11,28 @@ import (
 )
 
 func main() {
-	logger.Info("Starting Gnosis server")
+	logger.Info(logger.APP, "Starting Gnosis server")
 
 	// Initialize services
 	if err := services.InitializeServices(); err != nil {
-		logger.Fatal("Failed to initialize services: %v", err)
+		logger.Fatal(logger.APP, "Failed to initialize services: %v", err)
 	}
 
 	// Initialize tools
 	if err := tools.InitializeTools(); err != nil {
-		logger.Fatal("Failed to initialize tools: %v", err)
+		logger.Fatal(logger.APP, "Failed to initialize tools: %v", err)
 	}
 
 	r := setupRouter()
 
-	logger.Info("Server starting on :8080")
+	logger.Info(logger.APP, "Server starting on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
-		logger.Fatal("ListenAndServe error: %v", err)
+		logger.Fatal(logger.APP, "ListenAndServe error: %v", err)
 	}
 }
 
 func setupRouter() *mux.Router {
-	logger.Debug("Setting up router")
+	logger.Debug(logger.APP, "Setting up router")
 	r := mux.NewRouter()
 
 	// Static routes
@@ -43,6 +43,6 @@ func setupRouter() *mux.Router {
 	v1.HandleFunc("/oauth/token", handlers.HandleTokenV1).Methods("POST")
 	v1.HandleFunc("/chat/completions", handlers.HandleChatCompletionV1).Methods("POST")
 
-	logger.Debug("Router setup complete")
+	logger.Debug(logger.APP, "Router setup complete")
 	return r
 }

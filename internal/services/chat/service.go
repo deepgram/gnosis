@@ -9,9 +9,7 @@ import (
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
-	"github.com/deepgram/gnosis/internal/services/algolia"
-	"github.com/deepgram/gnosis/internal/services/github"
-	"github.com/deepgram/gnosis/internal/services/kapa"
+	"github.com/deepgram/gnosis/internal/services"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
@@ -46,9 +44,9 @@ type Service struct {
 }
 
 func NewService() *Service {
-	logger.Info("Initializing chat service")
+	logger.Info(logger.SERVICE, "Initializing chat service")
 	client := openai.NewClient(config.GetOpenAIKey())
-	logger.Debug("OpenAI client initialized")
+	logger.Debug(logger.SERVICE, "OpenAI client initialized")
 	return &Service{
 		openaiClient: client,
 	}
@@ -87,11 +85,11 @@ type ChatConfig struct {
 
 // Update ProcessChat to accept config
 func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, config *ChatConfig) (*ChatResponse, error) {
-	logger.Info("Starting chat processing")
-	logger.Debug("Processing %d messages with model: %s", len(messages), "gpt-4o-mini")
+	logger.Info(logger.SERVICE, "Starting chat processing")
+	logger.Debug(logger.SERVICE, "Processing %d messages with model: %s", len(messages), "gpt-4o-mini")
 
 	if len(messages) == 0 {
-		logger.Warn("Received empty messages array for chat processing")
+		logger.Warn(logger.SERVICE, "Received empty messages array for chat processing")
 		return nil, fmt.Errorf("empty messages array")
 	}
 
@@ -105,28 +103,28 @@ func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, confi
 	}
 
 	req := s.buildChatRequest(openaiMessages, config)
-	logger.Debug("Built chat request with model: %s", "gpt-4o-mini")
+	logger.Debug(logger.SERVICE, "Built chat request with model: %s", "gpt-4o-mini")
 
 	for {
-		logger.Debug("Making request to OpenAI")
+		logger.Debug(logger.SERVICE, "Making request to OpenAI")
 		resp, err := s.openaiClient.CreateChatCompletion(ctx, req)
 		if err != nil {
-			logger.Error("OpenAI request failed: %v", err)
+			logger.Error(logger.SERVICE, "OpenAI request failed: %v", err)
 			return nil, fmt.Errorf("openai request failed: %w", err)
 		}
 
 		if len(resp.Choices) == 0 {
-			logger.Error("No response choices returned from OpenAI")
+			logger.Error(logger.SERVICE, "No response choices returned from OpenAI")
 			return nil, fmt.Errorf("no response choices returned")
 		}
 
 		message := resp.Choices[0].Message
-		logger.Debug("Received message - Role: %s, Content length: %d",
+		logger.Debug(logger.SERVICE, "Received message - Role: %s, Content length: %d",
 			message.Role, len(message.Content))
 
 		// Return if we have a content response
 		if message.Role == openai.ChatMessageRoleAssistant && message.Content != "" {
-			logger.Debug("Returning content response of length: %d", len(message.Content))
+			logger.Debug(logger.SERVICE, "Returning content response of length: %d", len(message.Content))
 
 			return &ChatResponse{
 				ID:      fmt.Sprintf("gnosis-%s", uuid.New().String()[:5]),
@@ -149,7 +147,7 @@ func (s *Service) ProcessChat(ctx context.Context, messages []ChatMessage, confi
 
 		// Handle tool calls
 		if message.Role == openai.ChatMessageRoleAssistant && len(message.ToolCalls) > 0 {
-			logger.Debug("Processing %d tool calls", len(message.ToolCalls))
+			logger.Debug(logger.SERVICE, "Processing %d tool calls", len(message.ToolCalls))
 			// Add the assistant's message with tool calls
 			req.Messages = append(req.Messages, message)
 
@@ -209,9 +207,9 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 
 	// Pretty print the request object as JSON for debugging
 	if jsonBytes, err := json.MarshalIndent(req, "", "  "); err == nil {
-		logger.Debug("OpenAI request:\n%s", string(jsonBytes))
+		logger.Debug(logger.SERVICE, "OpenAI request:\n%s", string(jsonBytes))
 	} else {
-		logger.Error("Failed to marshal OpenAI request for debugging: %v", err)
+		logger.Error(logger.SERVICE, "Failed to marshal OpenAI request for debugging: %v", err)
 	}
 
 	return req
@@ -229,11 +227,11 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			Query string `json:"query"`
 		}
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
-			logger.Error("Failed to parse search parameters: %v", err)
+			logger.Error(logger.SERVICE, "Failed to parse search parameters: %v", err)
 			return "", fmt.Errorf("invalid parameters: %v", err)
 		}
 
-		algoliaService := algolia.NewService()
+		algoliaService := services.GetAlgoliaService()
 		result, err := algoliaService.Search(ctx, params.Query)
 		if err != nil {
 			return "", fmt.Errorf("algolia search failed: %w", err)
@@ -249,8 +247,8 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			hit.Content,
 			hit.URL)
 
-		logger.Debug("Algolia search response: %s", response)
-		logger.Info("Algolia search result found")
+		logger.Debug(logger.SERVICE, "Algolia search response: %s", response)
+		logger.Info(logger.SERVICE, "Algolia search result found")
 
 		return response, nil
 
@@ -263,7 +261,7 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			return "", fmt.Errorf("invalid parameters: %v", err)
 		}
 
-		githubService := github.NewService()
+		githubService := services.GetGitHubService()
 		searchResult, err := githubService.SearchRepos(ctx, "deepgram-starters", params.Language, params.Topics)
 		if err != nil {
 			return "", fmt.Errorf("github search failed: %w", err)
@@ -311,7 +309,7 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 		}
 
 		// Initialize Kapa service
-		kapaService := kapa.NewService()
+		kapaService := services.GetKapaService()
 
 		// Query Kapa
 		resp, err := kapaService.Query(ctx, params.Question, params.Product, params.Tags)

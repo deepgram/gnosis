@@ -7,7 +7,7 @@ import (
 )
 
 func HandleWidgetJS(w http.ResponseWriter, r *http.Request) {
-	logger.Debug("Serving widget.js request from %s", r.RemoteAddr)
+	logger.Debug(logger.HANDLER, "Serving widget.js request from %s", r.RemoteAddr)
 
 	// Set appropriate headers
 	w.Header().Set("Content-Type", "application/javascript")

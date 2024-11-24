@@ -35,18 +35,27 @@ type SearchResponse struct {
 }
 
 func NewService() *Service {
-	logger.Info("Initialising Algolia service")
+	logger.Info(logger.SERVICE, "Initialising Algolia service")
+	appID := config.GetAlgoliaAppID()
+	apiKey := config.GetAlgoliaAPIKey()
+	indexName := config.GetAlgoliaIndexName()
+
+	if appID == "" || apiKey == "" || indexName == "" {
+		logger.Warn(logger.SERVICE, "Algolia service not fully configured")
+		return nil
+	}
+
 	return &Service{
 		client:    &http.Client{},
-		appID:     config.GetAlgoliaAppID(),
-		apiKey:    config.GetAlgoliaAPIKey(),
-		indexName: config.GetAlgoliaIndexName(),
+		appID:     appID,
+		apiKey:    apiKey,
+		indexName: indexName,
 	}
 }
 
 func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, error) {
-	logger.Info("Starting Algolia search")
-	logger.Debug("Search parameters - query: %s", query)
+	logger.Info(logger.SERVICE, "Starting Algolia search")
+	logger.Debug(logger.SERVICE, "Search parameters - query: %s", query)
 
 	// Construct the request body
 	req := SearchRequest{
@@ -55,80 +64,65 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 		HitsPerPage:          1,
 		Filters:              "type:content AND NOT content:null",
 	}
-	logger.Debug("Constructed search request with filters: %s", req.Filters)
+	logger.Debug(logger.SERVICE, "Constructed search request with filters: %s", req.Filters)
 
 	// Convert request to JSON
 	jsonData, err := json.Marshal(req)
 	if err != nil {
-		logger.Error("Failed to marshal request: %v", err)
+		logger.Error(logger.SERVICE, "Failed to marshal request: %v", err)
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	logger.Debug("Request JSON: %s", string(jsonData))
+	logger.Debug(logger.SERVICE, "Request JSON: %s", string(jsonData))
 
 	// Create the HTTP request
 	url := fmt.Sprintf("https://%s-dsn.algolia.net/1/indexes/%s/query", s.appID, s.indexName)
-	logger.Debug("Full request URL: %s", url)
+	logger.Debug(logger.SERVICE, "Full request URL: %s", url)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		logger.Error("Failed to create request: %v", err)
+		logger.Error(logger.SERVICE, "Failed to create request: %v", err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Set headers
-	logger.Debug("Setting request headers")
+	logger.Debug(logger.SERVICE, "Setting request headers")
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Algolia-API-Key", s.apiKey)
 	httpReq.Header.Set("X-Algolia-Application-ID", s.appID)
 
 	// Make the request
-	logger.Debug("Sending HTTP request to Algolia API")
+	logger.Debug(logger.SERVICE, "Sending HTTP request to Algolia API")
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
-		logger.Error("Failed to make request: %v", err)
+		logger.Error(logger.SERVICE, "Failed to make request: %v", err)
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	logger.Debug("Received response from Algolia API - Status: %d", resp.StatusCode)
-	logger.Debug("Response headers:")
+	logger.Debug(logger.SERVICE, "Received response from Algolia API - Status: %d", resp.StatusCode)
+	logger.Debug(logger.SERVICE, "Response headers:")
 	for key, values := range resp.Header {
-		logger.Debug("  %s: %v", key, values)
+		logger.Debug(logger.SERVICE, "  %s: %v", key, values)
 	}
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		logger.Error("Algolia API returned non-200 status: %d\n\n%s", resp.StatusCode, string(body))
+		logger.Error(logger.SERVICE, "Algolia API returned non-200 status: %d\n\n%s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("algolia API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse the response
 	var searchResp SearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
-		logger.Error("Failed to decode response: %v", err)
+		logger.Error(logger.SERVICE, "Failed to decode response: %v", err)
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	logger.Debug("Successfully parsed response - Found %d hits", len(searchResp.Hits))
+	logger.Debug(logger.SERVICE, "Successfully parsed response - Found %d hits", len(searchResp.Hits))
 	for i, hit := range searchResp.Hits {
-		logger.Debug("Hit %d: Title=%s, URL=%s", i+1, hit.Title, hit.URL)
+		logger.Debug(logger.SERVICE, "Hit %d: Title=%s, URL=%s", i+1, hit.Title, hit.URL)
 	}
 
 	return &searchResp, nil
-}
-
-func IsConfigured() bool {
-	logger.Debug("Checking if Algolia service is configured")
-	isConfigured := config.GetAlgoliaAppID() != "" &&
-		config.GetAlgoliaAPIKey() != "" &&
-		config.GetAlgoliaIndexName() != ""
-
-	if isConfigured {
-		logger.Info("Algolia service is properly configured")
-	} else {
-		logger.Warn("Algolia service is not fully configured - some environment variables are missing")
-	}
-
-	return isConfigured
 }

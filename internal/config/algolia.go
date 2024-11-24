@@ -5,34 +5,34 @@ import (
 )
 
 func GetAlgoliaAppID() string {
-	logger.Debug("Getting Algolia App ID from environment")
+	logger.Debug(logger.CONFIG, "Getting Algolia App ID from environment")
 	value := GetEnvOrDefault("ALGOLIA_APP_ID", "")
 	if value == "" {
-		logger.Error("ALGOLIA_APP_ID environment variable not set")
+		logger.Warn(logger.CONFIG, "ALGOLIA_APP_ID environment variable not set")
 		return value
 	}
-	logger.Info("Successfully retrieved Algolia App ID")
+	logger.Info(logger.CONFIG, "Successfully retrieved Algolia App ID")
 	return value
 }
 
 func GetAlgoliaAPIKey() string {
-	logger.Debug("Getting Algolia API Key from environment")
+	logger.Debug(logger.CONFIG, "Getting Algolia API Key from environment")
 	value := GetEnvOrDefault("ALGOLIA_API_KEY", "")
 	if value == "" {
-		logger.Error("ALGOLIA_API_KEY environment variable not set")
+		logger.Error(logger.CONFIG, "ALGOLIA_API_KEY environment variable not set")
 		return value
 	}
-	logger.Info("Successfully retrieved Algolia API Key")
+	logger.Info(logger.CONFIG, "Successfully retrieved Algolia API Key")
 	return value
 }
 
 func GetAlgoliaIndexName() string {
-	logger.Debug("Getting Algolia Index Name from environment")
+	logger.Debug(logger.CONFIG, "Getting Algolia Index Name from environment")
 	value := GetEnvOrDefault("ALGOLIA_INDEX_NAME", "")
 	if value == "" {
-		logger.Error("ALGOLIA_INDEX_NAME environment variable not set")
+		logger.Error(logger.CONFIG, "ALGOLIA_INDEX_NAME environment variable not set")
 		return value
 	}
-	logger.Info("Successfully retrieved Algolia Index Name")
+	logger.Info(logger.CONFIG, "Successfully retrieved Algolia Index Name")
 	return value
 }

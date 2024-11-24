@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -17,6 +18,17 @@ const (
 
 var currentLevel = getLogLevel()
 
+const (
+	APP     = "APP"
+	CONFIG  = "CONFIG"
+	HANDLER = "HANDLER"
+	SERVICE = "SERVICE"
+	OAUTH   = "OAUTH"
+	REDIS   = "REDIS"
+	CHAT    = "CHAT"
+	TOOLS   = "TOOLS"
+)
+
 func getLogLevel() LogLevel {
 	level := strings.ToUpper(os.Getenv("LOG_LEVEL"))
 	switch level {
@@ -29,36 +41,41 @@ func getLogLevel() LogLevel {
 	case "ERROR":
 		return ERROR
 	default:
-		return INFO // Default level
+		return INFO
 	}
 }
 
-func Debug(format string, v ...interface{}) {
+func formatMessage(level, namespace, format string, v ...interface{}) string {
+	msg := fmt.Sprintf(format, v...)
+	return fmt.Sprintf("[%s] [%s] %s", level, namespace, msg)
+}
+
+func Debug(namespace, format string, v ...interface{}) {
 	if currentLevel >= DEBUG {
-		log.Printf("[DEBUG] "+format, v...)
+		log.Print(formatMessage("DEBUG", namespace, format, v...))
 	}
 }
 
-func Info(format string, v ...interface{}) {
+func Info(namespace, format string, v ...interface{}) {
 	if currentLevel >= INFO {
-		log.Printf("[INFO] "+format, v...)
+		log.Print(formatMessage("INFO", namespace, format, v...))
 	}
 }
 
-func Warn(format string, v ...interface{}) {
+func Warn(namespace, format string, v ...interface{}) {
 	if currentLevel >= WARN {
-		log.Printf("[WARN] "+format, v...)
+		log.Print(formatMessage("WARN", namespace, format, v...))
 	}
 }
 
-func Error(format string, v ...interface{}) {
+func Error(namespace, format string, v ...interface{}) {
 	if currentLevel >= ERROR {
-		log.New(os.Stderr, "", log.LstdFlags).Printf("[ERROR] "+format, v...)
+		log.New(os.Stderr, "", log.LstdFlags).Print(formatMessage("ERROR", namespace, format, v...))
 	}
 }
 
-func Fatal(format string, v ...interface{}) {
+func Fatal(namespace, format string, v ...interface{}) {
 	if currentLevel >= ERROR {
-		log.New(os.Stderr, "", log.LstdFlags).Printf("[FATAL] "+format, v...)
+		log.New(os.Stderr, "", log.LstdFlags).Print(formatMessage("FATAL", namespace, format, v...))
 	}
 }

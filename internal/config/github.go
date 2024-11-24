@@ -5,11 +5,12 @@ import (
 )
 
 func GetGitHubToken() string {
+	logger.Debug(logger.CONFIG, "Getting GitHub token from environment")
 	value := GetEnvOrDefault("GITHUB_TOKEN", "")
 	if value == "" {
-		logger.Warn("GITHUB_TOKEN environment variable not set")
-	} else {
-		logger.Debug("GitHub token successfully loaded")
+		logger.Warn(logger.CONFIG, "GITHUB_TOKEN environment variable not set")
+		return value
 	}
+	logger.Info(logger.CONFIG, "Successfully retrieved GitHub token")
 	return value
 }

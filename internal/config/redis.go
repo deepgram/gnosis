@@ -5,15 +5,23 @@ import (
 )
 
 func GetRedisURL() string {
-	logger.Debug("Getting Redis URL from environment")
-	return GetEnvOrDefault("REDIS_URL", "")
+	logger.Debug(logger.CONFIG, "Attempting to retrieve Redis URL from environment")
+	value := GetEnvOrDefault("REDIS_URL", "")
+	if value == "" {
+		logger.Warn(logger.CONFIG, "Failed to retrieve Redis URL - environment variable not set")
+	} else {
+		logger.Info(logger.CONFIG, "Redis URL successfully loaded")
+	}
+	return value
 }
 
 func GetRedisPassword() string {
-	logger.Debug("Getting Redis password from environment")
-	return GetEnvOrDefault("REDIS_PASSWORD", "")
-}
-
-func IsRedisConfigured() bool {
-	return GetRedisURL() != ""
+	logger.Debug(logger.CONFIG, "Attempting to retrieve Redis password from environment")
+	value := GetEnvOrDefault("REDIS_PASSWORD", "")
+	if value == "" {
+		logger.Warn(logger.CONFIG, "Failed to retrieve Redis password - environment variable not set")
+	} else {
+		logger.Info(logger.CONFIG, "Redis password successfully loaded")
+	}
+	return value
 }

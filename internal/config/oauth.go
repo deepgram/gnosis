@@ -17,14 +17,14 @@ var (
 // SetJWTSecret temporarily changes the JWT secret and returns a function to restore it
 // This is primarily used for testing
 func SetJWTSecret(secret []byte) func() {
-	logger.Debug("Temporarily changing JWT secret")
+	logger.Debug(logger.CONFIG, "Temporarily changing JWT secret")
 	jwtSecretMu.Lock()
 	previous := JWTSecret
 	JWTSecret = secret
 	jwtSecretMu.Unlock()
 
 	return func() {
-		logger.Debug("Restoring previous JWT secret")
+		logger.Debug(logger.CONFIG, "Restoring previous JWT secret")
 		jwtSecretMu.Lock()
 		JWTSecret = previous
 		jwtSecretMu.Unlock()
@@ -69,14 +69,14 @@ var AllowedClients = map[string]ClientConfig{
 // GetClientTypeByID returns the client type (map key) for a given client ID,
 // or an empty string if not found
 func GetClientTypeByID(clientID string) string {
-	logger.Debug("Looking up client type for client ID: %s", clientID)
+	logger.Debug(logger.CONFIG, "Looking up client type for client ID: %s", clientID)
 	for clientType, config := range AllowedClients {
 		if config.ID == clientID {
-			logger.Debug("Found client type '%s' for client ID: %s", clientType, clientID)
+			logger.Debug(logger.CONFIG, "Found client type '%s' for client ID: %s", clientType, clientID)
 			return clientType
 		}
 	}
-	logger.Warn("No client type found for client ID: %s", clientID)
+	logger.Warn(logger.CONFIG, "No client type found for client ID: %s", clientID)
 	return ""
 }
 
@@ -84,10 +84,10 @@ func GetClientTypeByID(clientID string) string {
 func GetClientConfig(clientType string) ClientConfig {
 	config, exists := AllowedClients[clientType]
 	if !exists {
-		logger.Warn("Attempted to get config for unknown client type: %s", clientType)
+		logger.Error(logger.CONFIG, "Attempted to get config for unknown client type: %s", clientType)
 		return ClientConfig{}
 	}
-	logger.Debug("Retrieved config for client type: %s", clientType)
+	logger.Debug(logger.CONFIG, "Retrieved config for client type: %s", clientType)
 	return config
 }
 
