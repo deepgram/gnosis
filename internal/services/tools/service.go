@@ -5,23 +5,24 @@ import (
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
-	"github.com/deepgram/gnosis/internal/services"
+	"github.com/deepgram/gnosis/internal/services/algolia"
+	"github.com/deepgram/gnosis/internal/services/github"
+	"github.com/deepgram/gnosis/internal/services/kapa"
 	"github.com/sashabaranov/go-openai"
 )
 
-var (
-	configuredTools []openai.Tool
-	toolsMu         sync.RWMutex
-)
+type Service struct {
+	tools []openai.Tool
+	mu    sync.RWMutex
+}
 
-func InitializeTools() error {
-	toolsMu.Lock()
-	defer toolsMu.Unlock()
-	logger.Info(logger.SERVICE, "Initializing tools configuration")
+func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service) (*Service, error) {
+	logger.Info(logger.SERVICE, "Initialising tools service")
+
 	toolsConfig, err := config.LoadToolsConfig("config/tools.json")
 	if err != nil {
 		logger.Error(logger.SERVICE, "Failed to load tools config: %v", err)
-		return err
+		return nil, err
 	}
 
 	var tools []openai.Tool
@@ -29,15 +30,15 @@ func InitializeTools() error {
 		// Only add tool if corresponding service is configured
 		switch toolDef.Name {
 		case "search_algolia":
-			if services.GetAlgoliaService() == nil {
+			if algoliaService == nil {
 				continue
 			}
 		case "search_starter_apps":
-			if services.GetGitHubService() == nil {
+			if githubService == nil {
 				continue
 			}
 		case "ask_kapa":
-			if services.GetKapaService() == nil {
+			if kapaService == nil {
 				continue
 			}
 		}
@@ -53,13 +54,14 @@ func InitializeTools() error {
 		logger.Info(logger.SERVICE, "Added tool: %s", toolDef.Name)
 	}
 
-	configuredTools = tools
 	logger.Info(logger.SERVICE, "Finished loading tools - %d tools available", len(tools))
-	return nil
+	return &Service{
+		tools: tools,
+	}, nil
 }
 
-func GetConfiguredTools() []openai.Tool {
-	toolsMu.RLock()
-	defer toolsMu.RUnlock()
-	return configuredTools
+func (s *Service) GetTools() []openai.Tool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tools
 }

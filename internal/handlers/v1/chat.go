@@ -18,7 +18,7 @@ type ChatCompletionRequest struct {
 	FrequencyPenalty float32            `json:"frequency_penalty,omitempty"`
 }
 
-func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
+func HandleChatCompletion(chatService *chat.Service, w http.ResponseWriter, r *http.Request) {
 	logger.Debug(logger.HANDLER, "Starting chat completion handler")
 	logger.Info(logger.HANDLER, "Received chat completion request")
 
@@ -71,7 +71,6 @@ func HandleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatService := chat.NewService()
 	config := &chat.ChatConfig{
 		Temperature:      req.Temperature,
 		MaxTokens:        req.MaxTokens,

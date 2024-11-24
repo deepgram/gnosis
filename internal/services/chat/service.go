@@ -9,7 +9,9 @@ import (
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
-	"github.com/deepgram/gnosis/internal/services"
+	"github.com/deepgram/gnosis/internal/services/algolia"
+	"github.com/deepgram/gnosis/internal/services/github"
+	"github.com/deepgram/gnosis/internal/services/kapa"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
@@ -40,15 +42,23 @@ Communicate these Deepgram service differences clearly:
 `
 
 type Service struct {
-	openaiClient *openai.Client
+	openaiClient   *openai.Client
+	algoliaService *algolia.Service
+	githubService  *github.Service
+	kapaService    *kapa.Service
+	toolsService   *tools.Service
 }
 
-func NewService() *Service {
+func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service, toolsService *tools.Service) *Service {
 	logger.Info(logger.SERVICE, "Initializing chat service")
 	client := openai.NewClient(config.GetOpenAIKey())
 	logger.Debug(logger.SERVICE, "OpenAI client initialized")
 	return &Service{
-		openaiClient: client,
+		openaiClient:   client,
+		algoliaService: algoliaService,
+		githubService:  githubService,
+		kapaService:    kapaService,
+		toolsService:   toolsService,
 	}
 }
 
@@ -183,7 +193,7 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 			Role:    openai.ChatMessageRoleSystem,
 			Content: systemPrompt,
 		}}, messages...),
-		Tools: tools.GetConfiguredTools(),
+		Tools: s.toolsService.GetTools(),
 	}
 
 	// Apply optional configurations if provided
@@ -231,8 +241,7 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			return "", fmt.Errorf("invalid parameters: %v", err)
 		}
 
-		algoliaService := services.GetAlgoliaService()
-		result, err := algoliaService.Search(ctx, params.Query)
+		result, err := s.algoliaService.Search(ctx, params.Query)
 		if err != nil {
 			return "", fmt.Errorf("algolia search failed: %w", err)
 		}
@@ -261,8 +270,7 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			return "", fmt.Errorf("invalid parameters: %v", err)
 		}
 
-		githubService := services.GetGitHubService()
-		searchResult, err := githubService.SearchRepos(ctx, "deepgram-starters", params.Language, params.Topics)
+		searchResult, err := s.githubService.SearchRepos(ctx, "deepgram-starters", params.Language, params.Topics)
 		if err != nil {
 			return "", fmt.Errorf("github search failed: %w", err)
 		}
@@ -275,7 +283,7 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 		repo := searchResult.Items[0]
 
 		// Get the README for the repo
-		readmeResult, err := githubService.GetRepoReadme(ctx, repo.FullName)
+		readmeResult, err := s.githubService.GetRepoReadme(ctx, repo.FullName)
 		if err != nil {
 			return "", fmt.Errorf("github readme failed: %w", err)
 		}
@@ -303,21 +311,15 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			Tags     []string `json:"tags"`
 		}
 
-		// Unmarshal the parameters
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			return "", fmt.Errorf("invalid parameters: %v", err)
 		}
 
-		// Initialize Kapa service
-		kapaService := services.GetKapaService()
-
-		// Query Kapa
-		resp, err := kapaService.Query(ctx, params.Question, params.Product, params.Tags)
+		resp, err := s.kapaService.Query(ctx, params.Question, params.Product, params.Tags)
 		if err != nil {
 			return "", fmt.Errorf("kapa query failed: %w", err)
 		}
 
-		// Return the answer
 		return resp.Answer, nil
 
 	default:
