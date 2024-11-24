@@ -17,6 +17,7 @@ servers:
 paths:
   /v1/oauth/token:
     post:
+      summary: Obtain authentication tokens
       description: |
         Exchange client credentials or an authorization code for an access token.
         Supports two authentication methods:
@@ -89,6 +90,7 @@ paths:
 
   /v1/oauth/authorize:
     post:
+      summary: Server-initiated authorization endpoint
       description: |
         Endpoint for app-to-app authorization flows that don't require user interaction.
         Returns authorization response directly in the body rather than using redirects.
@@ -159,6 +161,9 @@ paths:
 
   /v1/chat/completions:
     post:
+      summary: Create a chat completion
+      description: |
+        Create a chat completion with Deepgram's AI assistant.
       security:
         - oauth2: []
       requestBody:
