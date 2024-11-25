@@ -25,10 +25,10 @@ tags:
 
 paths:
   /v1/oauth/authorize:
-    tags:
-      - Auth
     post:
       summary: Authorization endpoint
+      tags:
+        - Auth
       description: |
         Endpoint for initiating app-to-app authorization flows.
         Requires a valid session cookie and the client identifier (`client_id`).
@@ -87,10 +87,10 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /v1/oauth/token:
-    tags:
-      - Auth
     post:
       summary: Token exchange endpoint
+      tags:
+        - Auth
       description: |
         Exchange client credentials or an authorization code for an access token.
         Supports two grant types:
@@ -174,10 +174,10 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /v1/chat/completions:
-    tags:
-      - Chat
     post:
       summary: Create a chat completion
+      tags:
+        - Chat
       description: |
         Create a chat completion with Deepgram's AI assistant.
       security:
