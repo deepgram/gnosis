@@ -268,12 +268,42 @@ components:
     ChatCompletionResponse:
       type: object
       required:
-        - messages
+        - id
+        - created
+        - choices
+        - usage
       properties:
-        messages:
+        id:
+          type: string
+          description: A unique identifier for the chat completion.
+        created:
+          type: integer
+          description: Unix timestamp of when the response was created.
+        choices:
           type: array
           items:
-            $ref: "#/components/schemas/ChatMessage"
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                $ref: "#/components/schemas/ChatMessage"
+        usage:
+          type: object
+          required:
+            - prompt_tokens
+            - completion_tokens
+            - total_tokens
+          properties:
+            prompt_tokens:
+              type: integer
+              description: Number of tokens in the prompt.
+            completion_tokens:
+              type: integer
+              description: Number of tokens in the completion.
+            total_tokens:
+              type: integer
+              description: Total number of tokens used.
 
     ChatMessage:
       type: object
