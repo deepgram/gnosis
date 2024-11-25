@@ -166,8 +166,8 @@ paths:
       description: |
         Create a chat completion with Deepgram's AI assistant.
       security:
-        - clientCredentials: []
-        - authorizationCode: []
+        - client_credentials: []
+        - authorization_code: []
       requestBody:
         required: true
         content:
