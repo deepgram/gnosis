@@ -166,7 +166,8 @@ paths:
       description: |
         Create a chat completion with Deepgram's AI assistant.
       security:
-        - oauth2: []
+        - clientCredentials: []
+        - authorizationCode: []
       requestBody:
         required: true
         content:
@@ -288,12 +289,15 @@ components:
       additionalProperties: false
 
   securitySchemes:
-    oauth2:
+    clientCredentials:
       type: oauth2
       flows:
         clientCredentials:
           tokenUrl: /v1/oauth/token
           scopes: {}
+    authorizationCode:
+      type: oauth2
+      flows:
         authorizationCode:
           authorizationUrl: /v1/oauth/authorize
           tokenUrl: /v1/oauth/token
