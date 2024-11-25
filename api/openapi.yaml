@@ -17,6 +17,12 @@ servers:
   - url: https://gnosis.deepgram.com
     description: Production server
 
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Chat
+    description: Chat endpoints
+
 paths:
   /v1/oauth/authorize:
     tags:
