@@ -1,13 +1,16 @@
-openapi: "3.0.0"
+openapi: "3.1.0"
 
 info:
   title: Gnosis by Deepgram
-  description: Gnosis app REST API, Deepgram's AI assistant.
+  description: Gnosis is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
   termsOfService: https://deepgram.com/terms/
   contact:
+    name: Deepgram DevRel Team
     email: devrel@deepgram.com
+    url: https://community.deepgram.com/
   license:
     name: LicenseRef-Proprietary-Deepgram
+    url: https://deepgram.com/terms/
   version: 1.0.0
 
 servers:
