@@ -15,14 +15,20 @@ servers:
     description: Production server
 
 paths:
-  /v1/oauth/token:
+  /v1/oauth/authorize:
     post:
-      summary: Obtain authentication tokens
+      summary: Authorization endpoint
       description: |
-        Exchange client credentials or an authorization code for an access token.
-        Supports two authentication methods:
-        1. Client credentials (client_id + client_secret in headers)
-        2. Authorization code (client_id + code from /oauth/authorize)
+        Endpoint for initiating app-to-app authorization flows.
+        Requires a valid session cookie and the client identifier (`client_id`).
+        Returns an authorization `code` and the `state` value (if provided) for subsequent token exchange.
+      parameters:
+        - in: cookie
+          name: gnosis_session
+          required: true
+          schema:
+            type: string
+          description: Session cookie for authentication, must be a valid JWT token.
       requestBody:
         required: true
         content:
@@ -30,21 +36,95 @@ paths:
             schema:
               type: object
               required:
-                - grant_type
+                - client_id
+                - state
               properties:
-                grant_type:
-                  type: string
-                  enum: [client_credentials, authorization_code]
-                  description: The type of grant being requested
-                code:
-                  type: string
-                  description: Required when grant_type is 'authorization_code'. The authorization code received from /oauth/authorize
                 client_id:
                   type: string
-                  description: Required when grant_type is 'authorization_code'. The client identifier
-      security:
-        - ClientCredentials: []
-        - AuthorizationCode: []
+                  description: The client identifier issued to the client.
+                state:
+                  type: string
+                  description: An opaque value to maintain state between the request and response.
+      responses:
+        "200":
+          description: Successful authorization response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - state
+                properties:
+                  code:
+                    type: string
+                    description: The authorization code to exchange for an access token.
+                  state:
+                    type: string
+                    description: The state value provided in the request, if any.
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized - Invalid session cookie or client credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /v1/oauth/token:
+    post:
+      summary: Token exchange endpoint
+      description: |
+        Exchange client credentials or an authorization code for an access token.
+        Supports two grant types:
+        - **Client Credentials:** Direct access for server-to-server communication.
+        - **Authorization Code:** Token exchange following `/v1/oauth/authorize`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - title: Client Credentials Grant
+                  description: Use this grant type for server-to-server communication with `client_id` and `client_secret`.
+                  type: object
+                  required:
+                    - grant_type
+                    - client_id
+                    - client_secret
+                  properties:
+                    grant_type:
+                      type: string
+                      enum: [client_credentials]
+                      description: The grant type for client credentials authentication.
+                    client_id:
+                      type: string
+                      description: The client identifier issued to the client.
+                    client_secret:
+                      type: string
+                      description: The client secret issued to the client.
+                - title: Authorization Code Grant
+                  description: Use this grant type to exchange an authorization code for an access token.
+                  type: object
+                  required:
+                    - grant_type
+                    - client_id
+                    - code
+                  properties:
+                    grant_type:
+                      type: string
+                      enum: [authorization_code]
+                      description: The grant type for authorization code exchange.
+                    client_id:
+                      type: string
+                      description: The client identifier issued to the client.
+                    code:
+                      type: string
+                      description: The authorization code issued from `/v1/oauth/authorize`.
       responses:
         "200":
           description: Successful token response
@@ -59,105 +139,26 @@ paths:
                 properties:
                   access_token:
                     type: string
-                    description: The access token
+                    description: The access token for API calls.
                   token_type:
                     type: string
                     enum: [Bearer]
-                    description: The type of token
+                    description: The type of token issued.
                   expires_in:
                     type: integer
-                    description: Token lifetime in seconds
+                    description: Time in seconds until the token expires.
         "400":
-          description: Invalid grant type or request format
+          description: Invalid request or parameters
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - error
-                  - error_description
-                properties:
-                  error:
-                    type: string
-                    enum:
-                      - invalid_request
-                      - invalid_grant
-                      - unsupported_grant_type
-                  error_description:
-                    type: string
+                $ref: "#/components/schemas/Error"
         "401":
-          description: Invalid client credentials or authorization code
-
-  /v1/oauth/authorize:
-    post:
-      summary: Server-initiated authorization endpoint
-      description: |
-        Endpoint for app-to-app authorization flows that don't require user interaction.
-        Returns authorization response directly in the body rather than using redirects.
-      parameters:
-        - in: cookie
-          name: gnosis_session
-          required: true
-          schema:
-            type: string
-          description: Session cookie for authentication, must be a valid JWT token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - client_id
-                - response_type
-              properties:
-                client_id:
-                  type: string
-                  description: The client identifier issued to the client
-                response_type:
-                  type: string
-                  enum: [code]
-                  description: Must be set to "code"
-                state:
-                  type: string
-                  description: An opaque value to maintain state between the request and response
-      responses:
-        "200":
-          description: Successful authorization response
+          description: Unauthorized - Invalid client credentials or authorization code
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - code
-                properties:
-                  code:
-                    type: string
-                    description: The authorization code
-                  state:
-                    type: string
-                    description: The state value from the request, if provided
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                  - error_description
-                properties:
-                  error:
-                    type: string
-                    enum:
-                      - invalid_request
-                      - unauthorized_client
-                      - access_denied
-                      - unsupported_response_type
-                  error_description:
-                    type: string
-        "401":
-          description: Unauthorized client or invalid session cookie
+                $ref: "#/components/schemas/Error"
 
   /v1/chat/completions:
     post:
@@ -181,51 +182,51 @@ paths:
                 $ref: "#/components/schemas/ChatCompletionResponse"
         "400":
           description: Invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           description: Unauthorized - Invalid or missing access token
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - error
-                  - error_description
-                properties:
-                  error:
-                    type: string
-                    enum:
-                      - invalid_token
-                      - expired_token
-                  error_description:
-                    type: string
+                $ref: "#/components/schemas/Error"
         "429":
           description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 components:
   schemas:
-    TokenRequest:
+    Error:
       type: object
       required:
-        - grant_type
+        - error
       properties:
-        grant_type:
+        error:
           type: string
-          enum: [anonymous]
-
-    TokenResponse:
-      type: object
-      required:
-        - access_token
-        - token_type
-        - expires_in
-      properties:
-        access_token:
+          description: A single ASCII error code identifying the type of error.
+          enum:
+            - invalid_request
+            - invalid_client
+            - invalid_grant
+            - unauthorized_client
+            - unsupported_grant_type
+            - invalid_scope
+            - access_denied
+            - unsupported_response_type
+            - server_error
+            - temporarily_unavailable
+        error_description:
           type: string
-        token_type:
+          description: A human-readable ASCII text providing additional information about the error.
+        error_uri:
           type: string
-          enum: [Bearer]
-        expires_in:
-          type: integer
+          format: uri
+          description: A URI identifying a human-readable web page with information about the error.
 
     ChatCompletionRequest:
       type: object
@@ -297,19 +298,3 @@ components:
           authorizationUrl: /v1/oauth/authorize
           tokenUrl: /v1/oauth/token
           scopes: {}
-    ClientCredentials:
-      type: apiKey
-      in: header
-      name: X-Client-ID
-      description: Client ID for client credentials grant
-    ClientSecret:
-      type: apiKey
-      in: header
-      name: X-Client-Secret
-      description: Client secret for client credentials grant
-    AuthorizationCode:
-      type: apiKey
-      in: header
-      name: X-Client-ID
-      description: Client ID for authorization code grant
-
