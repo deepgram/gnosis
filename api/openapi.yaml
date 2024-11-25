@@ -1,8 +1,8 @@
 openapi: "3.1.0"
 
 info:
-  title: Gnosis by Deepgram
-  description: Gnosis is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
+  title: Gnosis - Deepgram AI Support Agent
+  description: Gnosis is a lightweight API gateway that provides secure, managed access to Deepgram AI Support Agent and various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
   termsOfService: https://deepgram.com/terms/
   contact:
     name: Deepgram DevRel Team
@@ -14,23 +14,24 @@ info:
   version: 1.0.0
 
 servers:
-  - url: https://gnosis.deepgram.com
+  - url: https://gnosis.deepgram.com/v1
     description: Production server
 
 tags:
   - name: Auth
-    description: Authentication endpoints
+    description: OAuth and session management endpoints
   - name: Chat
-    description: Chat endpoints
+    description: Given a list of messages comprising a conversation, the model will
+      return a response.
 
 paths:
-  /v1/oauth/authorize:
+  /oauth/authorize:
     post:
       summary: Authorization endpoint
       tags:
         - Auth
       description: |
-        Endpoint for initiating app-to-app authorization flows.
+        Endpoint for initiating server-initiated authorization code flows.
         Requires a valid session cookie and the client identifier (`client_id`).
         Returns an authorization `code` and the `state` value (if provided) for subsequent token exchange.
       parameters:
@@ -86,7 +87,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /v1/oauth/token:
+  /oauth/token:
     post:
       summary: Token exchange endpoint
       tags:
@@ -95,7 +96,7 @@ paths:
         Exchange client credentials or an authorization code for an access token.
         Supports two grant types:
         - **Client Credentials:** Direct access for server-to-server communication.
-        - **Authorization Code:** Token exchange following `/v1/oauth/authorize`.
+        - **Authorization Code:** Token exchange following `/oauth/authorize`.
       requestBody:
         required: true
         content:

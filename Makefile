@@ -15,3 +15,10 @@ clean:
 
 lint:
 	npx prettier --write .
+
+build-docs:
+	npx @redocly/cli build-docs api/openapi.yaml \
+		--theme.openapi.colors.primary.main="#00A89C" \
+		--theme.openapi.typography.headings.fontFamily="Inter, sans-serif" \
+		--title="Gnosis API Documentation" \
+		--output docs/index.html
