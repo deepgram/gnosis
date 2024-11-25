@@ -289,13 +289,13 @@ components:
       additionalProperties: false
 
   securitySchemes:
-    clientCredentials:
+    client_credentials:
       type: oauth2
       flows:
         clientCredentials:
           tokenUrl: /v1/oauth/token
           scopes: {}
-    authorizationCode:
+    authorization_code:
       type: oauth2
       flows:
         authorizationCode:
