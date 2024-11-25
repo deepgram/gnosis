@@ -19,6 +19,8 @@ servers:
 
 paths:
   /v1/oauth/authorize:
+    tags:
+      - Auth
     post:
       summary: Authorization endpoint
       description: |
@@ -79,6 +81,8 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /v1/oauth/token:
+    tags:
+      - Auth
     post:
       summary: Token exchange endpoint
       description: |
@@ -164,6 +168,8 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /v1/chat/completions:
+    tags:
+      - Chat
     post:
       summary: Create a chat completion
       description: |
