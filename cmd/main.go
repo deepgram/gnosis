@@ -27,7 +27,9 @@ func main() {
 
 	// v1 routes
 	v1 := r.PathPrefix("/v1").Subrouter()
-	v1.HandleFunc("/oauth/token", handlers.HandleTokenV1).Methods("POST")
+	v1.HandleFunc("/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		handlers.HandleTokenV1(services.GetAuthCodeService(), w, r)
+	}).Methods("POST")
 	v1.HandleFunc("/oauth/authorize", func(w http.ResponseWriter, r *http.Request) {
 		handlers.HandleAuthorizeV1(services.GetAuthCodeService(), w, r)
 	}).Methods("POST")

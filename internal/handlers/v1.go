@@ -9,8 +9,8 @@ import (
 )
 
 // v1/oauth.go
-func HandleTokenV1(w http.ResponseWriter, r *http.Request) {
-	v1.HandleToken(w, r)
+func HandleTokenV1(authCodeService *authcode.Service, w http.ResponseWriter, r *http.Request) {
+	v1.HandleToken(authCodeService, w, r)
 }
 
 // v1/chat.go
