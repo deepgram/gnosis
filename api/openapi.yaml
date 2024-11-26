@@ -2,7 +2,11 @@ openapi: "3.1.0"
 
 info:
   title: Gnosis - Deepgram AI Support Agent
-  description: Gnosis is a lightweight API gateway that provides secure, managed access to Deepgram AI Support Agent and various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
+  description: |
+    Gnosis is a lightweight API gateway that provides secure, managed access to Deepgram 
+    AI Support Agent and various knowledge and assistance services. It acts as a unified 
+    interface for both internal and external clients, handling authentication, request 
+    routing, and response formatting.
   termsOfService: https://deepgram.com/terms/
   contact:
     name: Deepgram DevRel Team
@@ -21,8 +25,8 @@ tags:
   - name: Auth
     description: OAuth and session management endpoints
   - name: Chat
-    description: Given a list of messages comprising a conversation, the model will
-      return a response.
+    description: |
+      Given a list of messages comprising a conversation, the model will return a response.
 
 paths:
   /oauth/authorize:

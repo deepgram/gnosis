@@ -19,6 +19,10 @@ lint:
 build-docs:
 	npx @redocly/cli build-docs api/openapi.yaml \
 		--theme.openapi.colors.primary.main="#00A89C" \
-		--theme.openapi.typography.headings.fontFamily="Inter, sans-serif" \
+		--theme.openapi.typography.fontFamily="Inter, sans-serif" \
+		--theme.openapi.onlyRequiredInSamples \
 		--title="Gnosis API Documentation" \
 		--output docs/index.html
+
+view-docs:
+	make build-docs && open docs/index.html
