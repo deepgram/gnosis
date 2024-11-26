@@ -216,19 +216,19 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 	// Apply optional configurations if provided
 	if config != nil {
 		if config.Temperature > 0 {
-			req.Temperature = float32(config.Temperature)
+			req.Temperature = config.Temperature
 		}
 		if config.MaxTokens > 0 {
 			req.MaxTokens = config.MaxTokens
 		}
 		if config.TopP > 0 {
-			req.TopP = float32(config.TopP)
+			req.TopP = config.TopP
 		}
 		if config.PresencePenalty != 0 {
-			req.PresencePenalty = float32(config.PresencePenalty)
+			req.PresencePenalty = config.PresencePenalty
 		}
 		if config.FrequencyPenalty != 0 {
-			req.FrequencyPenalty = float32(config.FrequencyPenalty)
+			req.FrequencyPenalty = config.FrequencyPenalty
 		}
 	}
 
