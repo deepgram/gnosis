@@ -13,6 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -25,7 +30,6 @@ jobs:
 
       - name: Run prettier
         run: |
-          npm install
           npx prettier --check .
 
       - name: Run golangci-lint
