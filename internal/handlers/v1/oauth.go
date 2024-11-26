@@ -9,6 +9,7 @@ import (
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/internal/services/authcode"
 	"github.com/deepgram/gnosis/internal/services/oauth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -45,6 +46,16 @@ type TokenResponse struct {
 
 type TokenRequest struct {
 	GrantType string `json:"grant_type"`
+}
+
+type AuthorizeRequest struct {
+	ClientID string `json:"client_id"`
+	State    string `json:"state"`
+}
+
+type AuthorizeResponse struct {
+	Code  string `json:"code"`
+	State string `json:"state"`
 }
 
 func HandleToken(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +167,78 @@ func HandleToken(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r *http.Request) {
+	logger.Debug(logger.HANDLER, "Handling authorize request from %s", r.RemoteAddr)
+
+	if r.Method != http.MethodPost {
+		logger.Warn(logger.HANDLER, "Invalid HTTP method %s from %s", r.Method, r.RemoteAddr)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Validate session cookie
+	cookie, err := r.Cookie(config.GetSessionCookieName())
+	if err != nil {
+		logger.Warn(logger.HANDLER, "Missing session cookie from %s", r.RemoteAddr)
+		http.Error(w, "Unauthorized - Invalid session cookie", http.StatusUnauthorized)
+		return
+	}
+
+	// Validate JWT in cookie
+	token, err := jwt.ParseWithClaims(cookie.Value, &oauth.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return config.GetJWTSecret(), nil
+	})
+	if err != nil || !token.Valid {
+		logger.Warn(logger.HANDLER, "Invalid session token from %s", r.RemoteAddr)
+		http.Error(w, "Unauthorized - Invalid session cookie", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse request body
+	var req AuthorizeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Error(logger.HANDLER, "Failed to decode authorize request: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required parameters
+	if req.ClientID == "" || req.State == "" {
+		logger.Warn(logger.HANDLER, "Missing required parameters from %s", r.RemoteAddr)
+		http.Error(w, "Missing required parameters", http.StatusBadRequest)
+		return
+	}
+
+	// Validate client ID
+	clientType := config.GetClientTypeByID(req.ClientID)
+	if clientType == "" {
+		logger.Warn(logger.HANDLER, "Invalid client ID attempted access: %s from %s", req.ClientID, r.RemoteAddr)
+		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Generate authorization code
+	authCode := uuid.New().String()
+
+	// Store the authorization code using the service
+	ctx := r.Context()
+	if err := authCodeService.StoreAuthCode(ctx, authCode, req.ClientID, req.State); err != nil {
+		logger.Error(logger.HANDLER, "Failed to store auth code: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	response := AuthorizeResponse{
+		Code:  authCode,
+		State: req.State,
+	}
+
+	logger.Info(logger.HANDLER, "Successfully issued authorization code to client ID: %s", req.ClientID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 func validateClientSecret(provided, stored string) bool {
 	return subtle.ConstantTimeCompare([]byte(provided), []byte(stored)) == 1
 }
@@ -206,4 +289,11 @@ func validateWidgetRequest(r *http.Request, allowedURLs []string) bool {
 	// At this point, we have validated at least one of origin or referer
 	logger.Debug(logger.HANDLER, "Widget request validation result: %v", true)
 	return true
+}
+
+// AuthCodeInfo stores information about an authorization code
+type AuthCodeInfo struct {
+	ClientID  string
+	State     string
+	ExpiresAt time.Time
 }

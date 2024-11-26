@@ -6,6 +6,7 @@ import (
 
 	"github.com/deepgram/gnosis/internal/logger"
 	"github.com/deepgram/gnosis/internal/services/algolia"
+	"github.com/deepgram/gnosis/internal/services/authcode"
 	"github.com/deepgram/gnosis/internal/services/chat"
 	"github.com/deepgram/gnosis/internal/services/github"
 	"github.com/deepgram/gnosis/internal/services/kapa"
@@ -20,13 +21,14 @@ var (
 )
 
 type Services struct {
-	algoliaService *algolia.Service
-	githubService  *github.Service
-	kapaService    *kapa.Service
-	redisService   *redis.Service
-	sessionService *session.Service
-	chatService    *chat.Service
-	toolsService   *tools.Service
+	algoliaService  *algolia.Service
+	githubService   *github.Service
+	kapaService     *kapa.Service
+	redisService    *redis.Service
+	sessionService  *session.Service
+	chatService     *chat.Service
+	toolsService    *tools.Service
+	authCodeService *authcode.Service
 }
 
 // InitializeServices initializes all required services
@@ -45,6 +47,9 @@ func InitializeServices() (*Services, error) {
 	// Initialize session service with Redis dependency
 	sessionService := session.NewService(redisService)
 
+	// Initialize auth code service with Redis dependency
+	authCodeService := authcode.NewService(redisService)
+
 	// Initialize tools service with dependencies
 	toolsService, err := tools.NewService(algoliaService, githubService, kapaService)
 	if err != nil {
@@ -58,17 +63,23 @@ func InitializeServices() (*Services, error) {
 	logger.Info(logger.SERVICE, "Services initialization complete")
 
 	return &Services{
-		algoliaService: algoliaService,
-		githubService:  githubService,
-		kapaService:    kapaService,
-		redisService:   redisService,
-		sessionService: sessionService,
-		chatService:    chatService,
-		toolsService:   toolsService,
+		algoliaService:  algoliaService,
+		githubService:   githubService,
+		kapaService:     kapaService,
+		redisService:    redisService,
+		sessionService:  sessionService,
+		chatService:     chatService,
+		toolsService:    toolsService,
+		authCodeService: authCodeService,
 	}, nil
 }
 
 // Add a getter method for the chat service
 func (s *Services) GetChatService() *chat.Service {
 	return s.chatService
+}
+
+// GetAuthCodeService returns the auth code service
+func (s *Services) GetAuthCodeService() *authcode.Service {
+	return s.authCodeService
 }

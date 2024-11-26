@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	sessionCookieName = "gnosis_session"
-	cookieLifetime    = 1 * time.Hour
+	cookieLifetime = 1 * time.Hour
 )
 
 type SessionClaims struct {
@@ -156,7 +155,7 @@ func (s *Service) CreateSession(w http.ResponseWriter, userID string) error {
 	}
 
 	cookie := &http.Cookie{
-		Name:     sessionCookieName,
+		Name:     config.GetSessionCookieName(),
 		Value:    signedToken,
 		Path:     "/",
 		HttpOnly: true,
@@ -175,7 +174,7 @@ func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
 	logger.Debug(logger.SERVICE, "Validating session cookie")
 	ctx := context.Background()
 
-	cookie, err := r.Cookie(sessionCookieName)
+	cookie, err := r.Cookie(config.GetSessionCookieName())
 	if err != nil {
 		if err == http.ErrNoCookie {
 			logger.Debug(logger.SERVICE, "No session cookie found")
@@ -220,7 +219,7 @@ func (s *Service) ClearSession(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
 	// Get session ID from cookie before clearing it
-	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+	if cookie, err := r.Cookie(config.GetSessionCookieName()); err == nil {
 		if token, err := jwt.ParseWithClaims(cookie.Value, &SessionClaims{}, func(token *jwt.Token) (interface{}, error) {
 			return config.GetJWTSecret(), nil
 		}); err == nil {
@@ -234,7 +233,7 @@ func (s *Service) ClearSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie := &http.Cookie{
-		Name:     sessionCookieName,
+		Name:     config.GetSessionCookieName(),
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
