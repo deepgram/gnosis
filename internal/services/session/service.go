@@ -128,7 +128,7 @@ func (ms *MemoryStore) Delete(ctx context.Context, sessionID string) error {
 
 // CreateSession generates a new session cookie and sets it in the response
 func (s *Service) CreateSession(w http.ResponseWriter, userID string) error {
-	logger.Debug("Creating new session for user: %s", userID)
+	logger.Debug(logger.SERVICE, "Creating new session for user: %s", userID)
 	ctx := context.Background()
 
 	sessionID := uuid.New().String()
@@ -165,7 +165,7 @@ func (s *Service) CreateSession(w http.ResponseWriter, userID string) error {
 	}
 
 	http.SetCookie(w, cookie)
-	logger.Info("Session cookie created successfully for user: %s", userID)
+	logger.Info(logger.SERVICE, "Session cookie created successfully for user: %s", userID)
 	return nil
 }
 
@@ -205,7 +205,7 @@ func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
 			return nil, nil
 		}
 
-		logger.Info("Valid session found for user: %s", claims.UserID)
+		logger.Info(logger.SERVICE, "Valid session found for user: %s", claims.UserID)
 		return claims, nil
 	}
 

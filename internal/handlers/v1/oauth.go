@@ -26,7 +26,7 @@ func init() {
 	// Validate required client configurations
 	for clientType, client := range config.AllowedClients {
 		if client.ID == "" {
-			logger.Error("Missing required client ID for client: %s", clientType)
+			logger.Error(logger.HANDLER, "Missing required client ID for client: %s", clientType)
 		}
 
 		if !client.NoSecret && client.Secret == "" {
@@ -212,7 +212,10 @@ func issueToken(w http.ResponseWriter, claims oauth.CustomClaims) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error(logger.HANDLER, "Failed to encode response: %v", err)
+		return
+	}
 }
 
 func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r *http.Request) {
@@ -294,7 +297,10 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 	logger.Info(logger.HANDLER, "Successfully issued authorization code to client ID: %s", req.ClientID)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error(logger.HANDLER, "Failed to encode response: %v", err)
+		return
+	}
 }
 
 func validateClientSecret(provided, stored string) bool {

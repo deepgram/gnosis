@@ -22,5 +22,8 @@ func HandleWidgetJS(w http.ResponseWriter, r *http.Request) {
 		window.GNOSIS_WIDGET_ID = "gnosis-" + Math.random().toString(36).substring(2);
 	`
 
-	w.Write([]byte(js))
+	if _, err := w.Write([]byte(js)); err != nil {
+		logger.Error(logger.HANDLER, "Failed to write response: %v", err)
+		return
+	}
 }

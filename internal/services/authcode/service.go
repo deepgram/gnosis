@@ -92,7 +92,9 @@ func (rs *RedisStore) Get(ctx context.Context, code string) (*AuthCodeInfo, erro
 
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
-		rs.Delete(ctx, code)
+		if err := rs.Delete(ctx, code); err != nil {
+			logger.Warn(logger.SERVICE, "Failed to delete auth code: %v", err)
+		}
 		return nil, nil
 	}
 
@@ -122,8 +124,9 @@ func (ms *MemoryStore) Get(ctx context.Context, code string) (*AuthCodeInfo, err
 
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
-		ms.mu.RUnlock()
-		ms.Delete(ctx, code)
+		if err := ms.Delete(ctx, code); err != nil {
+			logger.Warn(logger.SERVICE, "Failed to delete auth code: %v", err)
+		}
 		return nil, nil
 	}
 

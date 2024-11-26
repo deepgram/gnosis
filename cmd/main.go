@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/deepgram/gnosis/internal/handlers"
 	"github.com/deepgram/gnosis/internal/logger"
@@ -42,8 +43,16 @@ func main() {
 
 	logger.Debug(logger.APP, "Router setup complete")
 
+	srv := &http.Server{
+		Addr:         ":8080",
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
 	logger.Info(logger.APP, "Server starting on :8080")
-	if err := http.ListenAndServe(":8080", r); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		logger.Fatal(logger.APP, "ListenAndServe error: %v", err)
 	}
 }

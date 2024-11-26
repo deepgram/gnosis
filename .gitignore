@@ -29,3 +29,6 @@ bin/
 
 # Docs
 docs/index.html
+
+# Linter files
+.golangci.yml.swp

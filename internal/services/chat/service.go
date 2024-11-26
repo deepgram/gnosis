@@ -243,7 +243,7 @@ func (s *Service) buildChatRequest(messages []openai.ChatCompletionMessage, conf
 }
 
 func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (string, error) {
-	logger.Info("Executing tool call: %s", tool.Function.Name)
+	logger.Info(logger.SERVICE, "Executing tool call: %s", tool.Function.Name)
 	if tool.Type != "function" {
 		return "", fmt.Errorf("unsupported tool type")
 	}
@@ -316,7 +316,7 @@ func (s *Service) executeToolCall(ctx context.Context, tool openai.ToolCall) (st
 			string(readmeContents),
 		)
 
-		logger.Info("Starter app search response: %s", response)
+		logger.Info(logger.SERVICE, "Starter app search response: %s", response)
 
 		// Return a markdown response
 		return response, nil
