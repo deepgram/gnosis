@@ -3,10 +3,10 @@ name: Generate API Documentation
 on:
   push:
     paths:
-      - "api/openapi.yaml"
+      - "docs/openapi.yaml"
   pull_request:
     paths:
-      - "api/openapi.yaml"
+      - "docs/openapi.yaml"
   workflow_dispatch:
     inputs:
       branch:

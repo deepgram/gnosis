@@ -100,7 +100,7 @@ The service will start on port 8080 by default.
 
 ## API Documentation
 
-See [api/openapi.yaml](./api/openapi.yaml) for detailed API documentation.
+See [docs/openapi.yaml](./docs/openapi.yaml) for detailed API documentation.
 
 Key endpoints:
 
