@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/deepgram/gnosis/internal/handlers"
-	"github.com/deepgram/gnosis/internal/middleware"
+	"github.com/deepgram/gnosis/internal/api/v1/middleware"
+	"github.com/deepgram/gnosis/internal/api/v1/routes"
 	"github.com/deepgram/gnosis/internal/services"
 	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/gorilla/mux"
@@ -24,20 +24,21 @@ func main() {
 	logger.Debug(logger.APP, "Setting up router")
 	r := mux.NewRouter()
 
-	// Static routes
-	r.HandleFunc("/widget.js", handlers.HandleWidgetJS).Methods("GET")
-
 	// v1 routes
 	v1 := r.PathPrefix("/v1").Subrouter()
 
 	// OAuth routes (no auth required)
 	oauthRouter := v1.PathPrefix("/oauth").Subrouter()
 	oauthRouter.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		handlers.HandleTokenV1(services.GetAuthCodeService(), w, r)
+		routes.HandleTokenV1(services.GetAuthCodeService(), w, r)
 	}).Methods("POST")
 	oauthRouter.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
-		handlers.HandleAuthorizeV1(services.GetAuthCodeService(), w, r)
+		routes.HandleAuthorizeV1(services.GetAuthCodeService(), w, r)
 	}).Methods("POST")
+
+	// Public v1 routes (no auth required)
+	publicRouter := v1.NewRoute().Subrouter()
+	publicRouter.HandleFunc("/widget.js", routes.HandleWidgetJSV1).Methods("GET")
 
 	// All other v1 routes (require auth)
 	protectedRouter := v1.NewRoute().Subrouter()
@@ -46,7 +47,7 @@ func main() {
 	// Chat endpoints
 	chatRouter := protectedRouter.PathPrefix("/chat").Subrouter()
 	chatRouter.HandleFunc("/completions", func(w http.ResponseWriter, r *http.Request) {
-		handlers.HandleChatCompletionV1(services.GetChatService(), w, r)
+		routes.HandleChatCompletionV1(services.GetChatService(), w, r)
 	}).Methods("POST")
 
 	logger.Debug(logger.APP, "Router setup complete")
