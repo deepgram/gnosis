@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/logger"
@@ -31,11 +32,14 @@ func ExtractToken(r *http.Request) string {
 type TokenValidationResult struct {
 	Valid      bool
 	ClientType string
+	GrantType  string
+	ExpiresAt  time.Time
 }
 
 type CustomClaims struct {
 	jwt.RegisteredClaims
 	ClientType string `json:"ctp"`
+	GrantType  string `json:"gty"`
 }
 
 // Update the validateToken function to return client type
@@ -73,9 +77,18 @@ func ValidateToken(tokenString string) TokenValidationResult {
 			return result
 		}
 
-		logger.Info(logger.SERVICE, "Token successfully validated for client type: %s", claims.ClientType)
+		// Validate grant type
+		if claims.GrantType != "client_credentials" && claims.GrantType != "authorization_code" {
+			logger.Error(logger.SERVICE, "Invalid grant type in token: %s", claims.GrantType)
+			return result
+		}
+
+		logger.Info(logger.SERVICE, "Token successfully validated for client type: %s, grant type: %s",
+			claims.ClientType, claims.GrantType)
 		result.Valid = true
 		result.ClientType = claims.ClientType
+		result.GrantType = claims.GrantType
+		result.ExpiresAt = claims.ExpiresAt.Time
 		return result
 	}
 

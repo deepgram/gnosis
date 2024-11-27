@@ -140,6 +140,7 @@ func handleClientCredentials(w http.ResponseWriter, r *http.Request) {
 			ID:        uuid.New().String(),
 		},
 		ClientType: clientType,
+		GrantType:  "client_credentials",
 	}
 
 	issueToken(w, claims)
@@ -190,6 +191,7 @@ func handleAuthorizationCode(authCodeService *authcode.Service, w http.ResponseW
 			ID:        uuid.New().String(),
 		},
 		ClientType: clientType,
+		GrantType:  "authorization_code",
 	}
 
 	issueToken(w, claims)

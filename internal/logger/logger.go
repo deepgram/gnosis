@@ -19,14 +19,15 @@ const (
 var currentLevel = getLogLevel()
 
 const (
-	APP     = "APP"
-	CONFIG  = "CONFIG"
-	HANDLER = "HANDLER"
-	SERVICE = "SERVICE"
-	OAUTH   = "OAUTH"
-	REDIS   = "REDIS"
-	CHAT    = "CHAT"
-	TOOLS   = "TOOLS"
+	APP        = "APP"
+	CHAT       = "CHAT"
+	CONFIG     = "CONFIG"
+	HANDLER    = "HANDLER"
+	MIDDLEWARE = "MIDDLEWARE"
+	OAUTH      = "OAUTH"
+	REDIS      = "REDIS"
+	SERVICE    = "SERVICE"
+	TOOLS      = "TOOLS"
 )
 
 func getLogLevel() LogLevel {

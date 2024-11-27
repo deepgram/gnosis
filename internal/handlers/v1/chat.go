@@ -28,6 +28,14 @@ func validateRole(role string) bool {
 	return validRoles[role]
 }
 
+func init() {
+	logger.Info(logger.HANDLER, "Initializing Chat handler")
+
+	// Validate required client configurations
+
+	logger.Debug(logger.HANDLER, "Chat handler initialization complete")
+}
+
 func HandleChatCompletion(chatService *chat.Service, w http.ResponseWriter, r *http.Request) {
 	logger.Debug(logger.HANDLER, "Starting chat completion handler")
 	logger.Info(logger.HANDLER, "Received chat completion request")
