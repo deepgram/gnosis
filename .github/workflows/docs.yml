@@ -7,9 +7,11 @@ on:
   pull_request:
     paths:
       - "api/openapi.yaml"
-  workflow_run:
-    workflows: ["Generate API Documentation"]
-    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy from"
+        required: true
 
 jobs:
   generate-docs:
