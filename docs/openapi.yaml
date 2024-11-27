@@ -33,7 +33,7 @@ tags:
 paths:
   /oauth/authorize:
     post:
-      summary: Get an authorization code
+      summary: Get authorization code
       tags:
         - Auth
       description: |
@@ -102,7 +102,7 @@ paths:
 
   /oauth/token:
     post:
-      summary: Get an access token
+      summary: Get access token
       tags:
         - Auth
       description: |
@@ -193,7 +193,7 @@ paths:
 
   /chat/completions:
     post:
-      summary: Create a chat completion
+      summary: Create chat completion
       tags:
         - Chat
       description: |
