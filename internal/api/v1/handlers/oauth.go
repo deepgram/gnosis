@@ -12,6 +12,7 @@ import (
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/services/authcode"
 	"github.com/deepgram/gnosis/internal/services/oauth"
+	"github.com/deepgram/gnosis/pkg/httpext"
 	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -76,7 +77,7 @@ func HandleToken(authCodeService *authcode.Service, w http.ResponseWriter, r *ht
 	logger.Debug(logger.HANDLER, "Handling token request from %s", r.RemoteAddr)
 	if r.Method != http.MethodPost {
 		logger.Warn(logger.HANDLER, "Invalid HTTP method %s from %s", r.Method, r.RemoteAddr)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		httpext.JsonError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -84,7 +85,7 @@ func HandleToken(authCodeService *authcode.Service, w http.ResponseWriter, r *ht
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Error(logger.HANDLER, "Failed to read request body: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		httpext.JsonError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -94,7 +95,7 @@ func HandleToken(authCodeService *authcode.Service, w http.ResponseWriter, r *ht
 	}
 	if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(&grantTypeReq); err != nil {
 		logger.Error(logger.HANDLER, "Failed to decode grant type: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		httpext.JsonError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -109,7 +110,7 @@ func HandleToken(authCodeService *authcode.Service, w http.ResponseWriter, r *ht
 		handleAuthorizationCode(authCodeService, w, r)
 	default:
 		logger.Warn(logger.HANDLER, "Invalid grant type: %s", grantTypeReq.GrantType)
-		http.Error(w, "Invalid grant type", http.StatusBadRequest)
+		httpext.JsonError(w, "Invalid grant type", http.StatusBadRequest)
 		return
 	}
 }
@@ -118,7 +119,7 @@ func handleClientCredentials(w http.ResponseWriter, r *http.Request) {
 	var req ClientCredentialsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error(logger.HANDLER, "Failed to decode client credentials request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		httpext.JsonError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -128,7 +129,7 @@ func handleClientCredentials(w http.ResponseWriter, r *http.Request) {
 
 	if clientType == "" || !validateClientSecret(req.ClientSecret, client.Secret) {
 		logger.Warn(logger.HANDLER, "Invalid client credentials attempt from %s", r.RemoteAddr)
-		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
+		httpext.JsonError(w, "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
 
@@ -150,7 +151,7 @@ func handleAuthorizationCode(authCodeService *authcode.Service, w http.ResponseW
 	var req AuthorizationCodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error(logger.HANDLER, "Failed to decode authorization code request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		httpext.JsonError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -158,7 +159,7 @@ func handleAuthorizationCode(authCodeService *authcode.Service, w http.ResponseW
 	clientType := config.GetClientTypeByID(req.ClientID)
 	if clientType == "" {
 		logger.Warn(logger.HANDLER, "Invalid client ID in auth code request: %s", req.ClientID)
-		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
+		httpext.JsonError(w, "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
 
@@ -167,14 +168,14 @@ func handleAuthorizationCode(authCodeService *authcode.Service, w http.ResponseW
 	authInfo, err := authCodeService.ValidateAuthCode(ctx, req.Code)
 	if err != nil || authInfo == nil {
 		logger.Warn(logger.HANDLER, "Invalid authorization code: %v", err)
-		http.Error(w, "Invalid authorization code", http.StatusUnauthorized)
+		httpext.JsonError(w, "Invalid authorization code", http.StatusUnauthorized)
 		return
 	}
 
 	// Verify the client ID matches the one stored with the auth code
 	if authInfo.ClientID != req.ClientID {
 		logger.Warn(logger.HANDLER, "Client ID mismatch in auth code request")
-		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
+		httpext.JsonError(w, "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
 
@@ -203,7 +204,7 @@ func issueToken(w http.ResponseWriter, claims oauth.CustomClaims) {
 	tokenString, err := token.SignedString(config.GetJWTSecret())
 	if err != nil {
 		logger.Error(logger.HANDLER, "JWT signing failed: %v", err)
-		http.Error(w, "Error creating token", http.StatusInternalServerError)
+		httpext.JsonError(w, "Error creating token", http.StatusInternalServerError)
 		return
 	}
 
@@ -225,7 +226,7 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 
 	if r.Method != http.MethodPost {
 		logger.Warn(logger.HANDLER, "Invalid HTTP method %s from %s", r.Method, r.RemoteAddr)
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		httpext.JsonError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -233,7 +234,7 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 	cookie, err := r.Cookie(config.GetSessionCookieName())
 	if err != nil {
 		logger.Warn(logger.HANDLER, "Missing session cookie from %s", r.RemoteAddr)
-		http.Error(w, "Unauthorized - Invalid session cookie", http.StatusUnauthorized)
+		httpext.JsonError(w, "Unauthorized - Invalid session cookie", http.StatusUnauthorized)
 		return
 	}
 
@@ -243,7 +244,7 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 	})
 	if err != nil || !token.Valid {
 		logger.Warn(logger.HANDLER, "Invalid session token from %s", r.RemoteAddr)
-		http.Error(w, "Unauthorized - Invalid session cookie", http.StatusUnauthorized)
+		httpext.JsonError(w, "Unauthorized - Invalid session cookie", http.StatusUnauthorized)
 		return
 	}
 
@@ -251,14 +252,14 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 	var req AuthorizeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error(logger.HANDLER, "Failed to decode authorize request: %v", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		httpext.JsonError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Validate required parameters
 	if req.ClientID == "" || req.State == "" {
 		logger.Warn(logger.HANDLER, "Missing required parameters from %s", r.RemoteAddr)
-		http.Error(w, "Missing required parameters", http.StatusBadRequest)
+		httpext.JsonError(w, "Missing required parameters", http.StatusBadRequest)
 		return
 	}
 
@@ -266,7 +267,7 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 	clientType := config.GetClientTypeByID(req.ClientID)
 	if clientType == "" {
 		logger.Warn(logger.HANDLER, "Invalid client ID attempted access: %s from %s", req.ClientID, r.RemoteAddr)
-		http.Error(w, "Invalid client credentials", http.StatusUnauthorized)
+		httpext.JsonError(w, "Invalid client credentials", http.StatusUnauthorized)
 		return
 	}
 
@@ -275,7 +276,7 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 		client := config.GetClientConfig(clientType)
 		if !validateWidgetRequest(r, client.AllowedURLs) {
 			logger.Warn(logger.HANDLER, "Invalid widget request origin/referer from %s", r.RemoteAddr)
-			http.Error(w, "Invalid request origin", http.StatusForbidden)
+			httpext.JsonError(w, "Invalid request origin", http.StatusForbidden)
 			return
 		}
 	}
@@ -287,7 +288,7 @@ func HandleAuthorize(authCodeService *authcode.Service, w http.ResponseWriter, r
 	ctx := r.Context()
 	if err := authCodeService.StoreAuthCode(ctx, authCode, req.ClientID, req.State); err != nil {
 		logger.Error(logger.HANDLER, "Failed to store auth code: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		httpext.JsonError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 

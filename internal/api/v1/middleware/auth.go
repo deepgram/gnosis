@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/deepgram/gnosis/internal/services/oauth"
+	"github.com/deepgram/gnosis/pkg/httpext"
 	"github.com/deepgram/gnosis/pkg/logger"
 )
 
@@ -13,14 +14,14 @@ func RequireAuth(allowedGrants []string) func(http.Handler) http.Handler {
 			tokenString := oauth.ExtractToken(r)
 			if tokenString == "" {
 				logger.Warn(logger.MIDDLEWARE, "Missing authorization token")
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				httpext.JsonError(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 
 			validation := oauth.ValidateToken(tokenString)
 			if !validation.Valid {
 				logger.Warn(logger.MIDDLEWARE, "Invalid authorization token")
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				httpext.JsonError(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
 
@@ -35,7 +36,7 @@ func RequireAuth(allowedGrants []string) func(http.Handler) http.Handler {
 
 			if !grantAllowed {
 				logger.Warn(logger.MIDDLEWARE, "Unauthorized grant type: %s", validation.GrantType)
-				http.Error(w, "Unauthorized grant type", http.StatusForbidden)
+				httpext.JsonError(w, "Unauthorized grant type", http.StatusForbidden)
 				return
 			}
 

@@ -7,6 +7,7 @@ import (
 	"github.com/deepgram/gnosis/internal/services/chat"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/oauth"
+	"github.com/deepgram/gnosis/pkg/httpext"
 	"github.com/deepgram/gnosis/pkg/logger"
 )
 
@@ -18,14 +19,14 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	tokenString := oauth.ExtractToken(r)
 	if tokenString == "" {
 		logger.Error(logger.HANDLER, "Missing authorization token")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		httpext.JsonError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	validation := oauth.ValidateToken(tokenString)
 	if !validation.Valid {
 		logger.Error(logger.HANDLER, "Invalid authorization token: %v", validation)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		httpext.JsonError(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
 
@@ -37,14 +38,14 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error(logger.HANDLER, "Failed to decode chat completion request: %v", err)
-		http.Error(w, "Invalid request format", http.StatusBadRequest)
+		httpext.JsonError(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
 	// Validate request
 	if len(req.Messages) == 0 {
 		logger.Error(logger.HANDLER, "Empty messages array in request")
-		http.Error(w, "Messages array cannot be empty", http.StatusBadRequest)
+		httpext.JsonError(w, "Messages array cannot be empty", http.StatusBadRequest)
 		return
 	}
 
@@ -62,7 +63,7 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	resp, err := chatService.ProcessChat(r.Context(), req.Messages, req.Config)
 	if err != nil {
 		logger.Error(logger.HANDLER, "Failed to process chat: %v", err)
-		http.Error(w, "Failed to process chat", http.StatusInternalServerError)
+		httpext.JsonError(w, "Failed to process chat", http.StatusInternalServerError)
 		return
 	}
 
@@ -70,7 +71,7 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		logger.Error(logger.HANDLER, "Failed to encode response: %v", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		httpext.JsonError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
