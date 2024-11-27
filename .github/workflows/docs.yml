@@ -7,6 +7,9 @@ on:
   pull_request:
     paths:
       - "api/openapi.yaml"
+  workflow_run:
+    workflows: ["Generate API Documentation"]
+    branches: ["main"]
 
 jobs:
   generate-docs:
