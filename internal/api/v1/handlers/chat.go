@@ -6,7 +6,6 @@ import (
 
 	"github.com/deepgram/gnosis/internal/services/chat"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
-	"github.com/deepgram/gnosis/internal/services/oauth"
 	"github.com/deepgram/gnosis/pkg/httpext"
 	"github.com/deepgram/gnosis/pkg/logger"
 )
@@ -14,21 +13,6 @@ import (
 // HandleChatCompletion handles chat completion requests
 func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
 	logger.Debug(logger.HANDLER, "Starting chat completion handler")
-
-	// Auth validation
-	tokenString := oauth.ExtractToken(r)
-	if tokenString == "" {
-		logger.Error(logger.HANDLER, "Missing authorization token")
-		httpext.JsonError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	validation := oauth.ValidateToken(tokenString)
-	if !validation.Valid {
-		logger.Error(logger.HANDLER, "Invalid authorization token: %v", validation)
-		httpext.JsonError(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
 	// Parse request
 	var req struct {

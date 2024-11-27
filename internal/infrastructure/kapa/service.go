@@ -136,9 +136,13 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		logger.Error(logger.SERVICE, "Kapa API returned non-200 status: %d\n\n%s", resp.StatusCode, string(body))
-		return nil, fmt.Errorf("kapa API returned status %d: %s", resp.StatusCode, string(body))
+		logger.Error(logger.SERVICE, "Kapa API returned non-200 status: %d", resp.StatusCode)
+		// Try to read error response body for debugging
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr == nil {
+			logger.Debug(logger.SERVICE, "Error response body: %s", string(body))
+		}
+		return nil, fmt.Errorf("kapa API returned status %d", resp.StatusCode)
 	}
 
 	// Parse the response

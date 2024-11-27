@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
@@ -29,7 +30,6 @@ type Services struct {
 	sessionService  *session.Service
 	chatService     *chatimpl.Implementation
 	openAIService   *openai.Service
-	toolsService    *tools.Service
 	toolExecutor    *tools.ToolExecutor
 	authCodeService *authcode.Service
 }
@@ -44,44 +44,38 @@ func InitializeServices() (*Services, error) {
 	// Initialize OpenAI service
 	openAIService := openai.NewService()
 	if openAIService == nil {
-		logger.Error(logger.SERVICE, "Failed to initialize OpenAI service")
-		return nil, fmt.Errorf("failed to initialize OpenAI service")
+		logger.Fatal(logger.SERVICE, "Failed to initialize OpenAI service")
+		os.Exit(1)
 	}
 
 	// Initialize infrastructure services
 	algoliaService := algolia.NewService()
 	if algoliaService == nil {
-		logger.Error(logger.SERVICE, "Failed to initialize Algolia service")
+		logger.Warn(logger.SERVICE, "Failed to initialize Algolia service")
 		return nil, fmt.Errorf("failed to initialize Algolia service")
 	}
 
 	githubService := github.NewService()
 	if githubService == nil {
-		logger.Error(logger.SERVICE, "Failed to initialize GitHub service")
+		logger.Warn(logger.SERVICE, "Failed to initialize GitHub service")
 		return nil, fmt.Errorf("failed to initialize GitHub service")
 	}
 
 	kapaService := kapa.NewService()
 	if kapaService == nil {
-		logger.Error(logger.SERVICE, "Failed to initialize Kapa service")
+		logger.Warn(logger.SERVICE, "Failed to initialize Kapa service")
 		return nil, fmt.Errorf("failed to initialize Kapa service")
 	}
 
+	// Initialize Redis service
 	redisService := redis.NewService()
 	if redisService == nil {
-		logger.Error(logger.SERVICE, "Failed to initialize Redis service")
+		logger.Warn(logger.SERVICE, "Failed to initialize Redis service")
 		return nil, fmt.Errorf("failed to initialize Redis service")
 	}
 
 	// Initialize tool executor
 	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
-
-	// Initialize tools service
-	toolsService, err := tools.NewService(algoliaService, githubService, kapaService)
-	if err != nil {
-		logger.Error(logger.SERVICE, "Failed to initialize tools service: %v", err)
-		return nil, fmt.Errorf("failed to initialize tools service: %w", err)
-	}
 
 	// Initialize session service
 	sessionService := session.NewService(redisService)
@@ -106,7 +100,6 @@ func InitializeServices() (*Services, error) {
 		sessionService:  sessionService,
 		chatService:     chatService,
 		openAIService:   openAIService,
-		toolsService:    toolsService,
 		toolExecutor:    toolExecutor,
 		authCodeService: authCodeService,
 	}, nil
