@@ -3,10 +3,13 @@ openapi: "3.1.0"
 info:
   title: Gnosis - Deepgram AI Support Agent
   description: |
-    Gnosis is a lightweight API gateway that provides secure, managed access to Deepgram 
-    AI Support Agent and various knowledge and assistance services. It acts as a unified 
-    interface for both internal and external clients, handling authentication, request 
-    routing, and response formatting.
+    Gnosis provides secure, managed access to Deepgram's AI Support Agent and knowledge services. 
+    It serves as a unified gateway for both internal and external clients with:
+    
+    - Secure authentication and authorization
+    - Request routing and rate limiting
+    - Response formatting and validation
+    - Tool integration (Algolia, GitHub, Kapa)
   termsOfService: https://deepgram.com/terms/
   contact:
     name: Deepgram DevRel Team
@@ -23,28 +26,32 @@ servers:
 
 tags:
   - name: Auth
-    description: OAuth and session management endpoints
+    description: Manage OAuth authentication and session tokens
   - name: Chat
-    description: |
-      Given a list of messages comprising a conversation, the model will return a response.
+    description: Create chat completions with Deepgram's AI assistant
 
 paths:
   /oauth/authorize:
     post:
-      summary: Authorization endpoint
+      summary: Get authorization code
       tags:
         - Auth
       description: |
-        Endpoint for initiating server-initiated authorization code flows.
-        Requires a valid session cookie and the client identifier (`client_id`).
-        Returns an authorization `code` and the `state` value (if provided) for subsequent token exchange.
+        Initiates OAuth authorization code flow for client applications.
+        
+        Requirements:
+        - Valid session cookie
+        - Registered client identifier
+        - State parameter for CSRF protection
+        
+        Returns an authorization code for subsequent token exchange.
       parameters:
         - in: cookie
           name: gnosis_session
           required: true
           schema:
             type: string
-          description: Session cookie for authentication, must be a valid JWT token.
+          description: Active session cookie containing a valid JWT token
       requestBody:
         required: true
         content:
@@ -57,13 +64,15 @@ paths:
               properties:
                 client_id:
                   type: string
-                  description: The client identifier issued to the client.
+                  description: Registered client identifier for the application
                 state:
                   type: string
-                  description: An opaque value to maintain state between the request and response.
+                  description: Random string to prevent CSRF attacks
       responses:
         "200":
-          description: Successful authorization response
+          description: |
+            Authorization code generated successfully.
+            Use this code to request an access token via /oauth/token endpoint.
           content:
             application/json:
               schema:
@@ -74,18 +83,18 @@ paths:
                 properties:
                   code:
                     type: string
-                    description: The authorization code to exchange for an access token.
+                    description: One-time authorization code valid for 10 minutes
                   state:
                     type: string
-                    description: The state value provided in the request, if any.
+                    description: Original state value from the request
         "400":
-          description: Invalid request
+          description: Invalid request parameters or missing required fields
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description: Unauthorized - Invalid session cookie or client credentials
+          description: Invalid session cookie or unregistered client ID
           content:
             application/json:
               schema:
@@ -93,14 +102,16 @@ paths:
 
   /oauth/token:
     post:
-      summary: Token exchange endpoint
+      summary: Get access token
       tags:
         - Auth
       description: |
-        Exchange client credentials or an authorization code for an access token.
-        Supports two grant types:
-        - **Client Credentials:** Direct access for server-to-server communication.
-        - **Authorization Code:** Token exchange following `/oauth/authorize`.
+        Exchange credentials for an access token using one of two grant types:
+        
+        1. Client Credentials: Direct server-to-server access using client_id and client_secret
+        2. Authorization Code: User-authorized access using a code from /oauth/authorize
+        
+        Returns a Bearer token valid for 15 minutes.
       requestBody:
         required: true
         content:
@@ -108,7 +119,7 @@ paths:
             schema:
               oneOf:
                 - title: Client Credentials Grant
-                  description: Use this grant type for server-to-server communication with `client_id` and `client_secret`.
+                  description: Server-to-server authentication using client credentials
                   type: object
                   required:
                     - grant_type
@@ -118,15 +129,15 @@ paths:
                     grant_type:
                       type: string
                       enum: [client_credentials]
-                      description: The grant type for client credentials authentication.
+                      description: Must be "client_credentials" for this grant type
                     client_id:
                       type: string
-                      description: The client identifier issued to the client.
+                      description: Registered client identifier
                     client_secret:
                       type: string
-                      description: The client secret issued to the client.
+                      description: Secret key for the client application
                 - title: Authorization Code Grant
-                  description: Use this grant type to exchange an authorization code for an access token.
+                  description: User-authorized authentication using authorization code
                   type: object
                   required:
                     - grant_type
@@ -136,16 +147,18 @@ paths:
                     grant_type:
                       type: string
                       enum: [authorization_code]
-                      description: The grant type for authorization code exchange.
+                      description: Must be "authorization_code" for this grant type
                     client_id:
                       type: string
-                      description: The client identifier issued to the client.
+                      description: Registered client identifier
                     code:
                       type: string
-                      description: The authorization code issued from `/v1/oauth/authorize`.
+                      description: Authorization code from /oauth/authorize
       responses:
         "200":
-          description: Successful token response
+          description: |
+            Access token generated successfully.
+            Use this token in the Authorization header for subsequent API calls.
           content:
             application/json:
               schema:
@@ -157,34 +170,40 @@ paths:
                 properties:
                   access_token:
                     type: string
-                    description: The access token for API calls.
+                    description: JWT token for API authentication
                   token_type:
                     type: string
                     enum: [Bearer]
-                    description: The type of token issued.
+                    description: Token type for Authorization header
                   expires_in:
                     type: integer
-                    description: Time in seconds until the token expires.
+                    description: Token lifetime in seconds (900 = 15 minutes)
         "400":
-          description: Invalid request or parameters
+          description: Invalid grant type or missing required parameters
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description: Unauthorized - Invalid client credentials or authorization code
+          description: Invalid client credentials or expired authorization code
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /v1/chat/completions:
+  /chat/completions:
     post:
-      summary: Create a chat completion
+      summary: Create chat completion
       tags:
         - Chat
       description: |
-        Create a chat completion with Deepgram's AI assistant.
+        Generate an AI response based on conversation history.
+        
+        Features:
+        - Context-aware responses using message history
+        - Optional system prompts for behaviour control
+        - Automatic tool selection for enhanced responses
+        - Support for multiple languages
       security:
         - client_credentials: []
         - authorization_code: []
@@ -196,25 +215,27 @@ paths:
               $ref: "#/components/schemas/ChatCompletionRequest"
       responses:
         "200":
-          description: Successful completion response
+          description: |
+            Chat completion generated successfully.
+            Includes token usage statistics and unique completion ID.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatCompletionResponse"
         "400":
-          description: Invalid request format
+          description: Invalid message format or configuration parameters
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description: Unauthorized - Invalid or missing access token
+          description: Missing or invalid access token
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         "429":
-          description: Rate limit exceeded
+          description: Too many requests - Exceeded rate limit
           content:
             application/json:
               schema:
@@ -229,7 +250,17 @@ components:
       properties:
         error:
           type: string
-          description: A single ASCII error code identifying the type of error.
+          description: |
+            Standard OAuth 2.0 error code identifying the issue:
+            - invalid_request: Malformed request syntax
+            - invalid_client: Unknown or invalid client credentials
+            - invalid_grant: Invalid or expired authorization code
+            - unauthorized_client: Client not allowed to use grant type
+            - unsupported_grant_type: Grant type not supported
+            - invalid_scope: Requested scope is invalid
+            - access_denied: Server refused to grant access
+            - server_error: Internal server error
+            - temporarily_unavailable: Service temporarily offline
           enum:
             - invalid_request
             - invalid_client
@@ -243,11 +274,11 @@ components:
             - temporarily_unavailable
         error_description:
           type: string
-          description: A human-readable ASCII text providing additional information about the error.
+          description: Human-readable explanation of the error
         error_uri:
           type: string
           format: uri
-          description: A URI identifying a human-readable web page with information about the error.
+          description: Link to documentation about this error
 
     ChatCompletionRequest:
       type: object
@@ -259,31 +290,37 @@ components:
           items:
             $ref: "#/components/schemas/ChatMessage"
           minItems: 1
+          description: Ordered list of messages in the conversation
         temperature:
           type: number
           minimum: 0
           maximum: 2
           default: 1
+          description: Controls randomness in responses (0 = focused, 2 = creative)
         max_tokens:
           type: integer
           minimum: 1
           maximum: 4096
           default: 1024
+          description: Maximum number of tokens to generate
         top_p:
           type: number
           minimum: 0
           maximum: 1
           default: 1
+          description: Controls diversity via nucleus sampling
         presence_penalty:
           type: number
           minimum: -2
           maximum: 2
           default: 0
+          description: Penalizes new tokens based on presence in text
         frequency_penalty:
           type: number
           minimum: -2
           maximum: 2
           default: 0
+          description: Penalizes new tokens based on frequency in text
 
     ChatCompletionResponse:
       type: object
@@ -295,10 +332,10 @@ components:
       properties:
         id:
           type: string
-          description: A unique identifier for the chat completion.
+          description: Unique identifier for this completion
         created:
           type: integer
-          description: Unix timestamp of when the response was created.
+          description: Unix timestamp of response creation
         choices:
           type: array
           items:
@@ -308,6 +345,7 @@ components:
             properties:
               message:
                 $ref: "#/components/schemas/ChatMessage"
+          description: List of generated completions (currently always size 1)
         usage:
           type: object
           required:
@@ -317,13 +355,13 @@ components:
           properties:
             prompt_tokens:
               type: integer
-              description: Number of tokens in the prompt.
+              description: Number of tokens in the prompt
             completion_tokens:
               type: integer
-              description: Number of tokens in the completion.
+              description: Number of tokens in the completion
             total_tokens:
               type: integer
-              description: Total number of tokens used.
+              description: Total tokens used (prompt + completion)
 
     ChatMessage:
       type: object
@@ -334,8 +372,14 @@ components:
         role:
           type: string
           enum: [user, assistant, system]
+          description: |
+            Role of the message sender:
+            - user: End user messages
+            - assistant: AI responses
+            - system: Behaviour control prompts
         content:
           type: string
+          description: The actual message content
       additionalProperties: false
 
   securitySchemes:
