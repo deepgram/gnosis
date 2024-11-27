@@ -2,14 +2,16 @@ package services
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
+	"github.com/deepgram/gnosis/internal/domain/chat"
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
 	"github.com/deepgram/gnosis/internal/services/authcode"
-	"github.com/deepgram/gnosis/internal/services/chat"
+	chatimpl "github.com/deepgram/gnosis/internal/services/chat"
 	"github.com/deepgram/gnosis/internal/services/session"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/deepgram/gnosis/pkg/logger"
@@ -26,8 +28,9 @@ type Services struct {
 	kapaService     *kapa.Service
 	redisService    *redis.Service
 	sessionService  *session.Service
-	chatService     *chat.Service
+	chatService     chat.Service
 	toolsService    *tools.Service
+	toolExecutor    *tools.ToolExecutor
 	authCodeService *authcode.Service
 }
 
@@ -38,27 +41,54 @@ func InitializeServices() (*Services, error) {
 
 	logger.Info(logger.SERVICE, "Initializing services")
 
-	// Initialize optional services
+	// Initialize infrastructure services
 	algoliaService := algolia.NewService()
+	if algoliaService == nil {
+		logger.Error(logger.SERVICE, "Failed to initialize Algolia service")
+		return nil, fmt.Errorf("failed to initialize Algolia service")
+	}
+
 	githubService := github.NewService()
+	if githubService == nil {
+		logger.Error(logger.SERVICE, "Failed to initialize GitHub service")
+		return nil, fmt.Errorf("failed to initialize GitHub service")
+	}
+
 	kapaService := kapa.NewService()
+	if kapaService == nil {
+		logger.Error(logger.SERVICE, "Failed to initialize Kapa service")
+		return nil, fmt.Errorf("failed to initialize Kapa service")
+	}
+
 	redisService := redis.NewService()
+	if redisService == nil {
+		logger.Error(logger.SERVICE, "Failed to initialize Redis service")
+		return nil, fmt.Errorf("failed to initialize Redis service")
+	}
 
-	// Initialize session service with Redis dependency
-	sessionService := session.NewService(redisService)
+	// Initialize tool executor
+	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
 
-	// Initialize auth code service with Redis dependency
-	authCodeService := authcode.NewService(redisService)
-
-	// Initialize tools service with dependencies
+	// Initialize tools service
 	toolsService, err := tools.NewService(algoliaService, githubService, kapaService)
 	if err != nil {
 		logger.Error(logger.SERVICE, "Failed to initialize tools service: %v", err)
 		return nil, fmt.Errorf("failed to initialize tools service: %w", err)
 	}
 
-	// Initialize chat service with dependencies
-	chatService := chat.NewService(algoliaService, githubService, kapaService, toolsService)
+	// Initialize session service
+	sessionService := session.NewService(redisService)
+
+	// Initialize auth code service
+	authCodeService := authcode.NewService(redisService)
+
+	// Initialize chat service
+	openAIKey := os.Getenv("OPENAI_KEY")
+	chatService, err := chatimpl.NewService(openAIKey, toolExecutor)
+	if err != nil {
+		logger.Error(logger.SERVICE, "Failed to initialize chat service: %v", err)
+		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
+	}
 
 	logger.Info(logger.SERVICE, "Services initialization complete")
 
@@ -70,12 +100,13 @@ func InitializeServices() (*Services, error) {
 		sessionService:  sessionService,
 		chatService:     chatService,
 		toolsService:    toolsService,
+		toolExecutor:    toolExecutor,
 		authCodeService: authCodeService,
 	}, nil
 }
 
-// Add a getter method for the chat service
-func (s *Services) GetChatService() *chat.Service {
+// GetChatService returns the chat service
+func (s *Services) GetChatService() chat.Service {
 	return s.chatService
 }
 

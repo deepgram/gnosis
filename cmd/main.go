@@ -20,38 +20,37 @@ func main() {
 		logger.Fatal(logger.APP, "Failed to initialize services: %v", err)
 	}
 
-	// Initialize tools
+	// Setup router
 	logger.Debug(logger.APP, "Setting up router")
 	r := mux.NewRouter()
 
 	// v1 routes
 	v1 := r.PathPrefix("/v1").Subrouter()
 
-	// OAuth routes (no auth required)
-	oauthRouter := v1.PathPrefix("/oauth").Subrouter()
-	oauthRouter.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+	// Public v1 routes (no auth required)
+	v1publicRouter := v1.NewRoute().Subrouter()
+	v1publicRouter.HandleFunc("/widget.js", v1handlers.HandleWidgetJSV1).Methods("GET")
+
+	// OAuth v1 routes (no auth required)
+	v1oauthRouter := v1.PathPrefix("/oauth").Subrouter()
+	v1oauthRouter.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		v1handlers.HandleTokenV1(services.GetAuthCodeService(), w, r)
 	}).Methods("POST")
-	oauthRouter.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+	v1oauthRouter.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
 		v1handlers.HandleAuthorizeV1(services.GetAuthCodeService(), w, r)
 	}).Methods("POST")
 
-	// Public v1 routes (no auth required)
-	publicRouter := v1.NewRoute().Subrouter()
-	publicRouter.HandleFunc("/widget.js", v1handlers.HandleWidgetJSV1).Methods("GET")
+	// Protected v1 routes (require auth)
+	v1protectedRouter := v1.NewRoute().Subrouter()
+	v1protectedRouter.Use(v1middleware.RequireAuth([]string{"client_credentials", "authorization_code"}))
 
-	// All other v1 routes (require auth)
-	protectedRouter := v1.NewRoute().Subrouter()
-	protectedRouter.Use(v1middleware.RequireAuth([]string{"client_credentials", "authorization_code"}))
-
-	// Chat endpoints
-	chatRouter := protectedRouter.PathPrefix("/chat").Subrouter()
-	chatRouter.HandleFunc("/completions", func(w http.ResponseWriter, r *http.Request) {
+	// Protected v1 chat routes
+	v1chatRouter := v1protectedRouter.PathPrefix("/chat").Subrouter()
+	v1chatRouter.HandleFunc("/completions", func(w http.ResponseWriter, r *http.Request) {
 		v1handlers.HandleChatCompletionV1(services.GetChatService(), w, r)
 	}).Methods("POST")
 
-	logger.Debug(logger.APP, "Router setup complete")
-
+	// Configure server
 	srv := &http.Server{
 		Addr:         ":8080",
 		Handler:      r,
@@ -60,8 +59,9 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Start server
 	logger.Info(logger.APP, "Server starting on :8080")
 	if err := srv.ListenAndServe(); err != nil {
-		logger.Fatal(logger.APP, "ListenAndServe error: %v", err)
+		logger.Fatal(logger.APP, "Server failed: %v", err)
 	}
 }
