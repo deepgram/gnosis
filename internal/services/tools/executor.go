@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/deepgram/gnosis/internal/domain/chat/models"
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
+	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
+	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/deepgram/gnosis/pkg/logger"
 )
 
@@ -31,7 +32,7 @@ func NewToolExecutor(
 	}
 }
 
-func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool models.ToolCall) (string, error) {
+func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.ToolCall) (string, error) {
 	logger.Info(logger.TOOLS, "Executing tool call: %s", tool.Function.Name)
 	if tool.Type != "function" {
 		return "", fmt.Errorf("unsupported tool type")
@@ -39,7 +40,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool models.ToolCall
 
 	switch tool.Function.Name {
 	case "search_algolia":
-		var params models.AlgoliaSearchParams
+		var params chatModels.AlgoliaSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			logger.Error(logger.TOOLS, "Failed to parse search parameters: %v", err)
 			return "", fmt.Errorf("invalid parameters: %w", err)
@@ -64,7 +65,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool models.ToolCall
 		return response, nil
 
 	case "search_starter_apps":
-		var params models.StarterAppSearchParams
+		var params chatModels.StarterAppSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
@@ -99,7 +100,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool models.ToolCall
 		return response, nil
 
 	case "ask_kapa":
-		var params models.KapaQueryParams
+		var params chatModels.KapaQueryParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}

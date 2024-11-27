@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/deepgram/gnosis/internal/domain/chat"
-	"github.com/deepgram/gnosis/internal/domain/chat/models"
+	"github.com/deepgram/gnosis/internal/services/chat"
+	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/oauth"
 	"github.com/deepgram/gnosis/pkg/logger"
 )
 
-// HandleChatCompletionV1 handles chat completion requests
-func HandleChatCompletionV1(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
+// HandleChatCompletion handles chat completion requests
+func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
 	logger.Debug(logger.HANDLER, "Starting chat completion handler")
 
 	// Auth validation
@@ -31,8 +31,8 @@ func HandleChatCompletionV1(chatService chat.Service, w http.ResponseWriter, r *
 
 	// Parse request
 	var req struct {
-		Messages []models.ChatMessage `json:"messages"`
-		Config   *models.ChatConfig   `json:"config,omitempty"`
+		Messages []chatModels.ChatMessage `json:"messages"`
+		Config   *chatModels.ChatConfig   `json:"config,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -50,7 +50,7 @@ func HandleChatCompletionV1(chatService chat.Service, w http.ResponseWriter, r *
 
 	// Use default config if none provided
 	if req.Config == nil {
-		req.Config = &models.ChatConfig{
+		req.Config = &chatModels.ChatConfig{
 			Temperature:     0.7,
 			MaxTokens:       1000,
 			TopP:            1.0,

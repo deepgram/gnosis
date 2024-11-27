@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepgram/gnosis/internal/domain/chat/models"
 	"github.com/deepgram/gnosis/internal/infrastructure/openai"
+	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/tools"
+	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/google/uuid"
 	gopenai "github.com/sashabaranov/go-openai"
@@ -18,7 +19,7 @@ type Implementation struct {
 	mu           sync.RWMutex
 	openAI       *openai.Service
 	toolExecutor *tools.ToolExecutor
-	systemPrompt *models.SystemPrompt
+	systemPrompt *chatModels.SystemPrompt
 }
 
 func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor) (*Implementation, error) {
@@ -29,11 +30,11 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 	return &Implementation{
 		openAI:       openAIService,
 		toolExecutor: toolExecutor,
-		systemPrompt: models.DefaultSystemPrompt(),
+		systemPrompt: chatModels.DefaultSystemPrompt(),
 	}, nil
 }
 
-func (s *Implementation) ProcessChat(ctx context.Context, messages []models.ChatMessage, config *models.ChatConfig) (*models.ChatResponse, error) {
+func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.ChatMessage, config *chatModels.ChatConfig) (*chatModels.ChatResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -91,16 +92,16 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 
 		// Return if we have a content response
 		if message.Role == gopenai.ChatMessageRoleAssistant && message.Content != "" {
-			return &models.ChatResponse{
+			return &chatModels.ChatResponse{
 				ID:      fmt.Sprintf("gnosis-%s", uuid.New().String()[:5]),
 				Created: time.Now().Unix(),
-				Choices: []models.Choice{{
-					Message: models.ChatMessage{
+				Choices: []chatModels.Choice{{
+					Message: chatModels.ChatMessage{
 						Role:    message.Role,
 						Content: message.Content,
 					},
 				}},
-				Usage: models.Usage{
+				Usage: chatModels.Usage{
 					PromptTokens:     resp.Usage.PromptTokens,
 					CompletionTokens: resp.Usage.CompletionTokens,
 					TotalTokens:      resp.Usage.TotalTokens,
@@ -113,7 +114,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 			openaiMessages = append(openaiMessages, message)
 
 			for _, toolCall := range message.ToolCalls {
-				result, err := s.toolExecutor.ExecuteToolCall(ctx, models.ToolCall{
+				result, err := s.toolExecutor.ExecuteToolCall(ctx, toolsModels.ToolCall{
 					ID:   toolCall.ID,
 					Type: string(toolCall.Type),
 					Function: struct {

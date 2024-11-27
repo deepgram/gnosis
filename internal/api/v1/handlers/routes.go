@@ -4,7 +4,12 @@ import (
 	"net/http"
 
 	"github.com/deepgram/gnosis/internal/services/authcode"
+	"github.com/deepgram/gnosis/internal/services/chat"
 )
+
+func HandleChatCompletionV1(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
+	HandleChatCompletion(chatService, w, r)
+}
 
 // v1/oauth.go
 func HandleTokenV1(authCodeService *authcode.Service, w http.ResponseWriter, r *http.Request) {

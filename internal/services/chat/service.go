@@ -3,7 +3,7 @@ package chat
 import (
 	"context"
 
-	"github.com/deepgram/gnosis/internal/domain/chat/models"
+	"github.com/deepgram/gnosis/internal/services/chat/models"
 )
 
 // Service defines the interface for chat operations
@@ -13,10 +13,10 @@ type Service interface {
 }
 
 // Repository defines the interface for chat storage operations
-type Repository interface {
-	// SaveChat saves a chat conversation
-	SaveChat(ctx context.Context, messages []models.ChatMessage, response *models.ChatResponse) error
+// type Repository interface {
+// 	// SaveChat saves a chat conversation
+// 	SaveChat(ctx context.Context, messages []models.ChatMessage, response *models.ChatResponse) error
 
-	// GetChat retrieves a chat conversation by ID
-	GetChat(ctx context.Context, chatID string) ([]models.ChatMessage, error)
-}
+// 	// GetChat retrieves a chat conversation by ID
+// 	GetChat(ctx context.Context, chatID string) ([]models.ChatMessage, error)
+// }
