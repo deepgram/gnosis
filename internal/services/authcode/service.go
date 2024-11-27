@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepgram/gnosis/internal/services/redis"
+	"github.com/deepgram/gnosis/internal/infrastructure/redis"
 	"github.com/deepgram/gnosis/pkg/logger"
 )
 

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/deepgram/gnosis/internal/config"
-	"github.com/deepgram/gnosis/internal/services/algolia"
-	"github.com/deepgram/gnosis/internal/services/github"
-	"github.com/deepgram/gnosis/internal/services/kapa"
+	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
+	"github.com/deepgram/gnosis/internal/infrastructure/github"
+	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/google/uuid"

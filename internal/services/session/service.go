@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/deepgram/gnosis/internal/config"
-	"github.com/deepgram/gnosis/internal/services/redis"
+	"github.com/deepgram/gnosis/internal/infrastructure/redis"
 	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
