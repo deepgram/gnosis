@@ -25,7 +25,7 @@ jobs:
 
       - name: Gnosis by Deepgram - Docs
         run: |
-          npx @redocly/cli build-docs api/openapi.yaml \
+          npx @redocly/cli build-docs docs/openapi.yaml \
             --theme.openapi.colors.primary.main="#00A89C" \
             --theme.openapi.typography.headings.fontFamily="Inter, sans-serif" \
             --title="Gnosis API Documentation" \
