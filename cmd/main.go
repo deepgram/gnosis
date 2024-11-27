@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/deepgram/gnosis/internal/handlers"
-	"github.com/deepgram/gnosis/internal/logger"
 	"github.com/deepgram/gnosis/internal/middleware"
 	"github.com/deepgram/gnosis/internal/services"
+	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/gorilla/mux"
 )
 

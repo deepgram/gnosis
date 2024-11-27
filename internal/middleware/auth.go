@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/deepgram/gnosis/internal/logger"
 	"github.com/deepgram/gnosis/internal/services/oauth"
+	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 func RequireAuth(allowedGrants []string) func(http.Handler) http.Handler {

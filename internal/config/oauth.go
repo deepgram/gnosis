@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 var (

@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
-	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 type Service struct {

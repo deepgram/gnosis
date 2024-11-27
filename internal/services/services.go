@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/deepgram/gnosis/internal/logger"
 	"github.com/deepgram/gnosis/internal/services/algolia"
 	"github.com/deepgram/gnosis/internal/services/authcode"
 	"github.com/deepgram/gnosis/internal/services/chat"
@@ -13,6 +12,7 @@ import (
 	"github.com/deepgram/gnosis/internal/services/redis"
 	"github.com/deepgram/gnosis/internal/services/session"
 	"github.com/deepgram/gnosis/internal/services/tools"
+	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 var (

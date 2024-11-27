@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/deepgram/gnosis/internal/logger"
+	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 func HandleWidgetJS(w http.ResponseWriter, r *http.Request) {
