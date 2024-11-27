@@ -5,7 +5,7 @@ info:
   description: |
     Gnosis provides secure, managed access to Deepgram's AI Support Agent and knowledge services. 
     It serves as a unified gateway for both internal and external clients with:
-    
+
     - Secure authentication and authorization
     - Request routing and rate limiting
     - Response formatting and validation
@@ -38,12 +38,12 @@ paths:
         - Auth
       description: |
         Initiates OAuth authorization code flow for client applications.
-        
+
         Requirements:
         - Valid session cookie
         - Registered client identifier
         - State parameter for CSRF protection
-        
+
         Returns an authorization code for subsequent token exchange.
       parameters:
         - in: cookie
@@ -107,10 +107,10 @@ paths:
         - Auth
       description: |
         Exchange credentials for an access token using one of two grant types:
-        
+
         1. Client Credentials: Direct server-to-server access using client_id and client_secret
         2. Authorization Code: User-authorized access using a code from /oauth/authorize
-        
+
         Returns a Bearer token valid for 15 minutes.
       requestBody:
         required: true
@@ -198,7 +198,7 @@ paths:
         - Chat
       description: |
         Generate an AI response based on conversation history.
-        
+
         Features:
         - Context-aware responses using message history
         - Optional system prompts for behaviour control
