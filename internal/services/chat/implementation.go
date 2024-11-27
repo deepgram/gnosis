@@ -6,28 +6,28 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepgram/gnosis/internal/domain/chat"
 	"github.com/deepgram/gnosis/internal/domain/chat/models"
+	"github.com/deepgram/gnosis/internal/infrastructure/openai"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/google/uuid"
-	"github.com/sashabaranov/go-openai"
+	gopenai "github.com/sashabaranov/go-openai"
 )
 
 type Implementation struct {
 	mu           sync.RWMutex
-	client       *openai.Client
+	openAI       *openai.Service
 	toolExecutor *tools.ToolExecutor
 	systemPrompt *models.SystemPrompt
 }
 
-func NewService(openAIKey string, toolExecutor *tools.ToolExecutor) (chat.Service, error) {
-	if openAIKey == "" {
-		return nil, fmt.Errorf("OpenAI key is required")
+func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor) (*Implementation, error) {
+	if openAIService == nil {
+		return nil, fmt.Errorf("OpenAI service is required")
 	}
 
 	return &Implementation{
-		client:       openai.NewClient(openAIKey),
+		openAI:       openAIService,
 		toolExecutor: toolExecutor,
 		systemPrompt: models.DefaultSystemPrompt(),
 	}, nil
@@ -53,13 +53,13 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 	}
 
 	// Convert domain messages to OpenAI messages
-	openaiMessages := make([]openai.ChatCompletionMessage, len(messages)+1)
-	openaiMessages[0] = openai.ChatCompletionMessage{
-		Role:    openai.ChatMessageRoleSystem,
+	openaiMessages := make([]gopenai.ChatCompletionMessage, len(messages)+1)
+	openaiMessages[0] = gopenai.ChatCompletionMessage{
+		Role:    gopenai.ChatMessageRoleSystem,
 		Content: s.systemPrompt.String(),
 	}
 	for i, msg := range messages {
-		openaiMessages[i+1] = openai.ChatCompletionMessage{
+		openaiMessages[i+1] = gopenai.ChatCompletionMessage{
 			Role:    msg.Role,
 			Content: msg.Content,
 		}
@@ -67,8 +67,8 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 
 	for {
 		// Create completion request
-		req := openai.ChatCompletionRequest{
-			Model:            openai.GPT4Turbo,
+		req := gopenai.ChatCompletionRequest{
+			Model:            gopenai.GPT4Turbo,
 			Messages:         openaiMessages,
 			Temperature:      config.Temperature,
 			MaxTokens:        config.MaxTokens,
@@ -77,7 +77,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 			FrequencyPenalty: config.FrequencyPenalty,
 		}
 
-		resp, err := s.client.CreateChatCompletion(ctx, req)
+		resp, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
 		if err != nil {
 			logger.Error(logger.CHAT, "Failed to get chat completion: %v", err)
 			return nil, fmt.Errorf("failed to get chat completion: %w", err)
@@ -90,7 +90,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 		message := resp.Choices[0].Message
 
 		// Return if we have a content response
-		if message.Role == openai.ChatMessageRoleAssistant && message.Content != "" {
+		if message.Role == gopenai.ChatMessageRoleAssistant && message.Content != "" {
 			return &models.ChatResponse{
 				ID:      fmt.Sprintf("gnosis-%s", uuid.New().String()[:5]),
 				Created: time.Now().Unix(),
@@ -109,7 +109,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 		}
 
 		// Handle tool calls
-		if message.Role == openai.ChatMessageRoleAssistant && len(message.ToolCalls) > 0 {
+		if message.Role == gopenai.ChatMessageRoleAssistant && len(message.ToolCalls) > 0 {
 			openaiMessages = append(openaiMessages, message)
 
 			for _, toolCall := range message.ToolCalls {
@@ -128,8 +128,8 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []models.Chat
 					return nil, fmt.Errorf("tool call failed: %w", err)
 				}
 
-				openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
-					Role:       openai.ChatMessageRoleTool,
+				openaiMessages = append(openaiMessages, gopenai.ChatCompletionMessage{
+					Role:       gopenai.ChatMessageRoleTool,
 					Content:    result,
 					ToolCallID: toolCall.ID,
 				})

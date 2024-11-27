@@ -2,13 +2,12 @@ package services
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
-	"github.com/deepgram/gnosis/internal/domain/chat"
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
+	"github.com/deepgram/gnosis/internal/infrastructure/openai"
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
 	"github.com/deepgram/gnosis/internal/services/authcode"
 	chatimpl "github.com/deepgram/gnosis/internal/services/chat"
@@ -28,7 +27,8 @@ type Services struct {
 	kapaService     *kapa.Service
 	redisService    *redis.Service
 	sessionService  *session.Service
-	chatService     chat.Service
+	chatService     *chatimpl.Implementation
+	openAIService   *openai.Service
 	toolsService    *tools.Service
 	toolExecutor    *tools.ToolExecutor
 	authCodeService *authcode.Service
@@ -40,6 +40,13 @@ func InitializeServices() (*Services, error) {
 	defer servicesMu.Unlock()
 
 	logger.Info(logger.SERVICE, "Initializing services")
+
+	// Initialize OpenAI service
+	openAIService := openai.NewService()
+	if openAIService == nil {
+		logger.Error(logger.SERVICE, "Failed to initialize OpenAI service")
+		return nil, fmt.Errorf("failed to initialize OpenAI service")
+	}
 
 	// Initialize infrastructure services
 	algoliaService := algolia.NewService()
@@ -83,8 +90,7 @@ func InitializeServices() (*Services, error) {
 	authCodeService := authcode.NewService(redisService)
 
 	// Initialize chat service
-	openAIKey := os.Getenv("OPENAI_KEY")
-	chatService, err := chatimpl.NewService(openAIKey, toolExecutor)
+	chatService, err := chatimpl.NewService(openAIService, toolExecutor)
 	if err != nil {
 		logger.Error(logger.SERVICE, "Failed to initialize chat service: %v", err)
 		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
@@ -99,6 +105,7 @@ func InitializeServices() (*Services, error) {
 		redisService:    redisService,
 		sessionService:  sessionService,
 		chatService:     chatService,
+		openAIService:   openAIService,
 		toolsService:    toolsService,
 		toolExecutor:    toolExecutor,
 		authCodeService: authCodeService,
@@ -106,7 +113,7 @@ func InitializeServices() (*Services, error) {
 }
 
 // GetChatService returns the chat service
-func (s *Services) GetChatService() chat.Service {
+func (s *Services) GetChatService() *chatimpl.Implementation {
 	return s.chatService
 }
 
