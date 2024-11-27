@@ -21,7 +21,7 @@ install-lint:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 build-docs:
-	npx @redocly/cli build-docs api/openapi.yaml \
+	npx @redocly/cli build-docs docs/openapi.yaml \
 		--theme.openapi.colors.primary.main="#00A89C" \
 		--theme.openapi.typography.fontFamily="Inter, sans-serif" \
 		--theme.openapi.onlyRequiredInSamples \

@@ -19,7 +19,7 @@ type Service struct {
 func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service) (*Service, error) {
 	logger.Info(logger.SERVICE, "Initialising tools service")
 
-	toolsConfig, err := config.LoadToolsConfig("config/tools.json")
+	toolsConfig, err := config.LoadToolsConfig("internal/config/tools.json")
 	if err != nil {
 		logger.Error(logger.SERVICE, "Failed to load tools config: %v", err)
 		return nil, err
