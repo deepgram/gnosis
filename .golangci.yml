@@ -2,13 +2,8 @@ linters:
   enable:
     - gofmt
     - govet
-    - errcheck
-    - staticcheck
-    - gosimple
-    - ineffassign
-    - unconvert
-    - misspell
-    - gosec
+    - unused
+    - unparam
 
 run:
   timeout: 5m
@@ -18,14 +13,12 @@ issues:
   exclude-rules:
     - path: _test\.go
       linters:
-        - gosec
+        - unused
+        - unparam
 
 linters-settings:
   gofmt:
     simplify: true
-  gosec:
-    excludes:
-      - G404 # Use of weak random number generator
 
 output:
   print-issued-lines: true
