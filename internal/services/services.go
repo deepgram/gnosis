@@ -41,49 +41,45 @@ func InitializeServices() (*Services, error) {
 
 	logger.Info(logger.SERVICE, "Initializing services")
 
-	// Initialize OpenAI service
+	// Initialize OpenAI service (required)
 	openAIService := openai.NewService()
 	if openAIService == nil {
 		logger.Fatal(logger.SERVICE, "Failed to initialize OpenAI service")
 		os.Exit(1)
 	}
 
-	// Initialize infrastructure services
+	// Initialize Redis service (optional)
+	redisService := redis.NewService()
+	if redisService == nil {
+		logger.Info(logger.SERVICE, "Redis service not configured - using in-memory storage")
+	}
+
+	// Initialize optional infrastructure services
 	algoliaService := algolia.NewService()
 	if algoliaService == nil {
-		logger.Warn(logger.SERVICE, "Failed to initialize Algolia service")
-		return nil, fmt.Errorf("failed to initialize Algolia service")
+		logger.Info(logger.SERVICE, "Algolia service not configured - functionality will be limited")
 	}
 
 	githubService := github.NewService()
 	if githubService == nil {
-		logger.Warn(logger.SERVICE, "Failed to initialize GitHub service")
-		return nil, fmt.Errorf("failed to initialize GitHub service")
+		logger.Info(logger.SERVICE, "GitHub service not configured - functionality will be limited")
 	}
 
 	kapaService := kapa.NewService()
 	if kapaService == nil {
-		logger.Warn(logger.SERVICE, "Failed to initialize Kapa service")
-		return nil, fmt.Errorf("failed to initialize Kapa service")
+		logger.Info(logger.SERVICE, "Kapa service not configured - functionality will be limited")
 	}
 
-	// Initialize Redis service
-	redisService := redis.NewService()
-	if redisService == nil {
-		logger.Warn(logger.SERVICE, "Failed to initialize Redis service")
-		return nil, fmt.Errorf("failed to initialize Redis service")
-	}
-
-	// Initialize tool executor
+	// Initialize tool executor with optional services
 	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
 
-	// Initialize session service
+	// Initialize session service with optional Redis
 	sessionService := session.NewService(redisService)
 
-	// Initialize auth code service
+	// Initialize auth code service with optional Redis
 	authCodeService := authcode.NewService(redisService)
 
-	// Initialize chat service
+	// Initialize chat service (required)
 	chatService, err := chatimpl.NewService(openAIService, toolExecutor)
 	if err != nil {
 		logger.Error(logger.SERVICE, "Failed to initialize chat service: %v", err)

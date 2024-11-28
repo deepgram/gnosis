@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	v1handlers "github.com/deepgram/gnosis/internal/api/v1/handlers"
@@ -18,6 +19,7 @@ func main() {
 	services, err := services.InitializeServices()
 	if err != nil {
 		logger.Fatal(logger.APP, "Failed to initialize services: %v", err)
+		os.Exit(1)
 	}
 
 	// Setup router
