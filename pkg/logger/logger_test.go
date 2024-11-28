@@ -93,8 +93,12 @@ func captureOutput(f func()) string {
 	wErr.Close()
 
 	var stdoutBuf, stderrBuf bytes.Buffer
-	io.Copy(&stdoutBuf, rOut)
-	io.Copy(&stderrBuf, rErr)
+	if _, err := io.Copy(&stdoutBuf, rOut); err != nil {
+		log.Printf("Failed to copy stdout: %v", err)
+	}
+	if _, err := io.Copy(&stderrBuf, rErr); err != nil {
+		log.Printf("Failed to copy stderr: %v", err)
+	}
 
 	return stdoutBuf.String() + stderrBuf.String()
 }
