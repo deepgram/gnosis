@@ -54,38 +54,37 @@ go mod download
 Create a `.env` file in the project root:
 
 ```sh
-# Required
-## JWT Secret
+# JWT Secret (required)
 JWT_SECRET=your-256-bit-secret
 
-## OpenAI API Key
+# OpenAI API Key (required)
 OPENAI_KEY=your-openai-key
 
-## Kapa Credentials
-KAPA_INTEGRATION_ID=kapa-integration-id
-KAPA_PROJECT_ID=kapa-project-id
-KAPA_API_KEY=kapa-api-key
-
-## Algolia Credentials
+# Algolia Credentials (required)
 ALGOLIA_APP_ID=your_algolia_app_id
 ALGOLIA_API_KEY=your_algolia_api_key
 ALGOLIA_INDEX_NAME=your_index_name
 
-## GitHub Token
+# GitHub Token (required)
 GITHUB_TOKEN=your_github_token
 
-## Redis Configuration (optional)
-REDIS_URL=redis://localhost:6379
-REDIS_PASSWORD=
+# Kapa Credentials (required)
+KAPA_INTEGRATION_ID=kapa-integration-id
+KAPA_PROJECT_ID=kapa-project-id
+KAPA_API_KEY=kapa-api-key
 
-## Session Cookie Name
+# Client Configuration (required - see below)
+
+# Session Cookie Name
 SESSION_COOKIE_NAME=gnosis_session
 
-## Client Configuration
-### See below for more details
-
 # Optional
+## Log Level (defaults to INFO)
 LOG_LEVEL=INFO # DEBUG|INFO|WARN|ERROR
+
+## Redis Configuration (optional - falls back to in-memory session store)
+REDIS_URL=
+REDIS_PASSWORD=
 ```
 
 ## Client Configuration
@@ -103,11 +102,11 @@ GNOSIS_<CLIENT_TYPE>_SCOPES=scope1,scope2 # Optional, defaults to empty
 ### Example
 
 ```sh
-GNOSIS_SLACK_CLIENT_ID=your_slack_client_id
-GNOSIS_SLACK_CLIENT_SECRET=your_slack_client_secret
+GNOSIS_SLACK_CLIENT_ID=slack-client-id
+GNOSIS_SLACK_CLIENT_SECRET=slack-client-secret
 GNOSIS_SLACK_SCOPES=scope1,scope2
 
-GNOSIS_WIDGET_CLIENT_ID=your_widget_client_id
+GNOSIS_WIDGET_CLIENT_ID=widget-client-id
 GNOSIS_WIDGET_NO_SECRET=true
 GNOSIS_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
 GNOSIS_WIDGET_SCOPES=scope1,scope2
