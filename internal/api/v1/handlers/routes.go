@@ -34,8 +34,8 @@ func RegisterV1Routes(router *mux.Router, services *services.Services) {
 
 	// Protected v1 chat routes
 	v1chatRouter := v1protectedRouter.PathPrefix("/chat").Subrouter()
+	v1chatRouter.Use(v1mware.RequireScope("chat:write"))
 	v1chatRouter.HandleFunc("/completions", func(w http.ResponseWriter, r *http.Request) {
 		HandleChatCompletion(services.GetChatService(), w, r)
-
 	}).Methods("POST")
 }

@@ -116,7 +116,7 @@ func handleClientCredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
+	// Generate JWT token with scopes
 	claims := oauth.CustomClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtLifetime)),
@@ -125,6 +125,7 @@ func handleClientCredentials(w http.ResponseWriter, r *http.Request) {
 		},
 		ClientType: clientType,
 		GrantType:  "client_credentials",
+		Scopes:     client.Scopes,
 	}
 
 	issueToken(w, claims)
@@ -167,7 +168,10 @@ func handleWidgetCode(widgetCodeService *widgetcode.Service, w http.ResponseWrit
 		logger.Error(logger.HANDLER, "Failed to invalidate widget code: %v", err)
 	}
 
-	// Generate JWT token
+	// Get client config to access scopes
+	client := config.GetClientConfig(clientType)
+
+	// Generate JWT token with scopes
 	claims := oauth.CustomClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtLifetime)),
@@ -176,6 +180,7 @@ func handleWidgetCode(widgetCodeService *widgetcode.Service, w http.ResponseWrit
 		},
 		ClientType: clientType,
 		GrantType:  "widget",
+		Scopes:     client.Scopes,
 	}
 
 	issueToken(w, claims)

@@ -1,7 +1,6 @@
 package oauth
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -34,46 +33,34 @@ type TokenValidationResult struct {
 	ClientType string
 	GrantType  string
 	ExpiresAt  time.Time
+	Scopes     []string
 }
 
 type CustomClaims struct {
 	jwt.RegisteredClaims
-	ClientType string `json:"ctp"`
-	GrantType  string `json:"gty"`
+	ClientType string   `json:"ctp"`
+	GrantType  string   `json:"gty"`
+	Scopes     []string `json:"scp"`
 }
 
 // Update the validateToken function to return client type
 func ValidateToken(tokenString string) TokenValidationResult {
 	result := TokenValidationResult{Valid: false}
 
-	if tokenString == "" {
-		logger.Debug(logger.SERVICE, "Empty token string provided")
-		return result
-	}
-
+	// Parse token
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			logger.Error(logger.SERVICE, "Unexpected signing method: %v", token.Header["alg"])
-			return nil, fmt.Errorf("unexpected signing method")
-		}
 		return config.GetJWTSecret(), nil
 	})
 
 	if err != nil {
-		logger.Error(logger.SERVICE, "Token validation failed: %v", err)
+		logger.Error(logger.SERVICE, "Failed to parse token: %v", err)
 		return result
 	}
 
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
 		// Validate client type
 		if claims.ClientType == "" {
-			logger.Error(logger.SERVICE, "Token missing client type")
-			return result
-		}
-
-		// Check if client type is valid
-		if _, exists := config.AllowedClients[claims.ClientType]; !exists {
-			logger.Error(logger.SERVICE, "Invalid client type in token: %s", claims.ClientType)
+			logger.Error(logger.SERVICE, "Missing client type in token")
 			return result
 		}
 
@@ -89,6 +76,7 @@ func ValidateToken(tokenString string) TokenValidationResult {
 		result.ClientType = claims.ClientType
 		result.GrantType = claims.GrantType
 		result.ExpiresAt = claims.ExpiresAt.Time
+		result.Scopes = claims.Scopes
 		return result
 	}
 
