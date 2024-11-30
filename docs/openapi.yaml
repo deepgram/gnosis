@@ -198,9 +198,6 @@ paths:
       summary: Create chat completion
       tags:
         - Chat
-      security:
-        - client_credentials: ['chat:write']
-        - widget: ['chat:write']
       description: |
         Generate an AI response based on conversation history.
 
@@ -400,5 +397,5 @@ components:
           scopes: {}
 
 security:
-  - client_credentials: []
-  - widget: []
+  - client_credentials: ["chat:write"]
+  - widget: ["chat:write"]
