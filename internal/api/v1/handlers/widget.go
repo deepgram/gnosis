@@ -3,11 +3,18 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/deepgram/gnosis/internal/services/session"
 	"github.com/deepgram/gnosis/pkg/logger"
 )
 
-func HandleWidgetJS(w http.ResponseWriter, r *http.Request) {
+func HandleWidgetJS(sessionService *session.Service, w http.ResponseWriter, r *http.Request) {
 	logger.Debug(logger.HANDLER, "Serving widget.js request from %s", r.RemoteAddr)
+
+	// Create anonymous session
+	if err := sessionService.CreateSession(w, ""); err != nil {
+		logger.Error(logger.HANDLER, "Failed to create session: %v", err)
+		// Continue anyway as this isn't critical
+	}
 
 	// Set appropriate headers
 	w.Header().Set("Content-Type", "application/javascript")

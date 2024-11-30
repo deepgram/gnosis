@@ -5,9 +5,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/deepgram/gnosis/internal/config"
+	"github.com/deepgram/gnosis/internal/services/session"
 )
 
 func TestHandleWidgetJS(t *testing.T) {
+	// Create session service with memory store for testing
+	sessionService := session.NewService(nil)
+
 	tests := []struct {
 		name           string
 		method         string
@@ -34,8 +40,8 @@ func TestHandleWidgetJS(t *testing.T) {
 			req := httptest.NewRequest(tt.method, "/v1/widget.js", nil)
 			w := httptest.NewRecorder()
 
-			// Call handler
-			HandleWidgetJS(w, req)
+			// Call handler with session service
+			HandleWidgetJS(sessionService, w, req)
 
 			// Check status code
 			if w.Code != tt.expectedStatus {
@@ -56,6 +62,19 @@ func TestHandleWidgetJS(t *testing.T) {
 						t.Errorf("Expected header %s to be %s, got %s", key, expected, got)
 					}
 				}
+			}
+
+			// Verify session cookie was set
+			cookies := w.Result().Cookies()
+			var sessionCookieFound bool
+			for _, cookie := range cookies {
+				if cookie.Name == config.GetSessionCookieName() {
+					sessionCookieFound = true
+					break
+				}
+			}
+			if !sessionCookieFound {
+				t.Error("Expected session cookie to be set")
 			}
 
 			// Check response body contains expected JavaScript

@@ -78,7 +78,7 @@ func ValidateToken(tokenString string) TokenValidationResult {
 		}
 
 		// Validate grant type
-		if claims.GrantType != "client_credentials" && claims.GrantType != "authorization_code" {
+		if claims.GrantType != "client_credentials" && claims.GrantType != "widget" {
 			logger.Error(logger.SERVICE, "Invalid grant type in token: %s", claims.GrantType)
 			return result
 		}

@@ -1,4 +1,4 @@
-package authcode
+package widgetcode
 
 import (
 	"context"
@@ -11,18 +11,18 @@ import (
 )
 
 const (
-	authCodeLifetime = 10 * time.Minute
+	WidgetCodeLifetime = 10 * time.Minute
 )
 
-type AuthCodeInfo struct {
+type WidgetCodeInfo struct {
 	ClientID  string    `json:"client_id"`
 	State     string    `json:"state"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-type AuthCodeStore interface {
-	Set(ctx context.Context, code string, info *AuthCodeInfo) error
-	Get(ctx context.Context, code string) (*AuthCodeInfo, error)
+type WidgetCodeStore interface {
+	Set(ctx context.Context, code string, info *WidgetCodeInfo) error
+	Get(ctx context.Context, code string) (*WidgetCodeInfo, error)
 	Delete(ctx context.Context, code string) error
 }
 
@@ -31,32 +31,32 @@ type RedisStore struct {
 }
 
 type MemoryStore struct {
-	mu        sync.RWMutex
-	authCodes map[string]*AuthCodeInfo
+	mu          sync.RWMutex
+	WidgetCodes map[string]*WidgetCodeInfo
 }
 
 type Service struct {
-	store AuthCodeStore
+	store WidgetCodeStore
 }
 
 func NewService(redisService *redis.Service) *Service {
-	logger.Info(logger.SERVICE, "Initialising auth code service")
+	logger.Info(logger.SERVICE, "Initialising widget code service")
 
-	var store AuthCodeStore
+	var store WidgetCodeStore
 	if redisService != nil {
-		logger.Info(logger.SERVICE, "Using Redis for auth code storage")
+		logger.Info(logger.SERVICE, "Using Redis for widget code storage")
 
 		// Test Redis connection
 		ctx := context.Background()
 		if err := redisService.Ping(ctx); err != nil {
 			logger.Error(logger.SERVICE, "Redis connection failed: %v", err)
-			logger.Warn(logger.SERVICE, "Falling back to in-memory auth code storage")
+			logger.Warn(logger.SERVICE, "Falling back to in-memory widget code storage")
 			store = newMemoryStore()
 		} else {
 			store = &RedisStore{redisService: redisService}
 		}
 	} else {
-		logger.Info(logger.SERVICE, "Using in-memory auth code storage")
+		logger.Info(logger.SERVICE, "Using in-memory widget code storage")
 		store = newMemoryStore()
 	}
 
@@ -65,27 +65,27 @@ func NewService(redisService *redis.Service) *Service {
 
 func newMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		authCodes: make(map[string]*AuthCodeInfo),
+		WidgetCodes: make(map[string]*WidgetCodeInfo),
 	}
 }
 
 // Redis Store implementation
-func (rs *RedisStore) Set(ctx context.Context, code string, info *AuthCodeInfo) error {
+func (rs *RedisStore) Set(ctx context.Context, code string, info *WidgetCodeInfo) error {
 	data, err := json.Marshal(info)
 	if err != nil {
 		return err
 	}
 
-	return rs.redisService.Set(ctx, "authcode:"+code, string(data), authCodeLifetime)
+	return rs.redisService.Set(ctx, "WidgetCode:"+code, string(data), WidgetCodeLifetime)
 }
 
-func (rs *RedisStore) Get(ctx context.Context, code string) (*AuthCodeInfo, error) {
-	data, err := rs.redisService.Get(ctx, "authcode:"+code)
+func (rs *RedisStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, error) {
+	data, err := rs.redisService.Get(ctx, "WidgetCode:"+code)
 	if err != nil {
 		return nil, err
 	}
 
-	var info AuthCodeInfo
+	var info WidgetCodeInfo
 	if err := json.Unmarshal([]byte(data), &info); err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (rs *RedisStore) Get(ctx context.Context, code string) (*AuthCodeInfo, erro
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
 		if err := rs.Delete(ctx, code); err != nil {
-			logger.Warn(logger.SERVICE, "Failed to delete auth code: %v", err)
+			logger.Warn(logger.SERVICE, "Failed to delete widget code: %v", err)
 		}
 		return nil, nil
 	}
@@ -102,22 +102,22 @@ func (rs *RedisStore) Get(ctx context.Context, code string) (*AuthCodeInfo, erro
 }
 
 func (rs *RedisStore) Delete(ctx context.Context, code string) error {
-	return rs.redisService.Delete(ctx, "authcode:"+code)
+	return rs.redisService.Delete(ctx, "WidgetCode:"+code)
 }
 
 // Memory Store implementation
-func (ms *MemoryStore) Set(ctx context.Context, code string, info *AuthCodeInfo) error {
+func (ms *MemoryStore) Set(ctx context.Context, code string, info *WidgetCodeInfo) error {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
-	ms.authCodes[code] = info
+	ms.WidgetCodes[code] = info
 	return nil
 }
 
-func (ms *MemoryStore) Get(ctx context.Context, code string) (*AuthCodeInfo, error) {
+func (ms *MemoryStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, error) {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
 
-	info, exists := ms.authCodes[code]
+	info, exists := ms.WidgetCodes[code]
 	if !exists {
 		return nil, nil
 	}
@@ -125,7 +125,7 @@ func (ms *MemoryStore) Get(ctx context.Context, code string) (*AuthCodeInfo, err
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
 		if err := ms.Delete(ctx, code); err != nil {
-			logger.Warn(logger.SERVICE, "Failed to delete auth code: %v", err)
+			logger.Warn(logger.SERVICE, "Failed to delete widget code: %v", err)
 		}
 		return nil, nil
 	}
@@ -136,24 +136,24 @@ func (ms *MemoryStore) Get(ctx context.Context, code string) (*AuthCodeInfo, err
 func (ms *MemoryStore) Delete(ctx context.Context, code string) error {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
-	delete(ms.authCodes, code)
+	delete(ms.WidgetCodes, code)
 	return nil
 }
 
 // Service methods
-func (s *Service) StoreAuthCode(ctx context.Context, code, clientID, state string) error {
-	info := &AuthCodeInfo{
+func (s *Service) StoreWidgetCode(ctx context.Context, code, clientID, state string) error {
+	info := &WidgetCodeInfo{
 		ClientID:  clientID,
 		State:     state,
-		ExpiresAt: time.Now().Add(authCodeLifetime),
+		ExpiresAt: time.Now().Add(WidgetCodeLifetime),
 	}
 	return s.store.Set(ctx, code, info)
 }
 
-func (s *Service) ValidateAuthCode(ctx context.Context, code string) (*AuthCodeInfo, error) {
+func (s *Service) ValidateWidgetCode(ctx context.Context, code string) (*WidgetCodeInfo, error) {
 	return s.store.Get(ctx, code)
 }
 
-func (s *Service) InvalidateAuthCode(ctx context.Context, code string) error {
+func (s *Service) InvalidateWidgetCode(ctx context.Context, code string) error {
 	return s.store.Delete(ctx, code)
 }

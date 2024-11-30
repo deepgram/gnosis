@@ -3,24 +3,39 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/deepgram/gnosis/internal/services/authcode"
-	"github.com/deepgram/gnosis/internal/services/chat"
+	v1oauth "github.com/deepgram/gnosis/internal/api/v1/handlers/oauth"
+	v1mware "github.com/deepgram/gnosis/internal/api/v1/middleware"
+	"github.com/deepgram/gnosis/internal/services"
+	"github.com/gorilla/mux"
 )
 
-func HandleChatCompletionV1(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
-	HandleChatCompletion(chatService, w, r)
-}
+func RegisterV1Routes(router *mux.Router, services *services.Services) {
+	// v1 routes
+	v1 := router.PathPrefix("/v1").Subrouter()
 
-// v1/oauth.go
-func HandleTokenV1(authCodeService *authcode.Service, w http.ResponseWriter, r *http.Request) {
-	HandleToken(authCodeService, w, r)
-}
+	// Public v1 routes (no auth required)
+	v1publicRouter := v1.NewRoute().Subrouter()
+	v1publicRouter.HandleFunc("/widget.js", func(w http.ResponseWriter, r *http.Request) {
+		HandleWidgetJS(services.GetSessionService(), w, r)
+	}).Methods("GET")
 
-// Add this function
-func HandleAuthorizeV1(authCodeService *authcode.Service, w http.ResponseWriter, r *http.Request) {
-	HandleAuthorize(authCodeService, w, r)
-}
+	// OAuth v1 routes (no auth required)
+	v1oauthRouter := v1.PathPrefix("/oauth").Subrouter()
+	v1oauthRouter.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		v1oauth.HandleToken(services.GetWidgetCodeService(), w, r)
+	}).Methods("POST")
+	v1oauthRouter.HandleFunc("/widget", func(w http.ResponseWriter, r *http.Request) {
+		v1oauth.HandleWidgetAuth(services.GetWidgetCodeService(), w, r)
+	}).Methods("POST")
 
-func HandleWidgetJSV1(w http.ResponseWriter, r *http.Request) {
-	HandleWidgetJS(w, r)
+	// Protected v1 routes (require auth)
+	v1protectedRouter := v1.NewRoute().Subrouter()
+	v1protectedRouter.Use(v1mware.RequireAuth([]string{"client_credentials", "widget"}))
+
+	// Protected v1 chat routes
+	v1chatRouter := v1protectedRouter.PathPrefix("/chat").Subrouter()
+	v1chatRouter.HandleFunc("/completions", func(w http.ResponseWriter, r *http.Request) {
+		HandleChatCompletion(services.GetChatService(), w, r)
+
+	}).Methods("POST")
 }

@@ -31,20 +31,21 @@ tags:
     description: Create chat completions with Deepgram's AI assistant
 
 paths:
-  /oauth/authorize:
+  /oauth/widget:
     post:
-      summary: Get authorization code
+      summary: Get widget code
       tags:
         - Auth
+      security: []
       description: |
-        Initiates OAuth authorization code flow for client applications.
+        Initiates OAuth widget code flow for client applications.
 
         Requirements:
         - Valid session cookie
         - Registered client identifier
         - State parameter for CSRF protection
 
-        Returns an authorization code for subsequent token exchange.
+        Returns an widget code for subsequent token exchange.
       parameters:
         - in: cookie
           name: gnosis_session
@@ -71,7 +72,7 @@ paths:
       responses:
         "200":
           description: |
-            Authorization code generated successfully.
+            Widget code generated successfully.
             Use this code to request an access token via /oauth/token endpoint.
           content:
             application/json:
@@ -83,7 +84,7 @@ paths:
                 properties:
                   code:
                     type: string
-                    description: One-time authorization code valid for 10 minutes
+                    description: One-time widget code valid for 10 minutes
                   state:
                     type: string
                     description: Original state value from the request
@@ -105,11 +106,12 @@ paths:
       summary: Get access token
       tags:
         - Auth
+      security: []
       description: |
         Exchange credentials for an access token using one of two grant types:
 
         1. Client Credentials: Direct server-to-server access using client_id and client_secret
-        2. Authorization Code: User-authorized access using a code from /oauth/authorize
+        2. Widget Code: Custom grant for widget-based user authorization
 
         Returns a Bearer token valid for 15 minutes.
       requestBody:
@@ -136,8 +138,8 @@ paths:
                     client_secret:
                       type: string
                       description: Secret key for the client application
-                - title: Authorization Code Grant
-                  description: User-authorized authentication using authorization code
+                - title: Widget Code Grant
+                  description: User-authorized authentication using widget code
                   type: object
                   required:
                     - grant_type
@@ -146,14 +148,14 @@ paths:
                   properties:
                     grant_type:
                       type: string
-                      enum: [authorization_code]
-                      description: Must be "authorization_code" for this grant type
+                      enum: [widget]
+                      description: Must be "widget" for this grant type
                     client_id:
                       type: string
                       description: Registered client identifier
                     code:
                       type: string
-                      description: Authorization code from /oauth/authorize
+                      description: Widget code from /oauth/widget
       responses:
         "200":
           description: |
@@ -185,7 +187,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description: Invalid client credentials or expired authorization code
+          description: Invalid client credentials or expired widget code
           content:
             application/json:
               schema:
@@ -204,9 +206,6 @@ paths:
         - Optional system prompts for behaviour control
         - Automatic tool selection for enhanced responses
         - Support for multiple languages
-      security:
-        - client_credentials: []
-        - authorization_code: []
       requestBody:
         required: true
         content:
@@ -254,7 +253,7 @@ components:
             Standard OAuth 2.0 error code identifying the issue:
             - invalid_request: Malformed request syntax
             - invalid_client: Unknown or invalid client credentials
-            - invalid_grant: Invalid or expired authorization code
+            - invalid_grant: Invalid grant type or expired widget code
             - unauthorized_client: Client not allowed to use grant type
             - unsupported_grant_type: Grant type not supported
             - invalid_scope: Requested scope is invalid
@@ -389,10 +388,14 @@ components:
         clientCredentials:
           tokenUrl: /v1/oauth/token
           scopes: {}
-    authorization_code:
+    widget:
       type: oauth2
       flows:
         authorizationCode:
-          authorizationUrl: /v1/oauth/authorize
+          authorizationUrl: /v1/oauth/widget
           tokenUrl: /v1/oauth/token
           scopes: {}
+
+security:
+  - client_credentials: []
+  - widget: []
