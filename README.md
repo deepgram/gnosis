@@ -55,30 +55,62 @@ Create a `.env` file in the project root:
 
 ```sh
 # Required
+## JWT Secret
 JWT_SECRET=your-256-bit-secret
+
+## OpenAI API Key
 OPENAI_KEY=your-openai-key
 
-# Optional Services
+## Kapa Credentials
 KAPA_INTEGRATION_ID=kapa-integration-id
 KAPA_PROJECT_ID=kapa-project-id
 KAPA_API_KEY=kapa-api-key
 
+## Algolia Credentials
 ALGOLIA_APP_ID=your_algolia_app_id
 ALGOLIA_API_KEY=your_algolia_api_key
 ALGOLIA_INDEX_NAME=your_index_name
 
+## GitHub Token
 GITHUB_TOKEN=your_github_token
 
-# Client Credentials
-GNOSIS_SLACK_CLIENT_ID=your_slack_client_id
-GNOSIS_SLACK_CLIENT_SECRET=your_slack_client_secret
-GNOSIS_DISCORD_CLIENT_ID=your_discord_client_id
-GNOSIS_DISCORD_CLIENT_SECRET=your_discord_client_secret
-GNOSIS_WIDGET_CLIENT_ID=your_widget_client_id
-GNOSIS_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
+## Redis Configuration (optional)
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=
+
+## Session Cookie Name
+SESSION_COOKIE_NAME=gnosis_session
+
+## Client Configuration
+### See below for more details
 
 # Optional
 LOG_LEVEL=INFO # DEBUG|INFO|WARN|ERROR
+```
+
+## Client Configuration
+
+Gnosis supports dynamic client configuration through environment variables. Each client requires a specific set of environment variables following this pattern:
+
+```sh
+GNOSIS_<CLIENT_TYPE>_CLIENT_ID=your_client_id
+GNOSIS_<CLIENT_TYPE>_CLIENT_SECRET=your_client_secret
+GNOSIS_<CLIENT_TYPE>_NO_SECRET=true # Optional, defaults to false
+GNOSIS_<CLIENT_TYPE>_ALLOWED_URLS=https://example.com,https://app.example.com # Optional, defaults to empty
+GNOSIS_<CLIENT_TYPE>_SCOPES=scope1,scope2 # Optional, defaults to empty
+```
+
+### Example
+
+```sh
+GNOSIS_SLACK_CLIENT_ID=your_slack_client_id
+GNOSIS_SLACK_CLIENT_SECRET=your_slack_client_secret
+GNOSIS_SLACK_SCOPES=scope1,scope2
+
+GNOSIS_WIDGET_CLIENT_ID=your_widget_client_id
+GNOSIS_WIDGET_NO_SECRET=true
+GNOSIS_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
+GNOSIS_WIDGET_SCOPES=scope1,scope2
 ```
 
 ## Usage
