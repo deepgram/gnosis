@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1handlers "github.com/deepgram/gnosis/internal/api/v1/handlers"
+	v1mware "github.com/deepgram/gnosis/internal/api/v1/middleware"
 	"github.com/deepgram/gnosis/internal/services"
 	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/gorilla/mux"
@@ -24,6 +25,9 @@ func main() {
 	// Setup router
 	logger.Debug(logger.APP, "Setting up router")
 	r := mux.NewRouter()
+
+	// global rate limit
+	r.Use(v1mware.RateLimit("global"))
 
 	/**
 	 * Register all V1 routes

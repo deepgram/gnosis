@@ -85,6 +85,21 @@ LOG_LEVEL=INFO # DEBUG|INFO|WARN|ERROR
 ## Redis Configuration (optional - falls back to in-memory session store)
 REDIS_URL=
 REDIS_PASSWORD=
+
+# Enable/disable rate limiting globally (optional, defaults to false)
+RATELIMIT_ENABLED=
+
+# Global rate limit (optional, defaults to 1000 requests per minute)
+RATELIMIT_GLOBAL=
+
+# OAuth token endpoint (optional, defaults to 30 requests per minute)
+RATELIMIT_OAUTH_TOKEN=
+
+# OAuth widget endpoint (optional, defaults to 60 requests per minute)
+RATELIMIT_OAUTH_WIDGET=
+
+# Chat completion endpoint (optional, defaults to 120 requests per minute)
+RATELIMIT_CHAT_COMPLETION=
 ```
 
 ## Client Configuration
