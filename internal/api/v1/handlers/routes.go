@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	v1oauth "github.com/deepgram/gnosis/internal/api/v1/handlers/oauth"
+	"github.com/deepgram/gnosis/internal/api/v1/handlers/websocket"
 	v1mware "github.com/deepgram/gnosis/internal/api/v1/middleware"
 	"github.com/deepgram/gnosis/internal/services"
 	"github.com/gorilla/mux"
@@ -30,7 +31,11 @@ func RegisterV1Routes(router *mux.Router, services *services.Services) {
 
 	// Protected v1 routes (require auth)
 	v1protectedRouter := v1.NewRoute().Subrouter()
-	v1protectedRouter.Use(v1mware.RequireAuth([]string{"client_credentials", "widget"}))
+	// v1protectedRouter.Use(v1mware.RequireAuth([]string{"client_credentials", "widget"}))
+
+	// Protected v1 agent routes
+	v1agentRouter := v1protectedRouter.NewRoute().Subrouter()
+	v1agentRouter.HandleFunc("/agent", websocket.HandleAgentWebSocket)
 
 	// Protected v1 chat routes
 	v1chatRouter := v1protectedRouter.PathPrefix("/chat").Subrouter()

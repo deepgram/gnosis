@@ -27,20 +27,22 @@ func main() {
 
 	/**
 	 * Register all V1 routes
-	 *	/v1/oauth/token
-	 *	/v1/oauth/widget
-	 *	/v1/widget.js
-	 *	/v1/chat/completions
+	 *	/v1/oauth/token - POST
+	 *	/v1/oauth/widget - POST
+	 *	/v1/widget.js - GET
+	 *	/v1/chat/completions - POST
+	 *	/v1/agent - WebSocket
 	 */
 	v1handlers.RegisterV1Routes(r, services)
 
 	// Configure server
 	srv := &http.Server{
-		Addr:         ":8080",
-		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              ":8080",
+		Handler:           r,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 15 * time.Second,
 	}
 
 	// Start server
