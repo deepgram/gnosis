@@ -35,9 +35,7 @@ func RegisterV1Routes(router *mux.Router, services *services.Services) {
 
 	// Protected v1 agent routes
 	v1agentRouter := v1protectedRouter.NewRoute().Subrouter()
-	v1agentRouter.HandleFunc("/agent", func(w http.ResponseWriter, r *http.Request) {
-		websocket.HandleAgentWebSocket(w, r)
-	})
+	v1agentRouter.HandleFunc("/agent", websocket.HandleAgentWebSocket)
 
 	// Protected v1 chat routes
 	v1chatRouter := v1protectedRouter.PathPrefix("/chat").Subrouter()
