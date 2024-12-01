@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	v1handlers "github.com/deepgram/gnosis/internal/api/v1/handlers"
@@ -52,45 +53,96 @@ func proxyWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer serverConn.Close()
 
-	// Channel to signal errors or closure.
+	// Channels for coordinating shutdown
 	errChan := make(chan error, 2)
+	done := make(chan struct{})
+	var closeOnce sync.Once
 
-	// Start goroutine to forward client -> server.
+	cleanup := func() {
+		closeOnce.Do(func() {
+			close(done)
+			clientConn.Close()
+			serverConn.Close()
+		})
+	}
+	defer cleanup()
+
+	// Start goroutine to forward client -> server
 	go func() {
 		for {
-			messageType, msg, err := clientConn.ReadMessage()
-			if err != nil {
-				errChan <- err
+			select {
+			case <-done:
 				return
-			}
-			err = serverConn.WriteMessage(messageType, msg)
-			if err != nil {
-				errChan <- err
-				return
+			default:
+				messageType, msg, err := clientConn.ReadMessage()
+				if err != nil {
+					errChan <- err
+					return
+				}
+
+				// Log the message based on type
+				switch messageType {
+				case websocket.TextMessage:
+					logger.Debug(logger.APP, "Client -> Server: %s", string(msg))
+				case websocket.BinaryMessage:
+					logger.Debug(logger.APP, "Client -> Server: [binary data]")
+				case websocket.CloseMessage:
+					logger.Debug(logger.APP, "Client -> Server: [close message]")
+				case websocket.PingMessage:
+					logger.Debug(logger.APP, "Client -> Server: [ping]")
+				case websocket.PongMessage:
+					logger.Debug(logger.APP, "Client -> Server: [pong]")
+				}
+
+				err = serverConn.WriteMessage(messageType, msg)
+				if err != nil {
+					errChan <- err
+					return
+				}
 			}
 		}
 	}()
 
-	// Start goroutine to forward server -> client.
+	// Start goroutine to forward server -> client
 	go func() {
 		for {
-			messageType, msg, err := serverConn.ReadMessage()
-			if err != nil {
-				errChan <- err
+			select {
+			case <-done:
 				return
-			}
-			err = clientConn.WriteMessage(messageType, msg)
-			if err != nil {
-				errChan <- err
-				return
+			default:
+				messageType, msg, err := serverConn.ReadMessage()
+				if err != nil {
+					errChan <- err
+					return
+				}
+
+				// Log the message based on type
+				switch messageType {
+				case websocket.TextMessage:
+					logger.Debug(logger.APP, "Server -> Client: %s", string(msg))
+				case websocket.BinaryMessage:
+					logger.Debug(logger.APP, "Server -> Client: [binary data]")
+				case websocket.CloseMessage:
+					logger.Debug(logger.APP, "Server -> Client: [close message]")
+				case websocket.PingMessage:
+					logger.Debug(logger.APP, "Server -> Client: [ping]")
+				case websocket.PongMessage:
+					logger.Debug(logger.APP, "Server -> Client: [pong]")
+				}
+
+				err = clientConn.WriteMessage(messageType, msg)
+				if err != nil {
+					errChan <- err
+					return
+				}
 			}
 		}
 	}()
 
-	// Wait for an error or connection closure.
+	// Wait for an error or connection closure
 	err = <-errChan
 	if err != nil && websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-		log.Printf("WebSocket proxy error: %v", err)
+		logger.Error(logger.APP, "WebSocket proxy error: %v", err)
 	}
 }
 
