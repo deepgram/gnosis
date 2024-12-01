@@ -1,8 +1,8 @@
-asyncapi: '2.6.0'
+asyncapi: "2.6.0"
 
 info:
   title: Gnosis - Deepgram Agent WebSocket Proxy
-  version: '1.0.0'
+  version: "1.0.0"
   description: |
     Secure WebSocket proxy for Deepgram's Voice Agent API. 
     Provides authenticated access to real-time voice agent interactions with:
@@ -34,18 +34,18 @@ channels:
       summary: Send messages to the Voice Agent
       message:
         oneOf:
-          - $ref: '#/components/messages/TextMessage'
-          - $ref: '#/components/messages/BinaryMessage'
-          - $ref: '#/components/messages/PingMessage'
+          - $ref: "#/components/messages/TextMessage"
+          - $ref: "#/components/messages/BinaryMessage"
+          - $ref: "#/components/messages/PingMessage"
     subscribe:
       summary: Receive messages from the Voice Agent
       message:
         oneOf:
-          - $ref: '#/components/messages/TextMessage'
-          - $ref: '#/components/messages/BinaryMessage'
-          - $ref: '#/components/messages/OpenMessage'
-          - $ref: '#/components/messages/CloseMessage'
-          - $ref: '#/components/messages/PongMessage'
+          - $ref: "#/components/messages/TextMessage"
+          - $ref: "#/components/messages/BinaryMessage"
+          - $ref: "#/components/messages/OpenMessage"
+          - $ref: "#/components/messages/CloseMessage"
+          - $ref: "#/components/messages/PongMessage"
 
 components:
   securitySchemes:
