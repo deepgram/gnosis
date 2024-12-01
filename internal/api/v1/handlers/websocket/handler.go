@@ -43,14 +43,14 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	logger.Debug(logger.HANDLER, "Attempting to connect to target WebSocket server: %s", targetURL)
 
 	// Write the bearer token to the header from environment variables
-	token := os.Getenv("DEEPGRAM_AGENT_TOKEN")
+	token := os.Getenv("DEEPGRAM_API_KEY")
 	if token == "" {
-		logger.Fatal(logger.HANDLER, "DEEPGRAM_AGENT_TOKEN environment variable not set")
+		logger.Fatal(logger.HANDLER, "DEEPGRAM_API_KEY environment variable not set")
 		return
 	}
 
 	header := http.Header{}
-	header.Add("Authorization", "Bearer "+token)
+	header.Add("Authorization", "token "+token)
 	logger.Debug(logger.HANDLER, "Added authorization header for target connection")
 
 	serverConn, resp, err := websocket.DefaultDialer.Dial(u.String(), header)
@@ -123,7 +123,7 @@ func proxyMessages(src, dst *websocket.Conn, direction string, done chan struct{
 			// Log message details based on type
 			switch messageType {
 			case websocket.TextMessage:
-				logger.Debug(logger.HANDLER, "%s: Text message received (%d bytes): %s", direction, len(msg), string(msg))
+				logger.Debug(logger.HANDLER, "%s: Text message received (%d bytes)", direction, len(msg))
 			case websocket.BinaryMessage:
 				logger.Debug(logger.HANDLER, "%s: Binary message received (%d bytes)", direction, len(msg))
 			case websocket.CloseMessage:
