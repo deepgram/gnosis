@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	logger.Info(logger.HANDLER, "Initializing OAuth handler")
+	logger.Info(logger.HANDLER, "Validating OAuth widget handler configuration")
 	// Validate required client configurations
 	for clientType, client := range config.AllowedClients {
 		if client.ID == "" {

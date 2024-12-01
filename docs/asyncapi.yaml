@@ -1,0 +1,147 @@
+asyncapi: '2.6.0'
+
+info:
+  title: Gnosis - Deepgram Agent WebSocket Proxy
+  version: '1.0.0'
+  description: |
+    Secure WebSocket proxy for Deepgram's Voice Agent API. 
+    Provides authenticated access to real-time voice agent interactions with:
+
+    - Secure authentication via Bearer tokens
+    - Bidirectional message proxying
+    - Support for text and binary messages
+    - Automatic connection management
+  contact:
+    name: Deepgram DevRel Team
+    email: devrel@deepgram.com
+    url: https://community.deepgram.com/
+  license:
+    name: LicenseRef-Proprietary-Deepgram
+    url: https://deepgram.com/terms/
+
+servers:
+  production:
+    url: wss://gnosis.deepgram.com/v1
+    protocol: wss
+    description: Production WebSocket server
+    security:
+      - bearerAuth: []
+
+channels:
+  /agent:
+    description: Voice Agent WebSocket proxy channel
+    publish:
+      summary: Send messages to the Voice Agent
+      message:
+        oneOf:
+          - $ref: '#/components/messages/TextMessage'
+          - $ref: '#/components/messages/BinaryMessage'
+          - $ref: '#/components/messages/PingMessage'
+    subscribe:
+      summary: Receive messages from the Voice Agent
+      message:
+        oneOf:
+          - $ref: '#/components/messages/TextMessage'
+          - $ref: '#/components/messages/BinaryMessage'
+          - $ref: '#/components/messages/OpenMessage'
+          - $ref: '#/components/messages/CloseMessage'
+          - $ref: '#/components/messages/PongMessage'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: httpApiKey
+      name: Authorization
+      in: header
+      description: |
+        Bearer token obtained from /v1/oauth/token endpoint.
+        Must have 'chat:write' scope.
+
+  messages:
+    TextMessage:
+      name: TextMessage
+      title: Text Message
+      contentType: text/plain
+      summary: A text-based message for voice agent interaction
+      payload:
+        type: string
+        description: Text content of the message
+
+    BinaryMessage:
+      name: BinaryMessage
+      title: Binary Message
+      contentType: application/octet-stream
+      summary: Binary audio data for voice agent interaction
+      payload:
+        type: string
+        format: binary
+        description: Binary content of the message
+
+    OpenMessage:
+      name: OpenMessage
+      title: Connection Open Event
+      contentType: application/json
+      summary: Event sent when WebSocket connection is established
+      payload:
+        type: object
+        properties:
+          version:
+            type: string
+            description: WebSocket protocol version
+          timestamp:
+            type: string
+            format: date-time
+            description: Time of connection establishment
+
+    CloseMessage:
+      name: CloseMessage
+      title: Connection Close Event
+      contentType: application/json
+      summary: Event sent when WebSocket connection is terminated
+      payload:
+        type: object
+        properties:
+          code:
+            type: integer
+            description: WebSocket close code
+          reason:
+            type: string
+            description: Close reason
+          timestamp:
+            type: string
+            format: date-time
+            description: Time of connection closure
+
+    PingMessage:
+      name: PingMessage
+      title: Ping Message
+      contentType: application/json
+      summary: Connection keepalive ping
+      payload:
+        type: string
+        maxLength: 125
+        description: Optional ping payload data
+
+    PongMessage:
+      name: PongMessage
+      title: Pong Message
+      contentType: application/json
+      summary: Response to a ping message
+      payload:
+        type: string
+        maxLength: 125
+        description: Optional pong payload data
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: Error code
+        message:
+          type: string
+          description: Error message description
