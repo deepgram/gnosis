@@ -29,6 +29,7 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 	}
 
 	log.Info().Msg("Initializing chat service")
+	log.Debug().Msg("Setting up new chat service instance")
 
 	return &Implementation{
 		openAI:       openAIService,
@@ -84,6 +85,11 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			Str("model", gopenai.GPT4oMini).
 			Float32("temperature", config.Temperature).
 			Msg("Processing chat request")
+
+		log.Debug().
+			Int("message_count", len(messages)).
+			Interface("config", config).
+			Msg("Processing new chat request")
 
 		resp, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
 		if err != nil {

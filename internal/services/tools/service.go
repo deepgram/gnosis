@@ -8,6 +8,8 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
 	"github.com/sashabaranov/go-openai"
+
+	"github.com/rs/zerolog/log"
 )
 
 type Service struct {
@@ -20,6 +22,10 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debug().
+		Interface("config", toolsConfig).
+		Msg("Loading tools configuration")
 
 	var tools []openai.Tool
 	for _, toolDef := range toolsConfig.Tools {
@@ -39,6 +45,10 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 			}
 		}
 
+		log.Debug().
+			Str("tool_name", toolDef.Name).
+			Msg("Evaluating tool configuration")
+
 		tools = append(tools, openai.Tool{
 			Type: "function",
 			Function: &openai.FunctionDefinition{
@@ -48,6 +58,10 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 			},
 		})
 	}
+
+	log.Debug().
+		Int("enabled_tools", len(tools)).
+		Msg("Tools service initialized with enabled integrations")
 
 	return &Service{
 		tools: tools,

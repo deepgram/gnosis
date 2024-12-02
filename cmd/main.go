@@ -48,6 +48,16 @@ func main() {
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 
+	// Add before server start:
+	log.Debug().
+		Str("address", ":8080").
+		Str("server_name", srv.Addr).
+		Int("read_timeout_sec", int(srv.ReadTimeout.Seconds())).
+		Int("write_timeout_sec", int(srv.WriteTimeout.Seconds())).
+		Int("idle_timeout_sec", int(srv.IdleTimeout.Seconds())).
+		Int("read_header_timeout_sec", int(srv.ReadHeaderTimeout.Seconds())).
+		Msg("Configuring HTTP server")
+
 	// Start server
 	log.Info().Msg("Server starting on :8080")
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -57,9 +67,20 @@ func main() {
 	// Add graceful shutdown logging
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	log.Debug().
+		Msg("Registered shutdown signal handlers")
+
 	go func() {
 		<-c
+		log.Debug().Msg("Initiating graceful shutdown sequence")
+
 		log.Warn().Msg("Server received interrupt signal - initiating graceful shutdown")
+
+		log.Debug().
+			Int64("grace_period_ms", srv.IdleTimeout.Milliseconds()).
+			Msg("Beginning server shutdown")
+
 		if err := srv.Shutdown(context.Background()); err != nil {
 			log.Fatal().Err(err).Msg("Error during server shutdown")
 		}

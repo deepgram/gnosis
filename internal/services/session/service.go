@@ -45,7 +45,6 @@ type Service struct {
 }
 
 func NewService(redisService *redis.Service) *Service {
-
 	var store SessionStore
 	if redisService != nil {
 
@@ -65,10 +64,18 @@ func NewService(redisService *redis.Service) *Service {
 		Str("store_type", fmt.Sprintf("%T", store)).
 		Msg("Initializing session service")
 
+	log.Debug().
+		Interface("store_type", fmt.Sprintf("%T", store)).
+		Msg("Initializing session store")
+
 	return &Service{store: store}
 }
 
 func newMemoryStore() *MemoryStore {
+	log.Debug().
+		Str("store_type", "memory").
+		Msg("Creating new memory store for sessions")
+
 	return &MemoryStore{
 		sessions: make(map[string]*SessionClaims),
 	}
@@ -86,6 +93,12 @@ func (rs *RedisStore) Set(ctx context.Context, sessionID string, claims *Session
 		log.Error().Err(err).Str("sessionID", sessionID).Msg("Failed to store session in Redis")
 		return err
 	}
+
+	log.Debug().
+		Str("sessionID", sessionID).
+		Int("data_size", len(data)).
+		Msg("Storing session data in Redis")
+
 	return nil
 }
 

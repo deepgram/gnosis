@@ -29,6 +29,11 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer clientConn.Close()
 
+	log.Debug().
+		Str("remote_addr", r.RemoteAddr).
+		Str("user_agent", r.UserAgent()).
+		Msg("New WebSocket connection attempt")
+
 	// Connect to the target WebSocket server
 	targetURL := "wss://agent.deepgram.com/agent"
 	u, err := url.Parse(targetURL)
@@ -52,6 +57,11 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	header := http.Header{}
 	header.Add("Authorization", "token "+token)
 
+	log.Debug().
+		Str("remote_addr", r.RemoteAddr).
+		Str("target_url", targetURL).
+		Msg("Attempting to connect to target WebSocket server")
+
 	serverConn, resp, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
 		if resp != nil {
@@ -64,9 +74,12 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer serverConn.Close()
 
 	log.Info().
-		Str("client_ip", r.RemoteAddr).
 		Str("target_url", targetURL).
 		Msg("Connected to target WebSocket server")
+
+	log.Debug().
+		Str("remote_addr", r.RemoteAddr).
+		Msg("Client connection upgraded to WebSocket")
 
 	// Channels for coordinating shutdown
 	errChan := make(chan error, 2)
@@ -103,6 +116,10 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 				Msg("WebSocket connection closed gracefully")
 		}
 	}
+
+	log.Debug().
+		Str("remote_addr", r.RemoteAddr).
+		Msg("API key validated for WebSocket connection")
 }
 
 func proxyMessages(src, dst *websocket.Conn, direction string, done chan struct{}, errChan chan error) {
