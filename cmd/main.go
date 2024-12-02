@@ -1,20 +1,28 @@
 package main
 
 import (
-	"log"
+	"context"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	v1handlers "github.com/deepgram/gnosis/internal/api/v1/handlers"
 	"github.com/deepgram/gnosis/internal/services"
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
 )
 
 func main() {
+	// Initialize zerolog
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
+
 	// Initialize services
 	services, err := services.InitializeServices()
 	if err != nil {
-		log.Fatalf("Failed to initialize services: %v", err)
+		log.Fatal().Err(err).Msg("Critical failure initializing core services")
 	}
 
 	// Setup router
@@ -41,8 +49,20 @@ func main() {
 	}
 
 	// Start server
-	log.Println("Server starting on :8080")
-	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	log.Info().Msg("Server starting on :8080")
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal().Err(err).Msg("Critical server failure - shutting down")
 	}
+
+	// Add graceful shutdown logging
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		log.Warn().Msg("Server received interrupt signal - initiating graceful shutdown")
+		if err := srv.Shutdown(context.Background()); err != nil {
+			log.Fatal().Err(err).Msg("Error during server shutdown")
+		}
+		os.Exit(0)
+	}()
 }

@@ -1,13 +1,13 @@
 package websocket
 
 import (
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -24,6 +24,7 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Upgrade client connection to WebSocket
 	clientConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to upgrade WebSocket connection")
 		return
 	}
 	defer clientConn.Close()
@@ -32,15 +33,15 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	targetURL := "wss://agent.deepgram.com/agent"
 	u, err := url.Parse(targetURL)
 	if err != nil {
-		log.Printf("Invalid target URL %s: %v", targetURL, err)
+		log.Error().Str("url", targetURL).Err(err).Msg("Invalid target URL")
 		return
 	}
 
 	// Write the bearer token to the header from environment variables
 	token := os.Getenv("DEEPGRAM_API_KEY")
 	if token == "" {
-		log.Fatal("DEEPGRAM_API_KEY environment variable not set")
-		return
+		// fatal because the Deepgram API is required for the agent to function
+		log.Fatal().Msg("DEEPGRAM_API_KEY environment variable not set")
 	}
 
 	header := http.Header{}
@@ -49,9 +50,9 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	serverConn, resp, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
 		if resp != nil {
-			log.Printf("Failed to connect to target server. Status: %d, Error: %v", resp.StatusCode, err)
+			log.Error().Int("status", resp.StatusCode).Err(err).Msg("Failed to connect to target server")
 		} else {
-			log.Printf("Failed to connect to target server: %v", err)
+			log.Error().Err(err).Msg("Failed to connect to target server")
 		}
 		return
 	}
@@ -81,9 +82,7 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	err = <-errChan
 	if err != nil {
 		if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-			log.Printf("Unexpected WebSocket closure: %v", err)
-		} else {
-			log.Printf("WebSocket connection closed normally: %v", err)
+			log.Error().Err(err).Msg("Unexpected WebSocket closure")
 		}
 	}
 }
@@ -97,7 +96,7 @@ func proxyMessages(src, dst *websocket.Conn, direction string, done chan struct{
 			messageType, msg, err := src.ReadMessage()
 			if err != nil {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-					log.Printf("Error in %s: %v", direction, err)
+					log.Error().Str("direction", direction).Err(err).Msg("Error in proxy")
 				}
 				errChan <- err
 				return

@@ -4,12 +4,15 @@ import (
 	"net/http"
 
 	"github.com/deepgram/gnosis/internal/services/session"
+	"github.com/rs/zerolog/log"
 )
 
 func HandleWidgetJS(sessionService *session.Service, w http.ResponseWriter, r *http.Request) {
 	// Create anonymous session
 	if err := sessionService.CreateSession(w, ""); err != nil {
-		// Continue anyway as this isn't critical
+		log.Error().Err(err).Msg("Failed to create session for widget")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
 
 	// Set appropriate headers

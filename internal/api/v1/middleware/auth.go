@@ -70,7 +70,7 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 			}
 
 			if !hasScope {
-				httpext.JsonError(w, "Insufficient scope", http.StatusForbidden)
+				httpext.JsonError(w, "Missing required scope", http.StatusForbidden)
 				return
 			}
 

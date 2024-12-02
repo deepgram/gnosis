@@ -11,6 +11,7 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
+	"github.com/rs/zerolog/log"
 )
 
 type ToolExecutor struct {
@@ -33,6 +34,7 @@ func NewToolExecutor(
 
 func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.ToolCall) (string, error) {
 	if tool.Type != "function" {
+		log.Error().Str("type", tool.Type).Msg("Unsupported tool type requested")
 		return "", fmt.Errorf("unsupported tool type")
 	}
 
@@ -40,11 +42,13 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 	case "search_algolia":
 		var params chatModels.AlgoliaSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
+			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse Algolia search parameters")
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
 
 		result, err := e.algoliaService.Search(ctx, params.Query)
 		if err != nil {
+			log.Error().Err(err).Str("query", params.Query).Msg("Algolia search failed")
 			return "", fmt.Errorf("algolia search failed: %w", err)
 		}
 
@@ -63,11 +67,16 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 	case "search_starter_apps":
 		var params chatModels.StarterAppSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
+			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse starter app search parameters")
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
 
 		searchResult, err := e.githubService.SearchRepos(ctx, "deepgram-starters", params.Language, params.Topics)
 		if err != nil {
+			log.Error().Err(err).
+				Str("language", params.Language).
+				Strs("topics", params.Topics).
+				Msg("GitHub repository search failed")
 			return "", fmt.Errorf("github search failed: %w", err)
 		}
 
@@ -78,11 +87,15 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		repo := searchResult.Items[0]
 		readmeResult, err := e.githubService.GetRepoReadme(ctx, repo.FullName)
 		if err != nil {
+			log.Error().Err(err).
+				Str("repo", repo.FullName).
+				Msg("Failed to fetch repository README")
 			return "", fmt.Errorf("github readme failed: %w", err)
 		}
 
 		readmeContents, err := base64.StdEncoding.DecodeString(readmeResult.Content)
 		if err != nil {
+			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to decode README contents")
 			return "", fmt.Errorf("unable to decode contents: %w", err)
 		}
 
@@ -97,11 +110,13 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 	case "ask_kapa":
 		var params chatModels.KapaQueryParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
+			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse Kapa query parameters")
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
 
 		resp, err := e.kapaService.Query(ctx, params.Question, params.Product, params.Tags)
 		if err != nil {
+			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Kapa query failed")
 			return "", fmt.Errorf("kapa query failed: %w", err)
 		}
 

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/deepgram/gnosis/internal/infrastructure/openai"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/tools"
@@ -77,7 +79,8 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 
 		resp, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get chat completion: %w", err)
+			log.Error().Err(err).Msg("OpenAI API request failed")
+			return nil, fmt.Errorf("chat completion failed: %w", err)
 		}
 
 		if len(resp.Choices) == 0 {
@@ -121,7 +124,12 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 						Arguments: toolCall.Function.Arguments,
 					},
 				})
+
 				if err != nil {
+					log.Error().
+						Err(err).
+						Str("tool", toolCall.Function.Name).
+						Msg("Tool execution failed during chat completion")
 					return nil, fmt.Errorf("tool call failed: %w", err)
 				}
 
@@ -132,6 +140,13 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 				})
 			}
 			continue
+		}
+
+		if message.Role != gopenai.ChatMessageRoleAssistant {
+			log.Error().
+				Str("role", string(message.Role)).
+				Msg("Unexpected message role from OpenAI API")
+			return nil, fmt.Errorf("unexpected message type from assistant")
 		}
 
 		return nil, fmt.Errorf("unexpected message type from assistant")

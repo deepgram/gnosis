@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
+	"github.com/rs/zerolog/log"
 )
 
 type Service struct {
@@ -42,6 +43,7 @@ func NewService() *Service {
 	indexName := config.GetAlgoliaIndexName()
 
 	if appID == "" || apiKey == "" || indexName == "" {
+		log.Warn().Msg("Algolia API key not configured - function calls to Algolia will be unavailable")
 		return nil
 	}
 
@@ -88,7 +90,12 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 	// Make the request
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
+		log.Error().
+			Err(err).
+			Str("query", query).
+			Str("index", s.indexName).
+			Msg("Critical failure performing Algolia search")
+		return nil, fmt.Errorf("algolia search failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -107,6 +114,14 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 	var searchResp SearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Connection timeout or service unavailable
+	if processingTime, err := strconv.Atoi(resp.Header.Get("X-Algolia-Processing-Time-MS")); err == nil && processingTime > 30000 {
+		log.Error().
+			Int("processingTime", processingTime).
+			Str("query", query).
+			Msg("Algolia search timeout - service may be degraded")
 	}
 
 	return &searchResp, nil

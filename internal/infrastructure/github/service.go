@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
+	"github.com/rs/zerolog/log"
 )
 
 type Service struct {
@@ -56,6 +56,7 @@ func NewService() *Service {
 	token := config.GetGitHubToken()
 
 	if token == "" {
+		log.Warn().Msg("GitHub API token not configured - function calls to GitHubwill be unavailable")
 		return nil
 	}
 
@@ -96,7 +97,13 @@ func (s *Service) SearchRepos(ctx context.Context, org, language string, topics 
 	// Make request
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
+		log.Error().
+			Err(err).
+			Str("org", org).
+			Str("language", language).
+			Strs("topics", topics).
+			Msg("Critical failure searching GitHub repositories")
+		return nil, fmt.Errorf("github search failed: %w", err)
 	}
 	defer resp.Body.Close()
 

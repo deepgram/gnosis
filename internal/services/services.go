@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
@@ -14,6 +13,7 @@ import (
 	"github.com/deepgram/gnosis/internal/services/session"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/deepgram/gnosis/internal/services/widgetcode"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -41,7 +41,7 @@ func InitializeServices() (*Services, error) {
 	// Initialize OpenAI service (required)
 	openAIService := openai.NewService()
 	if openAIService == nil {
-		log.Fatal("Failed to initialize OpenAI service")
+		log.Fatal().Msg("Failed to initialize OpenAI service - service is required for core functionality")
 	}
 
 	// Initialize Redis service (optional)
@@ -64,6 +64,7 @@ func InitializeServices() (*Services, error) {
 	// Initialize chat service (required)
 	chatService, err := chat.NewService(openAIService, toolExecutor)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to initialize chat service - required for message processing")
 		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -45,6 +46,7 @@ func NewService(redisService *redis.Service) *Service {
 		// Test Redis connection
 		ctx := context.Background()
 		if err := redisService.Ping(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to connect to Redis for widget code storage - falling back to memory store")
 			store = newMemoryStore()
 		} else {
 			store = &RedisStore{redisService: redisService}
@@ -66,10 +68,15 @@ func newMemoryStore() *MemoryStore {
 func (rs *RedisStore) Set(ctx context.Context, code string, info *WidgetCodeInfo) error {
 	data, err := json.Marshal(info)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal widget code info")
 		return err
 	}
 
-	return rs.redisService.Set(ctx, "WidgetCode:"+code, string(data), WidgetCodeLifetime)
+	if err := rs.redisService.Set(ctx, "WidgetCode:"+code, string(data), WidgetCodeLifetime); err != nil {
+		log.Error().Err(err).Str("code", code).Msg("Failed to store widget code in Redis")
+		return err
+	}
+	return nil
 }
 
 func (rs *RedisStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, error) {

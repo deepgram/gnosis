@@ -5,7 +5,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/deepgram/gnosis/pkg/httpext"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -135,7 +135,7 @@ func handleWidgetCode(widgetCodeService *widgetcode.Service, w http.ResponseWrit
 
 	// Invalidate the used widget code
 	if err := widgetCodeService.InvalidateWidgetCode(ctx, req.Code); err != nil {
-		log.Printf("Failed to invalidate widget code: %v", err)
+		log.Error().Err(err).Str("widget_code", req.Code).Msg("Failed to invalidate widget code")
 	}
 
 	// Get client config to access scopes
@@ -173,7 +173,7 @@ func issueToken(w http.ResponseWriter, claims oauth.CustomClaims) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode response: %v", err)
+		log.Error().Err(err).Msg("Failed to encode response")
 		return
 	}
 }

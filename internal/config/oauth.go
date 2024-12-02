@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"log"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -53,24 +53,24 @@ var AllowedClients = scanForClientConfigs()
 // init ensures the map is populated with valid configurations
 func init() {
 	if len(AllowedClients) == 0 {
-		log.Fatal("No OAuth clients found in environment configuration")
+		log.Fatal().Msg("No OAuth clients found in environment configuration")
 	}
 
 	// Validate each client configuration
 	for clientType, client := range AllowedClients {
 		// All clients require an ID
 		if client.ID == "" {
-			log.Fatalf("Missing required client ID for client: %s", clientType)
+			log.Fatal().Str("client_type", clientType).Msg("Missing required client ID")
 		}
 
 		// Check if client requires a secret
 		if !client.NoSecret && client.Secret == "" {
-			log.Fatalf("Missing required secret for client: %s", clientType)
+			log.Fatal().Str("client_type", clientType).Msg("Missing required secret")
 		}
 
 		// Check if client requires allowed URLs
 		if clientType == "widget" && len(client.AllowedURLs) == 0 {
-			log.Fatalf("Missing required allowed URLs for widget client: %s", clientType)
+			log.Fatal().Str("client_type", clientType).Msg("Missing required allowed URLs")
 		}
 	}
 }
@@ -80,7 +80,7 @@ func init() {
 func GetClientTypeByID(clientID string) string {
 	for clientType, config := range AllowedClients {
 		if config.ID == clientID {
-			log.Printf("Found client type '%s' for client ID: %s", clientType, clientID)
+			log.Info().Str("client_type", clientType).Str("client_id", clientID).Msg("Found client type")
 			return clientType
 		}
 	}
@@ -91,7 +91,7 @@ func GetClientTypeByID(clientID string) string {
 func GetClientConfig(clientType string) ClientConfig {
 	config, exists := AllowedClients[clientType]
 	if !exists {
-		log.Printf("Attempted to get config for unknown client type: %s", clientType)
+		log.Warn().Str("client_type", clientType).Msg("Attempted to get config for unknown client type")
 		return ClientConfig{}
 	}
 	return config

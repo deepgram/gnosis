@@ -11,6 +11,7 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -50,6 +51,7 @@ func NewService(redisService *redis.Service) *Service {
 		// Test Redis connection
 		ctx := context.Background()
 		if err := redisService.Ping(ctx); err != nil {
+			log.Error().Err(err).Msg("Failed to connect to Redis for session storage - falling back to memory store")
 			store = newMemoryStore()
 		} else {
 			store = &RedisStore{redisService: redisService}
@@ -71,10 +73,15 @@ func newMemoryStore() *MemoryStore {
 func (rs *RedisStore) Set(ctx context.Context, sessionID string, claims *SessionClaims) error {
 	data, err := json.Marshal(claims)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal session claims")
 		return err
 	}
 
-	return rs.redisService.Set(ctx, sessionID, string(data), cookieLifetime)
+	if err := rs.redisService.Set(ctx, sessionID, string(data), cookieLifetime); err != nil {
+		log.Error().Err(err).Str("sessionID", sessionID).Msg("Failed to store session in Redis")
+		return err
+	}
+	return nil
 }
 
 func (rs *RedisStore) Get(ctx context.Context, sessionID string) (*SessionClaims, error) {

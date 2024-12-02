@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
+	"github.com/rs/zerolog/log"
 )
 
 type Service struct {
@@ -59,6 +60,7 @@ func NewService() *Service {
 	integrationID := config.GetKapaIntegrationID()
 
 	if projectID == "" || apiKey == "" || integrationID == "" {
+		log.Warn().Msg("Kapa API key not configured - function calls to Kapa will be unavailable")
 		return nil
 	}
 
@@ -110,6 +112,18 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 	// Make the request
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
+		// Check for server-side issues
+		if strings.Contains(err.Error(), "500") ||
+			strings.Contains(err.Error(), "503") ||
+			strings.Contains(err.Error(), "timeout") {
+			log.Error().
+				Err(err).
+				Str("question", question).
+				Str("product", product).
+				Strs("tags", tags).
+				Msg("Critical failure querying Kapa knowledge base")
+			return nil, fmt.Errorf("kapa service unavailable: %w", err)
+		}
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -128,6 +142,13 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 	var queryResp QueryResponse
 	if err := json.NewDecoder(resp.Body).Decode(&queryResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Check for empty or invalid responses
+	if queryResp.Answer == "" {
+		log.Error().
+			Str("question", question).
+			Msg("Kapa returned empty result set for valid query")
 	}
 
 	return &queryResp, nil
