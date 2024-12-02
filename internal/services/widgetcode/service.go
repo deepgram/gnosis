@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
-	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 const (
@@ -40,23 +39,17 @@ type Service struct {
 }
 
 func NewService(redisService *redis.Service) *Service {
-	logger.Info(logger.SERVICE, "Initialising widget code service")
-
 	var store WidgetCodeStore
 	if redisService != nil {
-		logger.Info(logger.SERVICE, "Using Redis for widget code storage")
 
 		// Test Redis connection
 		ctx := context.Background()
 		if err := redisService.Ping(ctx); err != nil {
-			logger.Error(logger.SERVICE, "Redis connection failed: %v", err)
-			logger.Warn(logger.SERVICE, "Falling back to in-memory widget code storage")
 			store = newMemoryStore()
 		} else {
 			store = &RedisStore{redisService: redisService}
 		}
 	} else {
-		logger.Info(logger.SERVICE, "Using in-memory widget code storage")
 		store = newMemoryStore()
 	}
 
@@ -92,9 +85,7 @@ func (rs *RedisStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, er
 
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
-		if err := rs.Delete(ctx, code); err != nil {
-			logger.Warn(logger.SERVICE, "Failed to delete widget code: %v", err)
-		}
+		_ = rs.Delete(ctx, code)
 		return nil, nil
 	}
 
@@ -124,9 +115,8 @@ func (ms *MemoryStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, e
 
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
-		if err := ms.Delete(ctx, code); err != nil {
-			logger.Warn(logger.SERVICE, "Failed to delete widget code: %v", err)
-		}
+		_ = ms.Delete(ctx, code)
+
 		return nil, nil
 	}
 

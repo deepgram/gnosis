@@ -9,7 +9,6 @@ import (
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -44,23 +43,18 @@ type Service struct {
 }
 
 func NewService(redisService *redis.Service) *Service {
-	logger.Info(logger.SERVICE, "Initialising session service")
 
 	var store SessionStore
 	if redisService != nil {
-		logger.Info(logger.SERVICE, "Using Redis for session storage")
 
 		// Test Redis connection
 		ctx := context.Background()
 		if err := redisService.Ping(ctx); err != nil {
-			logger.Error(logger.SERVICE, "Redis connection failed: %v", err)
-			logger.Warn(logger.SERVICE, "Falling back to in-memory session storage")
 			store = newMemoryStore()
 		} else {
 			store = &RedisStore{redisService: redisService}
 		}
 	} else {
-		logger.Info(logger.SERVICE, "Using in-memory session storage")
 		store = newMemoryStore()
 	}
 
@@ -128,7 +122,6 @@ func (ms *MemoryStore) Delete(ctx context.Context, sessionID string) error {
 
 // CreateSession generates a new session cookie and sets it in the response
 func (s *Service) CreateSession(w http.ResponseWriter, userID string) error {
-	logger.Debug(logger.SERVICE, "Creating new session for user: %s", userID)
 	ctx := context.Background()
 
 	sessionID := uuid.New().String()
@@ -143,14 +136,12 @@ func (s *Service) CreateSession(w http.ResponseWriter, userID string) error {
 	}
 
 	if err := s.store.Set(ctx, sessionID, claims); err != nil {
-		logger.Error(logger.SERVICE, "Failed to store session: %v", err)
 		return err
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString(config.GetJWTSecret())
 	if err != nil {
-		logger.Error(logger.SERVICE, "Failed to sign session token: %v", err)
 		return err
 	}
 
@@ -165,22 +156,18 @@ func (s *Service) CreateSession(w http.ResponseWriter, userID string) error {
 	}
 
 	http.SetCookie(w, cookie)
-	logger.Info(logger.SERVICE, "Session cookie created successfully for user: %s", userID)
 	return nil
 }
 
 // ValidateSession checks if a valid session cookie exists and returns the claims
 func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
-	logger.Debug(logger.SERVICE, "Validating session cookie")
 	ctx := context.Background()
 
 	cookie, err := r.Cookie(config.GetSessionCookieName())
 	if err != nil {
 		if err == http.ErrNoCookie {
-			logger.Debug(logger.SERVICE, "No session cookie found")
 			return nil, nil
 		}
-		logger.Error(logger.SERVICE, "Error reading session cookie: %v", err)
 		return nil, err
 	}
 
@@ -189,7 +176,6 @@ func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
 	})
 
 	if err != nil {
-		logger.Error(logger.SERVICE, "Failed to parse session token: %v", err)
 		return nil, err
 	}
 
@@ -197,25 +183,20 @@ func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
 		// Verify session exists in store
 		storedClaims, err := s.store.Get(ctx, claims.SessionID)
 		if err != nil {
-			logger.Error(logger.SERVICE, "Failed to retrieve session from store: %v", err)
 			return nil, err
 		}
 		if storedClaims == nil {
-			logger.Warn(logger.SERVICE, "Session not found in store")
 			return nil, nil
 		}
 
-		logger.Info(logger.SERVICE, "Valid session found for user: %s", claims.UserID)
 		return claims, nil
 	}
 
-	logger.Warn(logger.SERVICE, "Invalid session token")
 	return nil, nil
 }
 
 // ClearSession removes the session cookie and from storage
 func (s *Service) ClearSession(w http.ResponseWriter, r *http.Request) {
-	logger.Debug(logger.SERVICE, "Clearing session cookie")
 	ctx := context.Background()
 
 	// Get session ID from cookie before clearing it
@@ -225,9 +206,7 @@ func (s *Service) ClearSession(w http.ResponseWriter, r *http.Request) {
 		}); err == nil {
 			if claims, ok := token.Claims.(*SessionClaims); ok {
 				// Remove from store
-				if err := s.store.Delete(ctx, claims.SessionID); err != nil {
-					logger.Error(logger.SERVICE, "Failed to remove session from store: %v", err)
-				}
+				_ = s.store.Delete(ctx, claims.SessionID)
 			}
 		}
 	}
@@ -243,5 +222,4 @@ func (s *Service) ClearSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, cookie)
-	logger.Info(logger.SERVICE, "Session cookie cleared successfully")
 }

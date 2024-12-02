@@ -4,15 +4,11 @@ import (
 	"net/http"
 
 	"github.com/deepgram/gnosis/internal/services/session"
-	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 func HandleWidgetJS(sessionService *session.Service, w http.ResponseWriter, r *http.Request) {
-	logger.Debug(logger.HANDLER, "Serving widget.js request from %s", r.RemoteAddr)
-
 	// Create anonymous session
 	if err := sessionService.CreateSession(w, ""); err != nil {
-		logger.Error(logger.HANDLER, "Failed to create session: %v", err)
 		// Continue anyway as this isn't critical
 	}
 
@@ -30,7 +26,6 @@ func HandleWidgetJS(sessionService *session.Service, w http.ResponseWriter, r *h
 	`
 
 	if _, err := w.Write([]byte(js)); err != nil {
-		logger.Error(logger.HANDLER, "Failed to write response: %v", err)
 		return
 	}
 }

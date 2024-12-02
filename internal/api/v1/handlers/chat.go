@@ -7,13 +7,10 @@ import (
 	"github.com/deepgram/gnosis/internal/services/chat"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/pkg/httpext"
-	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 // HandleChatCompletion handles chat completion requests
 func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
-	logger.Debug(logger.HANDLER, "Starting chat completion handler")
-
 	// Parse request
 	var req struct {
 		Messages []chatModels.ChatMessage `json:"messages"`
@@ -21,14 +18,12 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Error(logger.HANDLER, "Failed to decode chat completion request: %v", err)
 		httpext.JsonError(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
 	// Validate request
 	if len(req.Messages) == 0 {
-		logger.Error(logger.HANDLER, "Empty messages array in request")
 		httpext.JsonError(w, "Messages array cannot be empty", http.StatusBadRequest)
 		return
 	}
@@ -46,7 +41,6 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	// Process chat
 	resp, err := chatService.ProcessChat(r.Context(), req.Messages, req.Config)
 	if err != nil {
-		logger.Error(logger.HANDLER, "Failed to process chat: %v", err)
 		httpext.JsonError(w, "Failed to process chat", http.StatusInternalServerError)
 		return
 	}
@@ -54,7 +48,6 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		logger.Error(logger.HANDLER, "Failed to encode response: %v", err)
 		httpext.JsonError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}

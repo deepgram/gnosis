@@ -3,8 +3,6 @@ package httpext
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 // ErrorResponse represents a standardised JSON error response
@@ -24,7 +22,6 @@ func JsonError(w http.ResponseWriter, message string, code int) {
 	w.WriteHeader(code)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		logger.Error(logger.HANDLER, "Failed to encode error response: %v", err)
 		// Fallback to writing JSON body as plain text if JSON encoding fails
 		http.Error(w, "{\"error\":\"Internal Server Error\"}", http.StatusInternalServerError)
 		return
@@ -37,7 +34,6 @@ func JsonErrorWithDetails(w http.ResponseWriter, code int, err ErrorResponse) {
 	w.WriteHeader(code)
 
 	if err := json.NewEncoder(w).Encode(err); err != nil {
-		logger.Error(logger.HANDLER, "Failed to encode detailed error response: %v", err)
 		http.Error(w, "{\"error\":\"Internal Server Error\"}", http.StatusInternalServerError)
 		return
 	}

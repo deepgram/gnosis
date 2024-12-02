@@ -7,7 +7,6 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -17,11 +16,8 @@ type Service struct {
 }
 
 func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service) (*Service, error) {
-	logger.Info(logger.SERVICE, "Initialising tools service")
-
 	toolsConfig, err := config.LoadToolsConfig("internal/config/tools.json")
 	if err != nil {
-		logger.Error(logger.SERVICE, "Failed to load tools config: %v", err)
 		return nil, err
 	}
 
@@ -51,10 +47,8 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 				Parameters:  toolDef.Parameters,
 			},
 		})
-		logger.Info(logger.SERVICE, "Added tool: %s", toolDef.Name)
 	}
 
-	logger.Info(logger.SERVICE, "Finished loading tools - %d tools available", len(tools))
 	return &Service{
 		tools: tools,
 	}, nil

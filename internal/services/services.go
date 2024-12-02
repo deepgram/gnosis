@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"os"
+	"log"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
@@ -14,7 +14,6 @@ import (
 	"github.com/deepgram/gnosis/internal/services/session"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/deepgram/gnosis/internal/services/widgetcode"
-	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 var (
@@ -39,36 +38,19 @@ func InitializeServices() (*Services, error) {
 	servicesMu.Lock()
 	defer servicesMu.Unlock()
 
-	logger.Info(logger.SERVICE, "Initializing services")
-
 	// Initialize OpenAI service (required)
 	openAIService := openai.NewService()
 	if openAIService == nil {
-		logger.Fatal(logger.SERVICE, "Failed to initialize OpenAI service")
-		os.Exit(1)
+		log.Fatal("Failed to initialize OpenAI service")
 	}
 
 	// Initialize Redis service (optional)
 	redisService := redis.NewService()
-	if redisService == nil {
-		logger.Info(logger.SERVICE, "Redis service not configured - using in-memory storage")
-	}
 
 	// Initialize optional infrastructure services
 	algoliaService := algolia.NewService()
-	if algoliaService == nil {
-		logger.Info(logger.SERVICE, "Algolia service not configured - functionality will be limited")
-	}
-
 	githubService := github.NewService()
-	if githubService == nil {
-		logger.Info(logger.SERVICE, "GitHub service not configured - functionality will be limited")
-	}
-
 	kapaService := kapa.NewService()
-	if kapaService == nil {
-		logger.Info(logger.SERVICE, "Kapa service not configured - functionality will be limited")
-	}
 
 	// Initialize tool executor with optional services
 	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
@@ -82,11 +64,8 @@ func InitializeServices() (*Services, error) {
 	// Initialize chat service (required)
 	chatService, err := chat.NewService(openAIService, toolExecutor)
 	if err != nil {
-		logger.Error(logger.SERVICE, "Failed to initialize chat service: %v", err)
 		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
 	}
-
-	logger.Info(logger.SERVICE, "Services initialization complete")
 
 	return &Services{
 		algoliaService:    algoliaService,

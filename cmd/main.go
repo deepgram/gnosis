@@ -1,28 +1,23 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"os"
 	"time"
 
 	v1handlers "github.com/deepgram/gnosis/internal/api/v1/handlers"
 	"github.com/deepgram/gnosis/internal/services"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/gorilla/mux"
 )
 
 func main() {
-	logger.Info(logger.APP, "Starting Gnosis server")
-
 	// Initialize services
 	services, err := services.InitializeServices()
 	if err != nil {
-		logger.Fatal(logger.APP, "Failed to initialize services: %v", err)
-		os.Exit(1)
+		log.Fatalf("Failed to initialize services: %v", err)
 	}
 
 	// Setup router
-	logger.Debug(logger.APP, "Setting up router")
 	r := mux.NewRouter()
 
 	/**
@@ -46,8 +41,8 @@ func main() {
 	}
 
 	// Start server
-	logger.Info(logger.APP, "Server starting on :8080")
+	log.Println("Server starting on :8080")
 	if err := srv.ListenAndServe(); err != nil {
-		logger.Fatal(logger.APP, "Server failed: %v", err)
+		log.Fatalf("Server failed: %v", err)
 	}
 }

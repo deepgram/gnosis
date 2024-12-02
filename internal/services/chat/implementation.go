@@ -10,7 +10,6 @@ import (
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/google/uuid"
 	gopenai "github.com/sashabaranov/go-openai"
 )
@@ -37,8 +36,6 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.ChatMessage, config *chatModels.ChatConfig) (*chatModels.ChatResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	logger.Debug(logger.CHAT, "Processing chat request with %d messages", len(messages))
 
 	if len(messages) == 0 {
 		return nil, fmt.Errorf("empty messages array")
@@ -80,7 +77,6 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 
 		resp, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
 		if err != nil {
-			logger.Error(logger.CHAT, "Failed to get chat completion: %v", err)
 			return nil, fmt.Errorf("failed to get chat completion: %w", err)
 		}
 

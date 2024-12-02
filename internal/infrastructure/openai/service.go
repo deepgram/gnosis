@@ -1,10 +1,10 @@
 package openai
 
 import (
+	"log"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -14,12 +14,10 @@ type Service struct {
 }
 
 func NewService() *Service {
-	logger.Info(logger.SERVICE, "Initialising OpenAI service")
 	key := config.GetOpenAIKey()
 
 	if key == "" {
-		logger.Warn(logger.SERVICE, "OpenAI service not configured - OPENAI_KEY missing")
-		return nil
+		log.Fatal("OpenAI service not configured - OPENAI_KEY missing")
 	}
 
 	return &Service{

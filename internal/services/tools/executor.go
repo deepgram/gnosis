@@ -11,7 +11,6 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
-	"github.com/deepgram/gnosis/pkg/logger"
 )
 
 type ToolExecutor struct {
@@ -33,7 +32,6 @@ func NewToolExecutor(
 }
 
 func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.ToolCall) (string, error) {
-	logger.Info(logger.TOOLS, "Executing tool call: %s", tool.Function.Name)
 	if tool.Type != "function" {
 		return "", fmt.Errorf("unsupported tool type")
 	}
@@ -42,7 +40,6 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 	case "search_algolia":
 		var params chatModels.AlgoliaSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
-			logger.Error(logger.TOOLS, "Failed to parse search parameters: %v", err)
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
 
@@ -61,7 +58,6 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			hit.Content,
 			hit.URL)
 
-		logger.Debug(logger.TOOLS, "Algolia search response: %s", response)
 		return response, nil
 
 	case "search_starter_apps":
@@ -96,7 +92,6 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			string(readmeContents),
 		)
 
-		logger.Info(logger.TOOLS, "Starter app search response: %s", response)
 		return response, nil
 
 	case "ask_kapa":
