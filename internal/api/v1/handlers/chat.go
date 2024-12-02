@@ -20,12 +20,14 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Warn().Err(err).Msg("Client sent malformed JSON request")
 		httpext.JsonError(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
 	// Validate request
 	if len(req.Messages) == 0 {
+		log.Warn().Msg("Client sent empty messages array")
 		httpext.JsonError(w, "Messages array cannot be empty", http.StatusBadRequest)
 		return
 	}

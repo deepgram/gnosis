@@ -183,6 +183,10 @@ func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
 	})
 
 	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("token", cookie.Value[:10]+"...").
+			Msg("Invalid or expired token received")
 		return nil, err
 	}
 
@@ -199,6 +203,9 @@ func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
 		return claims, nil
 	}
 
+	log.Warn().
+		Str("token", cookie.Value[:10]+"...").
+		Msg("Token validation failed - invalid claims or token")
 	return nil, nil
 }
 

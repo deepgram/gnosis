@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/deepgram/gnosis/internal/services/oauth"
 	"github.com/deepgram/gnosis/pkg/httpext"
 )
@@ -56,6 +58,11 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 			// Get validation result from context
 			validation, ok := r.Context().Value(tokenValidationKey).(*oauth.TokenValidationResult)
 			if !ok || validation == nil {
+				log.Error().
+					Str("path", r.URL.Path).
+					Bool("has_context", ok).
+					Bool("has_validation", validation != nil).
+					Msg("OAuth scope validation failed - missing token validation context")
 				httpext.JsonError(w, "Internal server error", http.StatusInternalServerError)
 				return
 			}
@@ -70,6 +77,11 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 			}
 
 			if !hasScope {
+				log.Warn().
+					Str("required_scope", scope).
+					Strs("token_scopes", validation.Scopes).
+					Str("path", r.URL.Path).
+					Msg("Access denied - token missing required scope")
 				httpext.JsonError(w, "Missing required scope", http.StatusForbidden)
 				return
 			}

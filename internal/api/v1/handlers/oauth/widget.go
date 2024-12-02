@@ -2,7 +2,6 @@ package oauth
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/deepgram/gnosis/pkg/httpext"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 type WidgetAuthRequest struct {
@@ -32,6 +32,10 @@ type WidgetCodeRequest struct {
 
 func HandleWidgetAuth(widgetCodeService *widgetcode.Service, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		log.Warn().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Msg("Invalid HTTP method for widget auth endpoint")
 		httpext.JsonError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -39,6 +43,10 @@ func HandleWidgetAuth(widgetCodeService *widgetcode.Service, w http.ResponseWrit
 	// Validate session cookie
 	cookie, err := r.Cookie(config.GetSessionCookieName())
 	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("path", r.URL.Path).
+			Msg("Widget auth attempted without valid session cookie")
 		httpext.JsonError(w, "Unauthorized - Invalid session cookie", http.StatusUnauthorized)
 		return
 	}
@@ -55,7 +63,10 @@ func HandleWidgetAuth(widgetCodeService *widgetcode.Service, w http.ResponseWrit
 	// Parse request body
 	var req WidgetAuthRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpext.JsonError(w, "Invalid request body", http.StatusBadRequest)
+		log.Warn().
+			Err(err).
+			Msg("Malformed widget auth request received")
+		httpext.JsonError(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 

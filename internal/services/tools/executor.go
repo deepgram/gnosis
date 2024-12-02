@@ -40,6 +40,13 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 
 	switch tool.Function.Name {
 	case "search_algolia":
+		if e.algoliaService == nil {
+			log.Warn().
+				Str("tool_id", tool.ID).
+				Msg("Algolia search attempted but service not configured")
+			return "", fmt.Errorf("algolia service not available")
+		}
+
 		var params chatModels.AlgoliaSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse Algolia search parameters")
@@ -65,6 +72,13 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		return response, nil
 
 	case "search_starter_apps":
+		if e.githubService == nil {
+			log.Warn().
+				Str("tool_id", tool.ID).
+				Msg("GitHub search attempted but service not configured")
+			return "", fmt.Errorf("github service not available")
+		}
+
 		var params chatModels.StarterAppSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse starter app search parameters")
@@ -108,6 +122,13 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		return response, nil
 
 	case "ask_kapa":
+		if e.kapaService == nil {
+			log.Warn().
+				Str("tool_id", tool.ID).
+				Msg("Kapa query attempted but service not configured")
+			return "", fmt.Errorf("kapa service not available")
+		}
+
 		var params chatModels.KapaQueryParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse Kapa query parameters")
@@ -123,6 +144,10 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		return resp.Answer, nil
 
 	default:
-		return "", fmt.Errorf("unknown function: %s", tool.Function.Name)
+		log.Warn().
+			Str("tool_id", tool.ID).
+			Str("function", tool.Function.Name).
+			Msg("Client requested unknown tool function")
+		return "", fmt.Errorf("unknown tool function")
 	}
 }
