@@ -47,6 +47,11 @@ func NewService() *Service {
 		return nil
 	}
 
+	log.Info().
+		Str("app_id", appID).
+		Str("index", indexName).
+		Msg("Algolia service initialized successfully")
+
 	return &Service{
 		mu:        sync.RWMutex{},
 		client:    &http.Client{},
@@ -87,6 +92,12 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 	httpReq.Header.Set("X-Algolia-API-Key", s.apiKey)
 	httpReq.Header.Set("X-Algolia-Application-ID", s.appID)
 
+	log.Info().
+		Str("query", query).
+		Int("hits_per_page", req.HitsPerPage).
+		Str("filters", req.Filters).
+		Msg("Executing Algolia search")
+
 	// Make the request
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
@@ -115,6 +126,11 @@ func (s *Service) Search(ctx context.Context, query string) (*SearchResponse, er
 	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
+
+	log.Info().
+		Int("hit_count", len(searchResp.Hits)).
+		Str("query", query).
+		Msg("Algolia search completed successfully")
 
 	// Connection timeout or service unavailable
 	if processingTime, err := strconv.Atoi(resp.Header.Get("X-Algolia-Processing-Time-MS")); err == nil && processingTime > 30000 {

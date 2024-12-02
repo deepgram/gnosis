@@ -25,6 +25,12 @@ func NewToolExecutor(
 	githubService *github.Service,
 	kapaService *kapa.Service,
 ) *ToolExecutor {
+	log.Info().
+		Str("algolia", fmt.Sprintf("%v", algoliaService != nil)).
+		Str("github", fmt.Sprintf("%v", githubService != nil)).
+		Str("kapa", fmt.Sprintf("%v", kapaService != nil)).
+		Msg("Initializing tool executor")
+
 	return &ToolExecutor{
 		algoliaService: algoliaService,
 		githubService:  githubService,
@@ -37,6 +43,11 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		log.Error().Str("type", tool.Type).Msg("Unsupported tool type requested")
 		return "", fmt.Errorf("unsupported tool type")
 	}
+
+	log.Info().
+		Str("tool_id", tool.ID).
+		Str("tool_name", tool.Function.Name).
+		Msg("Executing tool call")
 
 	switch tool.Function.Name {
 	case "search_algolia":
@@ -68,6 +79,11 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			hit.Title,
 			hit.Content,
 			hit.URL)
+
+		log.Info().
+			Str("tool_id", tool.ID).
+			Str("tool_name", tool.Function.Name).
+			Msg("Tool execution completed successfully")
 
 		return response, nil
 
@@ -119,6 +135,11 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			string(readmeContents),
 		)
 
+		log.Info().
+			Str("tool_id", tool.ID).
+			Str("tool_name", tool.Function.Name).
+			Msg("Tool execution completed successfully")
+
 		return response, nil
 
 	case "ask_kapa":
@@ -140,6 +161,11 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Kapa query failed")
 			return "", fmt.Errorf("kapa query failed: %w", err)
 		}
+
+		log.Info().
+			Str("tool_id", tool.ID).
+			Str("tool_name", tool.Function.Name).
+			Msg("Tool execution completed successfully")
 
 		return resp.Answer, nil
 

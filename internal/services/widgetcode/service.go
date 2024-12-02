@@ -3,6 +3,7 @@ package widgetcode
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -55,6 +56,10 @@ func NewService(redisService *redis.Service) *Service {
 		store = newMemoryStore()
 	}
 
+	log.Info().
+		Str("store_type", fmt.Sprintf("%T", store)).
+		Msg("Initializing widget code service")
+
 	return &Service{store: store}
 }
 
@@ -76,6 +81,13 @@ func (rs *RedisStore) Set(ctx context.Context, code string, info *WidgetCodeInfo
 		log.Error().Err(err).Str("code", code).Msg("Failed to store widget code in Redis")
 		return err
 	}
+
+	log.Info().
+		Str("code", code).
+		Str("client_id", info.ClientID).
+		Time("expires_at", info.ExpiresAt).
+		Msg("Storing widget code")
+
 	return nil
 }
 
@@ -96,10 +108,19 @@ func (rs *RedisStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, er
 		return nil, nil
 	}
 
+	log.Info().
+		Str("code", code).
+		Str("client_id", info.ClientID).
+		Msg("Retrieved widget code successfully")
+
 	return &info, nil
 }
 
 func (rs *RedisStore) Delete(ctx context.Context, code string) error {
+	log.Info().
+		Str("code", code).
+		Msg("Deleting widget code")
+
 	return rs.redisService.Delete(ctx, "WidgetCode:"+code)
 }
 

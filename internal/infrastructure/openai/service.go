@@ -28,6 +28,8 @@ func NewService() *Service {
 		log.Fatal().Msg("Failed to initialize OpenAI client")
 	}
 
+	log.Info().Msg("OpenAI client initialized successfully")
+
 	return &Service{
 		mu:     sync.RWMutex{},
 		client: client,
@@ -41,6 +43,12 @@ func (s *Service) GetClient() *openai.Client {
 }
 
 func (s *Service) CreateChatCompletion(ctx context.Context, req *openai.ChatCompletionRequest) (*openai.ChatCompletionResponse, error) {
+	log.Info().
+		Int("message_count", len(req.Messages)).
+		Float32("temperature", req.Temperature).
+		Int("max_tokens", req.MaxTokens).
+		Msg("Sending request to OpenAI")
+
 	resp, err := s.client.CreateChatCompletion(ctx, *req)
 	if err != nil {
 		if strings.Contains(err.Error(), "connection refused") ||
@@ -54,6 +62,12 @@ func (s *Service) CreateChatCompletion(ctx context.Context, req *openai.ChatComp
 		}
 		return nil, err
 	}
+
+	log.Info().
+		Str("response_id", resp.ID).
+		Int("completion_tokens", resp.Usage.CompletionTokens).
+		Int("total_tokens", resp.Usage.TotalTokens).
+		Msg("Received response from OpenAI")
 
 	if resp.Usage.TotalTokens > 7000 {
 		log.Error().

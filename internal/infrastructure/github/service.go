@@ -60,17 +60,25 @@ func NewService() *Service {
 		return nil
 	}
 
-	return &Service{
+	baseURL := "https://api.github.com"
+
+	s := &Service{
 		mu:      sync.RWMutex{},
 		client:  &http.Client{},
 		token:   token,
-		baseURL: "https://api.github.com",
+		baseURL: baseURL,
 		headers: map[string]string{
 			"Accept":               "application/vnd.github.v3+json",
 			"X-GitHub-Api-Version": "2022-11-28",
 			"Authorization":        fmt.Sprintf("Bearer %s", token),
 		},
 	}
+
+	log.Info().
+		Str("base_url", baseURL).
+		Msg("GitHub service initialized successfully")
+
+	return s
 }
 
 func (s *Service) SearchRepos(ctx context.Context, org, language string, topics []string) (*ReposSearchResponse, error) {
@@ -85,6 +93,10 @@ func (s *Service) SearchRepos(ctx context.Context, org, language string, topics 
 	for _, topic := range topics {
 		query += fmt.Sprintf("+topic:%s", topic)
 	}
+
+	log.Info().
+		Str("query", query).
+		Msg("Executing GitHub repository search")
 
 	url := fmt.Sprintf("%s/search/repositories?q=%s", s.baseURL, query)
 
@@ -123,6 +135,11 @@ func (s *Service) SearchRepos(ctx context.Context, org, language string, topics 
 	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
+
+	log.Info().
+		Int("total_count", searchResp.TotalCount).
+		Int("repos_found", len(searchResp.Items)).
+		Msg("GitHub repository search completed successfully")
 
 	return &searchResp, nil
 }

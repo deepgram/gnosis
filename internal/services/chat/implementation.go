@@ -28,6 +28,8 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 		return nil, fmt.Errorf("OpenAI service is required")
 	}
 
+	log.Info().Msg("Initializing chat service")
+
 	return &Implementation{
 		openAI:       openAIService,
 		toolExecutor: toolExecutor,
@@ -68,7 +70,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 	for {
 		// Create completion request
 		req := gopenai.ChatCompletionRequest{
-			Model:            gopenai.GPT4Turbo,
+			Model:            gopenai.GPT4oMini,
 			Messages:         openaiMessages,
 			Temperature:      config.Temperature,
 			MaxTokens:        config.MaxTokens,
@@ -76,6 +78,12 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			PresencePenalty:  config.PresencePenalty,
 			FrequencyPenalty: config.FrequencyPenalty,
 		}
+
+		log.Info().
+			Int("message_count", len(messages)).
+			Str("model", gopenai.GPT4oMini).
+			Float32("temperature", config.Temperature).
+			Msg("Processing chat request")
 
 		resp, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
 		if err != nil {
@@ -91,7 +99,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 
 		// Return if we have a content response
 		if message.Role == gopenai.ChatMessageRoleAssistant && message.Content != "" {
-			return &chatModels.ChatResponse{
+			response := &chatModels.ChatResponse{
 				ID:      fmt.Sprintf("gnosis-%s", uuid.New().String()[:5]),
 				Created: time.Now().Unix(),
 				Choices: []chatModels.Choice{{
@@ -105,7 +113,15 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 					CompletionTokens: resp.Usage.CompletionTokens,
 					TotalTokens:      resp.Usage.TotalTokens,
 				},
-			}, nil
+			}
+
+			log.Info().
+				Str("response_id", response.ID).
+				Int("completion_tokens", response.Usage.CompletionTokens).
+				Int("total_tokens", response.Usage.TotalTokens).
+				Msg("Chat request processed successfully")
+
+			return response, nil
 		}
 
 		// Handle tool calls

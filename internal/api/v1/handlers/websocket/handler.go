@@ -24,7 +24,7 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Upgrade client connection to WebSocket
 	clientConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to upgrade WebSocket connection")
+		log.Warn().Err(err).Msg("Failed to upgrade client connection to WebSocket")
 		return
 	}
 	defer clientConn.Close()
@@ -33,16 +33,21 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	targetURL := "wss://agent.deepgram.com/agent"
 	u, err := url.Parse(targetURL)
 	if err != nil {
-		log.Error().Str("url", targetURL).Err(err).Msg("Invalid target URL")
+		log.Warn().Str("url", targetURL).Err(err).Msg("Client provided invalid target URL")
 		return
 	}
 
 	// Write the bearer token to the header from environment variables
 	token := os.Getenv("DEEPGRAM_API_KEY")
 	if token == "" {
-		// fatal because the Deepgram API is required for the agent to function
-		log.Fatal().Msg("DEEPGRAM_API_KEY environment variable not set")
+		log.Warn().Msg("WebSocket connection attempted without API key configured")
+		return
 	}
+
+	log.Info().
+		Str("client_ip", r.RemoteAddr).
+		Str("target_url", targetURL).
+		Msg("Client WebSocket connection established")
 
 	header := http.Header{}
 	header.Add("Authorization", "token "+token)
@@ -58,6 +63,11 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer serverConn.Close()
 
+	log.Info().
+		Str("client_ip", r.RemoteAddr).
+		Str("target_url", targetURL).
+		Msg("Connected to target WebSocket server")
+
 	// Channels for coordinating shutdown
 	errChan := make(chan error, 2)
 	done := make(chan struct{})
@@ -72,6 +82,10 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanup()
 
+	log.Info().
+		Str("client_ip", r.RemoteAddr).
+		Msg("Starting WebSocket message relay")
+
 	// Start goroutine to forward client -> server
 	go proxyMessages(clientConn, serverConn, "Client -> Server", done, errChan)
 
@@ -83,6 +97,10 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 			log.Error().Err(err).Msg("Unexpected WebSocket closure")
+		} else {
+			log.Info().
+				Str("client_ip", r.RemoteAddr).
+				Msg("WebSocket connection closed gracefully")
 		}
 	}
 }

@@ -38,6 +38,8 @@ func InitializeServices() (*Services, error) {
 	servicesMu.Lock()
 	defer servicesMu.Unlock()
 
+	log.Info().Msg("Initializing core services")
+
 	// Initialize OpenAI service (required)
 	openAIService := openai.NewService()
 	if openAIService == nil {
@@ -46,20 +48,25 @@ func InitializeServices() (*Services, error) {
 
 	// Initialize Redis service (optional)
 	redisService := redis.NewService()
+	log.Info().Msg("Initializing Redis service")
 
 	// Initialize optional infrastructure services
 	algoliaService := algolia.NewService()
 	githubService := github.NewService()
 	kapaService := kapa.NewService()
+	log.Info().Msg("Initializing infrastructure services")
 
 	// Initialize tool executor with optional services
 	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
+	log.Info().Msg("Initializing tool executor")
 
 	// Initialize session service with optional Redis
 	sessionService := session.NewService(redisService)
+	log.Info().Msg("Initializing session service")
 
 	// Initialize widget code service with optional Redis
 	widgetCodeService := widgetcode.NewService(redisService)
+	log.Info().Msg("Initializing widget code service")
 
 	// Initialize chat service (required)
 	chatService, err := chat.NewService(openAIService, toolExecutor)
@@ -67,6 +74,9 @@ func InitializeServices() (*Services, error) {
 		log.Error().Err(err).Msg("Failed to initialize chat service - required for message processing")
 		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
 	}
+	log.Info().Msg("Initializing chat service")
+
+	log.Info().Msg("All services initialized successfully")
 
 	return &Services{
 		algoliaService:    algoliaService,

@@ -25,6 +25,11 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 		return
 	}
 
+	log.Info().
+		Int("message_count", len(req.Messages)).
+		Str("client_ip", r.RemoteAddr).
+		Msg("Received chat completion request")
+
 	// Validate request
 	if len(req.Messages) == 0 {
 		log.Warn().Msg("Client sent empty messages array")
@@ -41,6 +46,12 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 			PresencePenalty: 0.0,
 		}
 	}
+
+	log.Info().
+		Float32("temperature", req.Config.Temperature).
+		Int("max_tokens", req.Config.MaxTokens).
+		Float32("top_p", req.Config.TopP).
+		Msg("Processing chat with configuration")
 
 	// Process chat
 	resp, err := chatService.ProcessChat(r.Context(), req.Messages, req.Config)
@@ -59,4 +70,9 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 		httpext.JsonError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
+
+	log.Info().
+		Str("client_ip", r.RemoteAddr).
+		Int("status", http.StatusOK).
+		Msg("Chat completion request processed successfully")
 }

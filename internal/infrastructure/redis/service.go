@@ -47,6 +47,10 @@ func NewService() *Service {
 		return nil
 	}
 
+	log.Info().
+		Str("addr", url).
+		Msg("Redis client initialized successfully")
+
 	return &Service{
 		client: client,
 	}
@@ -54,6 +58,11 @@ func NewService() *Service {
 
 // Set stores a value in Redis with an optional expiration
 func (s *Service) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	log.Info().
+		Str("key", key).
+		Dur("ttl", expiration).
+		Msg("Setting Redis key")
+
 	if err := s.client.Set(ctx, key, value, expiration).Err(); err != nil {
 		log.Error().
 			Err(err).
@@ -62,11 +71,20 @@ func (s *Service) Set(ctx context.Context, key string, value interface{}, expira
 			Msg("Critical Redis SET operation failed")
 		return err
 	}
+
+	log.Debug().
+		Str("key", key).
+		Msg("Redis key set successfully")
+
 	return nil
 }
 
 // Get retrieves a value from Redis
 func (s *Service) Get(ctx context.Context, key string) (string, error) {
+	log.Info().
+		Str("key", key).
+		Msg("Retrieving Redis key")
+
 	val, err := s.client.Get(ctx, key).Result()
 	if err != nil && err != redis.Nil {
 		log.Error().
@@ -75,20 +93,47 @@ func (s *Service) Get(ctx context.Context, key string) (string, error) {
 			Msg("Critical Redis GET operation failed")
 		return "", err
 	}
+
+	log.Debug().
+		Str("key", key).
+		Msg("Redis key retrieved successfully")
+
 	return val, err
 }
 
 // Delete removes a key from Redis
 func (s *Service) Delete(ctx context.Context, key string) error {
-	return s.client.Del(ctx, key).Err()
+	log.Info().
+		Str("key", key).
+		Msg("Deleting Redis key")
+
+	if err := s.client.Del(ctx, key).Err(); err != nil {
+		log.Error().
+			Err(err).
+			Str("key", key).
+			Msg("Failed to delete Redis key")
+		return err
+	}
+
+	log.Debug().
+		Str("key", key).
+		Msg("Redis key deleted successfully")
+
+	return nil
 }
 
 // Ping checks if Redis is accessible
 func (s *Service) Ping(ctx context.Context) error {
+	log.Debug().
+		Msg("Pinging Redis")
+
 	return s.client.Ping(ctx).Err()
 }
 
 // Close closes the Redis connection
 func (s *Service) Close() error {
+	log.Debug().
+		Msg("Closing Redis connection")
+
 	return s.client.Close()
 }

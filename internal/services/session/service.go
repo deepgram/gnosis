@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -59,6 +60,10 @@ func NewService(redisService *redis.Service) *Service {
 	} else {
 		store = newMemoryStore()
 	}
+
+	log.Info().
+		Str("store_type", fmt.Sprintf("%T", store)).
+		Msg("Initializing session service")
 
 	return &Service{store: store}
 }
@@ -163,6 +168,16 @@ func (s *Service) CreateSession(w http.ResponseWriter, userID string) error {
 	}
 
 	http.SetCookie(w, cookie)
+
+	log.Info().
+		Str("user_id", userID).
+		Msg("Creating new session")
+
+	log.Info().
+		Str("session_id", sessionID).
+		Str("user_id", userID).
+		Msg("Session created successfully")
+
 	return nil
 }
 
@@ -199,6 +214,10 @@ func (s *Service) ValidateSession(r *http.Request) (*SessionClaims, error) {
 		if storedClaims == nil {
 			return nil, nil
 		}
+
+		log.Info().
+			Str("session_id", claims.SessionID).
+			Msg("Session validated successfully")
 
 		return claims, nil
 	}

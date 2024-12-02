@@ -64,6 +64,11 @@ func NewService() *Service {
 		return nil
 	}
 
+	log.Info().
+		Str("project_id", projectID).
+		Str("base_url", "https://api.kapa.ai").
+		Msg("Kapa service initialized successfully")
+
 	return &Service{
 		mu:        sync.RWMutex{},
 		client:    &http.Client{},
@@ -90,6 +95,11 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 			},
 		},
 	}
+
+	log.Info().
+		Str("integration_id", req.IntegrationID).
+		Str("query", req.Query).
+		Msg("Sending query to Kapa")
 
 	// Convert request to JSON
 	jsonData, err := json.Marshal(req)
@@ -150,6 +160,10 @@ func (s *Service) Query(ctx context.Context, question, product string, tags []st
 			Str("question", question).
 			Msg("Kapa returned empty result set for valid query")
 	}
+
+	log.Info().
+		Str("integration_id", req.IntegrationID).
+		Msg("Received successful response from Kapa")
 
 	return &queryResp, nil
 }
