@@ -13,10 +13,22 @@ import (
 func HandleWidgetJS(sessionService *session.Service, w http.ResponseWriter, r *http.Request) {
 	log.Info().Msg("Widget.js requested")
 
+	log.Trace().
+		Str("method", r.Method).
+		Str("path", r.URL.Path).
+		Interface("headers", r.Header).
+		Msg("Received widget.js request details")
+
 	log.Debug().
 		Str("remote_addr", r.RemoteAddr).
 		Str("user_agent", r.UserAgent()).
 		Msg("Processing widget.js request")
+
+	log.Trace().
+		Str("remote_addr", r.RemoteAddr).
+		Str("referer", r.Referer()).
+		Interface("cookies", r.Cookies()).
+		Msg("Processing widget request context")
 
 	// Create anonymous session
 	if err := sessionService.CreateSession(w, ""); err != nil {
@@ -68,6 +80,11 @@ func HandleWidgetJS(sessionService *session.Service, w http.ResponseWriter, r *h
 		Str("remote_addr", r.RemoteAddr).
 		Interface("headers", w.Header()).
 		Msg("Set response headers for widget.js")
+
+	log.Trace().
+		Interface("response_headers", w.Header()).
+		Int("js_content_length", len(js)).
+		Msg("Preparing widget.js response")
 
 	if _, err := w.Write([]byte(js)); err != nil {
 		return

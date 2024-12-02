@@ -31,6 +31,18 @@ func NewToolExecutor(
 		Str("kapa", fmt.Sprintf("%v", kapaService != nil)).
 		Msg("Initializing tool executor")
 
+	log.Trace().
+		Bool("has_algolia", algoliaService != nil).
+		Bool("has_github", githubService != nil).
+		Bool("has_kapa", kapaService != nil).
+		Msg("Tool executor dependency details")
+
+	log.Trace().
+		Interface("algolia_config", algoliaService).
+		Interface("github_config", githubService).
+		Interface("kapa_config", kapaService).
+		Msg("Initializing tool executor with service configurations")
+
 	return &ToolExecutor{
 		algoliaService: algoliaService,
 		githubService:  githubService,

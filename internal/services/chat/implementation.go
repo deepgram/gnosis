@@ -31,11 +31,22 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 	log.Info().Msg("Initializing chat service")
 	log.Debug().Msg("Setting up new chat service instance")
 
-	return &Implementation{
+	log.Trace().
+		Interface("openai_service", openAIService).
+		Interface("tool_executor", toolExecutor).
+		Msg("Constructing new chat service with dependencies")
+
+	impl := &Implementation{
 		openAI:       openAIService,
 		toolExecutor: toolExecutor,
 		systemPrompt: chatModels.DefaultSystemPrompt(),
-	}, nil
+	}
+
+	log.Trace().
+		Str("system_prompt", chatModels.DefaultSystemPrompt().String()).
+		Msg("Chat service initialized with default system prompt")
+
+	return impl, nil
 }
 
 func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.ChatMessage, config *chatModels.ChatConfig) (*chatModels.ChatResponse, error) {

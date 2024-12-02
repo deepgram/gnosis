@@ -68,6 +68,11 @@ func NewService(redisService *redis.Service) *Service {
 		Interface("store_type", fmt.Sprintf("%T", store)).
 		Msg("Initializing session store")
 
+	log.Trace().
+		Bool("redis_available", redisService != nil).
+		Str("store_type", fmt.Sprintf("%T", store)).
+		Msg("Session store initialization details")
+
 	return &Service{store: store}
 }
 
@@ -75,6 +80,10 @@ func newMemoryStore() *MemoryStore {
 	log.Debug().
 		Str("store_type", "memory").
 		Msg("Creating new memory store for sessions")
+
+	log.Trace().
+		Int("initial_capacity", 0).
+		Msg("Initializing empty in-memory session store")
 
 	return &MemoryStore{
 		sessions: make(map[string]*SessionClaims),
@@ -88,6 +97,11 @@ func (rs *RedisStore) Set(ctx context.Context, sessionID string, claims *Session
 		log.Error().Err(err).Msg("Failed to marshal session claims")
 		return err
 	}
+
+	log.Trace().
+		Str("session_id", sessionID).
+		Int("data_bytes", len(data)).
+		Msg("Attempting to store session in Redis")
 
 	if err := rs.redisService.Set(ctx, sessionID, string(data), cookieLifetime); err != nil {
 		log.Error().Err(err).Str("sessionID", sessionID).Msg("Failed to store session in Redis")

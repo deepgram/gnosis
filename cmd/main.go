@@ -19,6 +19,14 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
+	// Log environment variables
+	log.Trace().
+		Interface("env_vars", map[string]string{
+			"LOG_LEVEL": os.Getenv("LOG_LEVEL"),
+			"PORT":      os.Getenv("PORT"),
+		}).
+		Msg("Environment configuration loaded")
+
 	// Initialize services
 	services, err := services.InitializeServices()
 	if err != nil {
@@ -48,7 +56,18 @@ func main() {
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 
-	// Add before server start:
+	// Log server configuration
+	log.Trace().
+		Interface("server_config", map[string]interface{}{
+			"tls_enabled":          srv.TLSConfig != nil,
+			"max_header_bytes":     srv.MaxHeaderBytes,
+			"disable_http2":        srv.DisableGeneralOptionsHandler,
+			"error_log_enabled":    srv.ErrorLog != nil,
+			"base_context_defined": srv.BaseContext != nil,
+		}).
+		Msg("Detailed server configuration")
+
+	// Log server details
 	log.Debug().
 		Str("address", ":8080").
 		Str("server_name", srv.Addr).
@@ -64,13 +83,19 @@ func main() {
 		log.Fatal().Err(err).Msg("Critical server failure - shutting down")
 	}
 
-	// Add graceful shutdown logging
+	// Register OS signal handlers
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	log.Debug().
-		Msg("Registered shutdown signal handlers")
+	// Log signal handlers
+	log.Trace().
+		Interface("signal_handlers", map[string]interface{}{
+			"interrupt": true,
+			"sigterm":   true,
+		}).
+		Msg("Registering OS signal handlers")
 
+	// Handle OS signals
 	go func() {
 		<-c
 		log.Debug().Msg("Initiating graceful shutdown sequence")

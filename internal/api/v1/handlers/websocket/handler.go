@@ -34,6 +34,12 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 		Str("user_agent", r.UserAgent()).
 		Msg("New WebSocket connection attempt")
 
+	log.Trace().
+		Str("remote_addr", r.RemoteAddr).
+		Str("protocol", r.Proto).
+		Interface("headers", r.Header).
+		Msg("WebSocket connection details")
+
 	// Connect to the target WebSocket server
 	targetURL := "wss://agent.deepgram.com/agent"
 	u, err := url.Parse(targetURL)
@@ -41,6 +47,11 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Warn().Str("url", targetURL).Err(err).Msg("Client provided invalid target URL")
 		return
 	}
+
+	log.Trace().
+		Str("target_url", targetURL).
+		Interface("query_params", r.URL.Query()).
+		Msg("Preparing to establish target WebSocket connection")
 
 	// Write the bearer token to the header from environment variables
 	token := os.Getenv("DEEPGRAM_API_KEY")
@@ -61,6 +72,12 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 		Str("remote_addr", r.RemoteAddr).
 		Str("target_url", targetURL).
 		Msg("Attempting to connect to target WebSocket server")
+
+	log.Trace().
+		Str("scheme", u.Scheme).
+		Str("host", u.Host).
+		Str("path", u.Path).
+		Msg("Parsed WebSocket target URL components")
 
 	serverConn, resp, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
