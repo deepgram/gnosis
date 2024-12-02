@@ -6,11 +6,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/deepgram/gnosis/internal/infrastructure/openai"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/google/uuid"
 	gopenai "github.com/sashabaranov/go-openai"
 )
@@ -27,18 +28,30 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 		return nil, fmt.Errorf("OpenAI service is required")
 	}
 
-	return &Implementation{
+	log.Info().Msg("Initializing chat service")
+	log.Debug().Msg("Setting up new chat service instance")
+
+	log.Trace().
+		Interface("openai_service", openAIService).
+		Interface("tool_executor", toolExecutor).
+		Msg("Constructing new chat service with dependencies")
+
+	impl := &Implementation{
 		openAI:       openAIService,
 		toolExecutor: toolExecutor,
 		systemPrompt: chatModels.DefaultSystemPrompt(),
-	}, nil
+	}
+
+	log.Trace().
+		Str("system_prompt", chatModels.DefaultSystemPrompt().String()).
+		Msg("Chat service initialized with default system prompt")
+
+	return impl, nil
 }
 
 func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.ChatMessage, config *chatModels.ChatConfig) (*chatModels.ChatResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	logger.Debug(logger.CHAT, "Processing chat request with %d messages", len(messages))
 
 	if len(messages) == 0 {
 		return nil, fmt.Errorf("empty messages array")
@@ -69,7 +82,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 	for {
 		// Create completion request
 		req := gopenai.ChatCompletionRequest{
-			Model:            gopenai.GPT4Turbo,
+			Model:            gopenai.GPT4oMini,
 			Messages:         openaiMessages,
 			Temperature:      config.Temperature,
 			MaxTokens:        config.MaxTokens,
@@ -78,10 +91,21 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			FrequencyPenalty: config.FrequencyPenalty,
 		}
 
+		log.Info().
+			Int("message_count", len(messages)).
+			Str("model", gopenai.GPT4oMini).
+			Float32("temperature", config.Temperature).
+			Msg("Processing chat request")
+
+		log.Debug().
+			Int("message_count", len(messages)).
+			Interface("config", config).
+			Msg("Processing new chat request")
+
 		resp, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
 		if err != nil {
-			logger.Error(logger.CHAT, "Failed to get chat completion: %v", err)
-			return nil, fmt.Errorf("failed to get chat completion: %w", err)
+			log.Error().Err(err).Msg("OpenAI API request failed")
+			return nil, fmt.Errorf("chat completion failed: %w", err)
 		}
 
 		if len(resp.Choices) == 0 {
@@ -92,7 +116,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 
 		// Return if we have a content response
 		if message.Role == gopenai.ChatMessageRoleAssistant && message.Content != "" {
-			return &chatModels.ChatResponse{
+			response := &chatModels.ChatResponse{
 				ID:      fmt.Sprintf("gnosis-%s", uuid.New().String()[:5]),
 				Created: time.Now().Unix(),
 				Choices: []chatModels.Choice{{
@@ -106,7 +130,15 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 					CompletionTokens: resp.Usage.CompletionTokens,
 					TotalTokens:      resp.Usage.TotalTokens,
 				},
-			}, nil
+			}
+
+			log.Info().
+				Str("response_id", response.ID).
+				Int("completion_tokens", response.Usage.CompletionTokens).
+				Int("total_tokens", response.Usage.TotalTokens).
+				Msg("Chat request processed successfully")
+
+			return response, nil
 		}
 
 		// Handle tool calls
@@ -125,7 +157,12 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 						Arguments: toolCall.Function.Arguments,
 					},
 				})
+
 				if err != nil {
+					log.Error().
+						Err(err).
+						Str("tool", toolCall.Function.Name).
+						Msg("Tool execution failed during chat completion")
 					return nil, fmt.Errorf("tool call failed: %w", err)
 				}
 
@@ -136,6 +173,13 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 				})
 			}
 			continue
+		}
+
+		if message.Role != gopenai.ChatMessageRoleAssistant {
+			log.Error().
+				Str("role", string(message.Role)).
+				Msg("Unexpected message role from OpenAI API")
+			return nil, fmt.Errorf("unexpected message type from assistant")
 		}
 
 		return nil, fmt.Errorf("unexpected message type from assistant")

@@ -3,11 +3,12 @@ package widgetcode
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
-	"github.com/deepgram/gnosis/pkg/logger"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -40,25 +41,24 @@ type Service struct {
 }
 
 func NewService(redisService *redis.Service) *Service {
-	logger.Info(logger.SERVICE, "Initialising widget code service")
-
 	var store WidgetCodeStore
 	if redisService != nil {
-		logger.Info(logger.SERVICE, "Using Redis for widget code storage")
 
 		// Test Redis connection
 		ctx := context.Background()
 		if err := redisService.Ping(ctx); err != nil {
-			logger.Error(logger.SERVICE, "Redis connection failed: %v", err)
-			logger.Warn(logger.SERVICE, "Falling back to in-memory widget code storage")
+			log.Warn().Err(err).Msg("Failed to connect to Redis for widget code storage - falling back to memory store")
 			store = newMemoryStore()
 		} else {
 			store = &RedisStore{redisService: redisService}
 		}
 	} else {
-		logger.Info(logger.SERVICE, "Using in-memory widget code storage")
 		store = newMemoryStore()
 	}
+
+	log.Info().
+		Str("store_type", fmt.Sprintf("%T", store)).
+		Msg("Initializing widget code service")
 
 	return &Service{store: store}
 }
@@ -73,10 +73,22 @@ func newMemoryStore() *MemoryStore {
 func (rs *RedisStore) Set(ctx context.Context, code string, info *WidgetCodeInfo) error {
 	data, err := json.Marshal(info)
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal widget code info")
 		return err
 	}
 
-	return rs.redisService.Set(ctx, "WidgetCode:"+code, string(data), WidgetCodeLifetime)
+	if err := rs.redisService.Set(ctx, "WidgetCode:"+code, string(data), WidgetCodeLifetime); err != nil {
+		log.Error().Err(err).Str("code", code).Msg("Failed to store widget code in Redis")
+		return err
+	}
+
+	log.Info().
+		Str("code", code).
+		Str("client_id", info.ClientID).
+		Time("expires_at", info.ExpiresAt).
+		Msg("Storing widget code")
+
+	return nil
 }
 
 func (rs *RedisStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, error) {
@@ -92,16 +104,23 @@ func (rs *RedisStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, er
 
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
-		if err := rs.Delete(ctx, code); err != nil {
-			logger.Warn(logger.SERVICE, "Failed to delete widget code: %v", err)
-		}
+		_ = rs.Delete(ctx, code)
 		return nil, nil
 	}
+
+	log.Info().
+		Str("code", code).
+		Str("client_id", info.ClientID).
+		Msg("Retrieved widget code successfully")
 
 	return &info, nil
 }
 
 func (rs *RedisStore) Delete(ctx context.Context, code string) error {
+	log.Info().
+		Str("code", code).
+		Msg("Deleting widget code")
+
 	return rs.redisService.Delete(ctx, "WidgetCode:"+code)
 }
 
@@ -124,9 +143,8 @@ func (ms *MemoryStore) Get(ctx context.Context, code string) (*WidgetCodeInfo, e
 
 	// Check expiration
 	if time.Now().After(info.ExpiresAt) {
-		if err := ms.Delete(ctx, code); err != nil {
-			logger.Warn(logger.SERVICE, "Failed to delete widget code: %v", err)
-		}
+		_ = ms.Delete(ctx, code)
+
 		return nil, nil
 	}
 

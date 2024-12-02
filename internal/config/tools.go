@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/deepgram/gnosis/pkg/logger"
+	"github.com/rs/zerolog/log"
 )
 
 type ToolDefinition struct {
@@ -21,14 +21,27 @@ type ToolsConfig struct {
 func LoadToolsConfig(configPath string) (*ToolsConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		logger.Error(logger.CONFIG, "Failed to read tools config: %v", err)
+		log.Error().
+			Err(err).
+			Str("path", configPath).
+			Msg("Failed to read critical tools configuration file")
 		return nil, fmt.Errorf("failed to read tools config: %w", err)
 	}
 
 	var config ToolsConfig
 	if err := json.Unmarshal(data, &config); err != nil {
-		logger.Error(logger.CONFIG, "Failed to parse tools config: %v", err)
+		log.Error().
+			Err(err).
+			Str("path", configPath).
+			Msg("Failed to parse critical tools configuration")
 		return nil, fmt.Errorf("failed to parse tools config: %w", err)
+	}
+
+	if len(config.Tools) == 0 {
+		log.Error().
+			Str("path", configPath).
+			Msg("Tools configuration contains no tool definitions")
+		return nil, fmt.Errorf("no tools defined in configuration")
 	}
 
 	return &config, nil

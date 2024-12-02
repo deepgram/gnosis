@@ -7,8 +7,9 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/sashabaranov/go-openai"
+
+	"github.com/rs/zerolog/log"
 )
 
 type Service struct {
@@ -17,13 +18,14 @@ type Service struct {
 }
 
 func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service) (*Service, error) {
-	logger.Info(logger.SERVICE, "Initialising tools service")
-
 	toolsConfig, err := config.LoadToolsConfig("internal/config/tools.json")
 	if err != nil {
-		logger.Error(logger.SERVICE, "Failed to load tools config: %v", err)
 		return nil, err
 	}
+
+	log.Debug().
+		Interface("config", toolsConfig).
+		Msg("Loading tools configuration")
 
 	var tools []openai.Tool
 	for _, toolDef := range toolsConfig.Tools {
@@ -43,6 +45,10 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 			}
 		}
 
+		log.Debug().
+			Str("tool_name", toolDef.Name).
+			Msg("Evaluating tool configuration")
+
 		tools = append(tools, openai.Tool{
 			Type: "function",
 			Function: &openai.FunctionDefinition{
@@ -51,10 +57,12 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 				Parameters:  toolDef.Parameters,
 			},
 		})
-		logger.Info(logger.SERVICE, "Added tool: %s", toolDef.Name)
 	}
 
-	logger.Info(logger.SERVICE, "Finished loading tools - %d tools available", len(tools))
+	log.Debug().
+		Int("enabled_tools", len(tools)).
+		Msg("Tools service initialized with enabled integrations")
+
 	return &Service{
 		tools: tools,
 	}, nil

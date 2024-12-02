@@ -2,18 +2,17 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/deepgram/gnosis/internal/services/chat"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/pkg/httpext"
-	"github.com/deepgram/gnosis/pkg/logger"
+	"github.com/rs/zerolog/log"
 )
 
 // HandleChatCompletion handles chat completion requests
 func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
-	logger.Debug(logger.HANDLER, "Starting chat completion handler")
-
 	// Parse request
 	var req struct {
 		Messages []chatModels.ChatMessage `json:"messages"`
@@ -21,14 +20,19 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Error(logger.HANDLER, "Failed to decode chat completion request: %v", err)
+		log.Warn().Err(err).Msg("Client sent malformed JSON request")
 		httpext.JsonError(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
+	log.Info().
+		Int("message_count", len(req.Messages)).
+		Str("client_ip", r.RemoteAddr).
+		Msg("Received chat completion request")
+
 	// Validate request
 	if len(req.Messages) == 0 {
-		logger.Error(logger.HANDLER, "Empty messages array in request")
+		log.Warn().Msg("Client sent empty messages array")
 		httpext.JsonError(w, "Messages array cannot be empty", http.StatusBadRequest)
 		return
 	}
@@ -43,10 +47,17 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 		}
 	}
 
+	log.Info().
+		Float32("temperature", req.Config.Temperature).
+		Int("max_tokens", req.Config.MaxTokens).
+		Float32("top_p", req.Config.TopP).
+		Msg("Processing chat with configuration")
+
 	// Process chat
 	resp, err := chatService.ProcessChat(r.Context(), req.Messages, req.Config)
 	if err != nil {
-		logger.Error(logger.HANDLER, "Failed to process chat: %v", err)
+		// log the error and the request
+		log.Error().Err(err).Str("messages", fmt.Sprintf("%v", req.Messages)).Str("config", fmt.Sprintf("%v", req.Config)).Msg("Failed to process chat")
 		httpext.JsonError(w, "Failed to process chat", http.StatusInternalServerError)
 		return
 	}
@@ -54,8 +65,14 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		logger.Error(logger.HANDLER, "Failed to encode response: %v", err)
+		// log the error and the response
+		log.Error().Err(err).Str("response", fmt.Sprintf("%v", resp)).Msg("Failed to encode response")
 		httpext.JsonError(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
+
+	log.Info().
+		Str("client_ip", r.RemoteAddr).
+		Int("status", http.StatusOK).
+		Msg("Chat completion request processed successfully")
 }

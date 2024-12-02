@@ -1,28 +1,39 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	v1handlers "github.com/deepgram/gnosis/internal/api/v1/handlers"
 	"github.com/deepgram/gnosis/internal/services"
-	"github.com/deepgram/gnosis/pkg/logger"
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger.Info(logger.APP, "Starting Gnosis server")
+	// Initialize zerolog
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
+
+	// Log environment variables
+	log.Trace().
+		Interface("env_vars", map[string]string{
+			"LOG_LEVEL": os.Getenv("LOG_LEVEL"),
+			"PORT":      os.Getenv("PORT"),
+		}).
+		Msg("Environment configuration loaded")
 
 	// Initialize services
 	services, err := services.InitializeServices()
 	if err != nil {
-		logger.Fatal(logger.APP, "Failed to initialize services: %v", err)
-		os.Exit(1)
+		log.Fatal().Err(err).Msg("Critical failure initializing core services")
 	}
 
 	// Setup router
-	logger.Debug(logger.APP, "Setting up router")
 	r := mux.NewRouter()
 
 	/**
@@ -45,9 +56,59 @@ func main() {
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 
+	// Log server configuration
+	log.Trace().
+		Interface("server_config", map[string]interface{}{
+			"tls_enabled":          srv.TLSConfig != nil,
+			"max_header_bytes":     srv.MaxHeaderBytes,
+			"disable_http2":        srv.DisableGeneralOptionsHandler,
+			"error_log_enabled":    srv.ErrorLog != nil,
+			"base_context_defined": srv.BaseContext != nil,
+		}).
+		Msg("Detailed server configuration")
+
+	// Log server details
+	log.Debug().
+		Str("address", ":8080").
+		Str("server_name", srv.Addr).
+		Int("read_timeout_sec", int(srv.ReadTimeout.Seconds())).
+		Int("write_timeout_sec", int(srv.WriteTimeout.Seconds())).
+		Int("idle_timeout_sec", int(srv.IdleTimeout.Seconds())).
+		Int("read_header_timeout_sec", int(srv.ReadHeaderTimeout.Seconds())).
+		Msg("Configuring HTTP server")
+
 	// Start server
-	logger.Info(logger.APP, "Server starting on :8080")
-	if err := srv.ListenAndServe(); err != nil {
-		logger.Fatal(logger.APP, "Server failed: %v", err)
+	log.Info().Msg("Server starting on :8080")
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal().Err(err).Msg("Critical server failure - shutting down")
 	}
+
+	// Register OS signal handlers
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	// Log signal handlers
+	log.Trace().
+		Interface("signal_handlers", map[string]interface{}{
+			"interrupt": true,
+			"sigterm":   true,
+		}).
+		Msg("Registering OS signal handlers")
+
+	// Handle OS signals
+	go func() {
+		<-c
+		log.Debug().Msg("Initiating graceful shutdown sequence")
+
+		log.Warn().Msg("Server received interrupt signal - initiating graceful shutdown")
+
+		log.Debug().
+			Int64("grace_period_ms", srv.IdleTimeout.Milliseconds()).
+			Msg("Beginning server shutdown")
+
+		if err := srv.Shutdown(context.Background()); err != nil {
+			log.Fatal().Err(err).Msg("Error during server shutdown")
+		}
+		os.Exit(0)
+	}()
 }

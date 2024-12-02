@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
@@ -14,7 +13,7 @@ import (
 	"github.com/deepgram/gnosis/internal/services/session"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/deepgram/gnosis/internal/services/widgetcode"
-	"github.com/deepgram/gnosis/pkg/logger"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -39,54 +38,45 @@ func InitializeServices() (*Services, error) {
 	servicesMu.Lock()
 	defer servicesMu.Unlock()
 
-	logger.Info(logger.SERVICE, "Initializing services")
+	log.Info().Msg("Initializing core services")
 
 	// Initialize OpenAI service (required)
 	openAIService := openai.NewService()
 	if openAIService == nil {
-		logger.Fatal(logger.SERVICE, "Failed to initialize OpenAI service")
-		os.Exit(1)
+		log.Fatal().Msg("Failed to initialize OpenAI service - service is required for core functionality")
 	}
 
 	// Initialize Redis service (optional)
 	redisService := redis.NewService()
-	if redisService == nil {
-		logger.Info(logger.SERVICE, "Redis service not configured - using in-memory storage")
-	}
+	log.Info().Msg("Initializing Redis service")
 
 	// Initialize optional infrastructure services
 	algoliaService := algolia.NewService()
-	if algoliaService == nil {
-		logger.Info(logger.SERVICE, "Algolia service not configured - functionality will be limited")
-	}
-
 	githubService := github.NewService()
-	if githubService == nil {
-		logger.Info(logger.SERVICE, "GitHub service not configured - functionality will be limited")
-	}
-
 	kapaService := kapa.NewService()
-	if kapaService == nil {
-		logger.Info(logger.SERVICE, "Kapa service not configured - functionality will be limited")
-	}
+	log.Info().Msg("Initializing infrastructure services")
 
 	// Initialize tool executor with optional services
 	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
+	log.Info().Msg("Initializing tool executor")
 
 	// Initialize session service with optional Redis
 	sessionService := session.NewService(redisService)
+	log.Info().Msg("Initializing session service")
 
 	// Initialize widget code service with optional Redis
 	widgetCodeService := widgetcode.NewService(redisService)
+	log.Info().Msg("Initializing widget code service")
 
 	// Initialize chat service (required)
 	chatService, err := chat.NewService(openAIService, toolExecutor)
 	if err != nil {
-		logger.Error(logger.SERVICE, "Failed to initialize chat service: %v", err)
+		log.Error().Err(err).Msg("Failed to initialize chat service - required for message processing")
 		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
 	}
+	log.Info().Msg("Initializing chat service")
 
-	logger.Info(logger.SERVICE, "Services initialization complete")
+	log.Info().Msg("All services initialized successfully")
 
 	return &Services{
 		algoliaService:    algoliaService,

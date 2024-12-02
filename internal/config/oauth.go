@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/deepgram/gnosis/pkg/logger"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -19,14 +19,12 @@ var (
 // SetJWTSecret temporarily changes the JWT secret and returns a function to restore it
 // This is primarily used for testing
 func SetJWTSecret(secret []byte) func() {
-	logger.Debug(logger.CONFIG, "Temporarily changing JWT secret")
 	jwtSecretMu.Lock()
 	previous := JWTSecret
 	JWTSecret = secret
 	jwtSecretMu.Unlock()
 
 	return func() {
-		logger.Debug(logger.CONFIG, "Restoring previous JWT secret")
 		jwtSecretMu.Lock()
 		JWTSecret = previous
 		jwtSecretMu.Unlock()
@@ -54,49 +52,38 @@ var AllowedClients = scanForClientConfigs()
 
 // init ensures the map is populated with valid configurations
 func init() {
-	logger.Info(logger.CONFIG, "Initializing OAuth client configurations")
 	if len(AllowedClients) == 0 {
-		logger.Fatal(logger.CONFIG, "No OAuth clients found in environment configuration")
-		os.Exit(1)
+		log.Fatal().Msg("No OAuth clients found in environment configuration")
 	}
 
 	// Validate each client configuration
 	for clientType, client := range AllowedClients {
 		// All clients require an ID
 		if client.ID == "" {
-			logger.Fatal(logger.CONFIG, "Missing required client ID for client: %s", clientType)
-			os.Exit(1)
+			log.Fatal().Str("client_type", clientType).Msg("Missing required client ID")
 		}
 
 		// Check if client requires a secret
 		if !client.NoSecret && client.Secret == "" {
-			logger.Fatal(logger.CONFIG, "Missing required secret for client: %s", clientType)
-			os.Exit(1)
+			log.Fatal().Str("client_type", clientType).Msg("Missing required secret")
 		}
 
 		// Check if client requires allowed URLs
 		if clientType == "widget" && len(client.AllowedURLs) == 0 {
-			logger.Fatal(logger.CONFIG, "Missing required allowed URLs for widget client: %s", clientType)
-			os.Exit(1)
+			log.Fatal().Str("client_type", clientType).Msg("Missing required allowed URLs")
 		}
-
-		logger.Info(logger.CONFIG, "Validated client configuration for: %s", clientType)
 	}
-
-	logger.Debug(logger.CONFIG, "OAuth client configuration initialization complete")
 }
 
 // GetClientTypeByID returns the client type (map key) for a given client ID,
 // or an empty string if not found
 func GetClientTypeByID(clientID string) string {
-	logger.Debug(logger.CONFIG, "Looking up client type for client ID: %s", clientID)
 	for clientType, config := range AllowedClients {
 		if config.ID == clientID {
-			logger.Debug(logger.CONFIG, "Found client type '%s' for client ID: %s", clientType, clientID)
+			log.Info().Str("client_type", clientType).Str("client_id", clientID).Msg("Found client type")
 			return clientType
 		}
 	}
-	logger.Warn(logger.CONFIG, "No client type found for client ID: %s", clientID)
 	return ""
 }
 
@@ -104,10 +91,9 @@ func GetClientTypeByID(clientID string) string {
 func GetClientConfig(clientType string) ClientConfig {
 	config, exists := AllowedClients[clientType]
 	if !exists {
-		logger.Error(logger.CONFIG, "Attempted to get config for unknown client type: %s", clientType)
+		log.Warn().Str("client_type", clientType).Msg("Attempted to get config for unknown client type")
 		return ClientConfig{}
 	}
-	logger.Debug(logger.CONFIG, "Retrieved config for client type: %s", clientType)
 	return config
 }
 
@@ -148,7 +134,6 @@ func scanForClientConfigs() map[string]ClientConfig {
 
 			// Assign to map
 			clients[clientType] = config
-			logger.Info(logger.CONFIG, "Loaded client configuration for: %s", clientType)
 		}
 	}
 
