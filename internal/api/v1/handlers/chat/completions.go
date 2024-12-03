@@ -1,4 +1,4 @@
-package handlers
+package chat
 
 import (
 	"encoding/json"
@@ -11,8 +11,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// HandleChatCompletion handles chat completion requests
-func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
+// HandleChatCompletions handles chat completions requests
+func HandleChatCompletions(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req struct {
 		Messages []chatModels.ChatMessage `json:"messages"`
@@ -28,7 +28,7 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	log.Info().
 		Int("message_count", len(req.Messages)).
 		Str("client_ip", r.RemoteAddr).
-		Msg("Received chat completion request")
+		Msg("Received chat completions request")
 
 	// Validate request
 	if len(req.Messages) == 0 {
@@ -74,5 +74,5 @@ func HandleChatCompletion(chatService chat.Service, w http.ResponseWriter, r *ht
 	log.Info().
 		Str("client_ip", r.RemoteAddr).
 		Int("status", http.StatusOK).
-		Msg("Chat completion request processed successfully")
+		Msg("Chat completions request processed successfully")
 }

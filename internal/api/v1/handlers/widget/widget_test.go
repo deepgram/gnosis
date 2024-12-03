@@ -1,4 +1,4 @@
-package handlers
+package widget
 
 import (
 	"net/http"

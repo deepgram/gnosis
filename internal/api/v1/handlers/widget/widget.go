@@ -1,4 +1,4 @@
-package handlers
+package widget
 
 import (
 	"crypto/sha256"
