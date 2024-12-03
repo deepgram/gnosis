@@ -1,4 +1,14 @@
 # Gnosis
+*(ˈnəʊ.sɪs)*  
+*noun*
+
+1. Knowledge of spiritual mysteries.
+   - *Example:* "The philosopher dedicated his life to the pursuit of gnosis."
+
+**Origin:**  
+Late 16th century: from Greek *gnōsis*, meaning ‘knowledge’, from *gignōskein*, meaning ‘to know’.
+
+---
 
 Gnosis is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
 
