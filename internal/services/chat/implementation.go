@@ -11,7 +11,6 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/openai"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/tools"
-	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/google/uuid"
 	gopenai "github.com/sashabaranov/go-openai"
 )
@@ -147,17 +146,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			openaiMessages = append(openaiMessages, message)
 
 			for _, toolCall := range message.ToolCalls {
-				result, err := s.toolService.GetToolExecutor().ExecuteToolCall(ctx, toolsModels.ToolCall{
-					ID:   toolCall.ID,
-					Type: string(toolCall.Type),
-					Function: struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
-					}{
-						Name:      toolCall.Function.Name,
-						Arguments: toolCall.Function.Arguments,
-					},
-				})
+				result, err := s.toolService.GetToolExecutor().ExecuteToolCall(ctx, toolCall)
 
 				if err != nil {
 					log.Error().

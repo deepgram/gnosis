@@ -1,12 +1,14 @@
 package tools
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/config"
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
+	"github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/sashabaranov/go-openai"
 
 	"github.com/rs/zerolog/log"
@@ -74,6 +76,7 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 	}
 }
 
+// return all tools
 func (s *Service) GetTools() []openai.Tool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -85,9 +88,52 @@ func (s *Service) GetOpenAITools() []openai.Tool {
 	return s.GetTools()
 }
 
-// return functions in a Deepgram format
-func (s *Service) GetDeepgramTools() []openai.Tool {
-	return s.GetTools()
+/**
+ * function maps tool format to deepgram format
+ *
+ * openai format:
+ *	{
+ *		"type": "function",
+ *		"function": {
+ *			"name": "get_weather",
+ *			"parameters": {
+ *				"type": "object",
+ *				"properties": {
+ *					"location": {"type": "string"},
+ *					"unit": {"type": "string", "enum": ["c", "f"]},
+ *				},
+ *				"required": ["location", "unit"],
+ *				"additionalProperties": false,
+ *			},
+ *		},
+ *	}
+ *
+ * deepgram format:
+ *	{
+ *		"name": "", // function name
+ *		"description": "", // tells the agent what the function does, and how and when to use it
+ *		"parameters": {
+ *			"type": "object",
+ *			"properties": {
+ *				"item": { // the name of the input property
+ *					"type": "string", // the type of the input
+ *					"description":"" // the description of the input so the agent understands what it is
+ *				}
+ *			},
+ *			"required": ["item"] // the list of required input properties for this function to be called
+ *		}
+ *	}
+ */
+func (s *Service) GetDeepgramTools() []models.DeepgramToolCallConfig {
+	var deepgramTools []models.DeepgramToolCallConfig
+	for _, tool := range s.GetTools() {
+		deepgramTools = append(deepgramTools, models.DeepgramToolCallConfig{
+			Name:        tool.Function.Name,
+			Description: tool.Function.Description,
+			Parameters:  tool.Function.Parameters.(json.RawMessage),
+		})
+	}
+	return deepgramTools
 }
 
 // return the tool executor

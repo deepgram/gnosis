@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
-	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/rs/zerolog/log"
 	"github.com/sashabaranov/go-openai"
 )
@@ -41,9 +40,9 @@ func NewToolExecutor(toolService *Service) *ToolExecutor {
 	}
 }
 
-func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.ToolCall) (string, error) {
+func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool openai.ToolCall) (string, error) {
 	if tool.Type != "function" {
-		log.Error().Str("type", tool.Type).Msg("Unsupported tool type requested")
+		log.Error().Str("type", string(tool.Type)).Msg("Unsupported tool type requested")
 		return "", fmt.Errorf("unsupported tool type")
 	}
 
