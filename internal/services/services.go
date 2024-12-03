@@ -104,3 +104,8 @@ func (s *Services) GetWidgetCodeService() *widgetcode.Service {
 func (s *Services) GetSessionService() *session.Service {
 	return s.sessionService
 }
+
+// GetToolService returns the tool service
+func (s *Services) GetToolService() *tools.Service {
+	return s.toolService
+}

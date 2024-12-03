@@ -1,0 +1,47 @@
+sequenceDiagram
+    participant Client
+    participant GnosisProxy
+    participant DeepgramAgent
+
+    Note over GnosisProxy: HandleAgentWebSocket
+
+    Client->>GnosisProxy: WebSocket Connection Request
+    GnosisProxy->>GnosisProxy: Validate Auth
+    GnosisProxy->>DeepgramAgent: Connect with Bearer Token
+    
+    alt
+        Note over Client, DeepgramAgent: Agent Configuration
+        Client->>GnosisProxy: SettingsConfiguration Message
+        GnosisProxy->>GnosisProxy: Inject tools config into SettingsConfiguration Message
+        GnosisProxy->>DeepgramAgent: SettingsConfiguration Message
+        Note over Client, DeepgramAgent: Agent Configuration Complete
+    end
+
+    alt
+        Note over Client, DeepgramAgent: Function Calling
+
+        DeepgramAgent->>GnosisProxy: FunctionCallRequest Message
+
+        alt Built-in function call
+            GnosisProxy->>GnosisProxy: Handle built-in function
+            GnosisProxy->>DeepgramAgent: FunctionCallResponse Message
+        else Client function call
+            GnosisProxy->>Client: FunctionCallRequest Message
+            Client->>GnosisProxy: FunctionCallResponse Message
+            GnosisProxy->>DeepgramAgent: FunctionCallResponse Message
+        end
+
+        Note over Client, DeepgramAgent: Function Calling Complete
+    end
+        
+    alt 
+        Note over Client, DeepgramAgent: Other Messages
+        
+        Client->>GnosisProxy: Client Message
+        GnosisProxy->>DeepgramAgent: Client Message
+        DeepgramAgent->>GnosisProxy: Server Message
+        GnosisProxy->>Client: Server Message
+
+        Note over Client, DeepgramAgent: Other Messages Complete
+    end
+

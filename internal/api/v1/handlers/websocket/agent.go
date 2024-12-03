@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/deepgram/gnosis/internal/services/tools"
+	"github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
 )
@@ -47,19 +49,9 @@ type SettingsConfiguration struct {
 			Provider struct {
 				Type string `json:"type"`
 			} `json:"provider"`
-			Model        string `json:"model"`
-			Instructions string `json:"instructions"`
-			Functions    []struct {
-				Name        string `json:"name"`
-				Description string `json:"description"`
-				URL         string `json:"url"`
-				Headers     []struct {
-					Key   string `json:"key"`
-					Value string `json:"value"`
-				} `json:"headers"`
-				Method     string          `json:"method"`
-				Parameters json.RawMessage `json:"parameters"`
-			} `json:"functions"`
+			Model        string                          `json:"model"`
+			Instructions string                          `json:"instructions"`
+			Functions    []models.DeepgramToolCallConfig `json:"functions"`
 		} `json:"think"`
 		Speak struct {
 			Model string `json:"model"`
@@ -85,7 +77,7 @@ var (
 )
 
 // HandleAgentWebSocket handles the voice agent WebSocket proxy connection
-func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
+func HandleAgentWebSocket(toolService *tools.Service, w http.ResponseWriter, r *http.Request) {
 	// Upgrade client connection to WebSocket
 	clientConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -182,10 +174,10 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 		Msg("Starting WebSocket message relay")
 
 	// Start goroutine to forward client -> server
-	go proxyMessages(clientConn, serverConn, "Client -> Server", done, errChan)
+	go proxyMessages(toolService, clientConn, serverConn, "Client -> Server", done, errChan)
 
 	// Start goroutine to forward server -> client
-	go proxyMessages(serverConn, clientConn, "Server -> Client", done, errChan)
+	go proxyMessages(toolService, serverConn, clientConn, "Server -> Client", done, errChan)
 
 	// Wait for an error or connection closure
 	err = <-errChan
@@ -208,7 +200,7 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 // and forwarded to the client.
 // Here, we intercept SOME function calls and respond to Deepgram.
 // Other function calls are forwarded to the client.
-func handleFunctionCall(msg []byte, src *websocket.Conn, dst *websocket.Conn) error {
+func handleFunctionCall(_ *tools.Service, msg []byte, src *websocket.Conn, dst *websocket.Conn) error {
 	var funcRequest FunctionCallRequest
 	if err := json.Unmarshal(msg, &funcRequest); err != nil {
 		return err
@@ -241,11 +233,14 @@ func handleFunctionCall(msg []byte, src *websocket.Conn, dst *websocket.Conn) er
 }
 
 // Client -> Server
-func handleSettingsConfiguration(msg []byte, dst *websocket.Conn) error {
+func handleSettingsConfiguration(toolService *tools.Service, msg []byte, dst *websocket.Conn) error {
 	var settings SettingsConfiguration
 	if err := json.Unmarshal(msg, &settings); err != nil {
 		return err
 	}
+
+	// inject tools into settings
+	settings.Agent.Think.Functions = toolService.GetDeepgramTools()
 
 	log.Debug().
 		Str("direction", "Server -> Client").
@@ -254,14 +249,18 @@ func handleSettingsConfiguration(msg []byte, dst *websocket.Conn) error {
 		Msg("Processing WebSocket message")
 
 	// For now, just forward the settings
-	return handleMessage(msg, dst)
+	settingsBytes, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+	return handleMessage(settingsBytes, dst)
 }
 
 func handleMessage(msg []byte, dst *websocket.Conn) error {
 	return dst.WriteMessage(websocket.TextMessage, msg)
 }
 
-func proxyMessages(src, dst *websocket.Conn, direction string, done chan struct{}, errChan chan error) {
+func proxyMessages(toolService *tools.Service, src, dst *websocket.Conn, direction string, done chan struct{}, errChan chan error) {
 	for {
 		select {
 		case <-done:
@@ -286,9 +285,9 @@ func proxyMessages(src, dst *websocket.Conn, direction string, done chan struct{
 			var handleErr error
 			switch genericMsg.Type {
 			case "FunctionCallRequest":
-				handleErr = handleFunctionCall(msg, src, dst)
+				handleErr = handleFunctionCall(toolService, msg, src, dst)
 			case "SettingsConfiguration":
-				handleErr = handleSettingsConfiguration(msg, dst)
+				handleErr = handleSettingsConfiguration(toolService, msg, dst)
 			default:
 				handleErr = handleMessage(msg, dst)
 			}
