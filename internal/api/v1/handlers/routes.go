@@ -34,7 +34,7 @@ func RegisterV1Routes(router *mux.Router, services *services.Services) {
 
 	// Protected v1 routes (require auth)
 	protectedRoutes := v1.NewRoute().Subrouter()
-	// protectedRoutes.Use(v1mware.RequireAuth([]string{"client_credentials", "widget"}))
+	protectedRoutes.Use(middleware.RequireAuth([]string{"client_credentials", "widget"}))
 
 	// Protected v1 agent routes
 	agentRoutes := protectedRoutes.NewRoute().Subrouter()

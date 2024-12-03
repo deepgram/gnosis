@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -9,6 +11,69 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
 )
+
+type FunctionCallRequest struct {
+	Type           string          `json:"type"`
+	FunctionName   string          `json:"function_name"`
+	FunctionCallID string          `json:"function_call_id"`
+	Input          json.RawMessage `json:"input"`
+}
+
+type FunctionCallResponse struct {
+	Type           string `json:"type"`
+	FunctionCallID string `json:"function_call_id"`
+	Output         string `json:"output"`
+}
+
+type SettingsConfiguration struct {
+	Type  string `json:"type"`
+	Audio struct {
+		Input struct {
+			Encoding   string `json:"encoding"`
+			SampleRate int    `json:"sample_rate"`
+		} `json:"input"`
+		Output struct {
+			Encoding   string `json:"encoding"`
+			SampleRate int    `json:"sample_rate"`
+			Bitrate    int    `json:"bitrate"`
+			Container  string `json:"container"`
+		} `json:"output"`
+	} `json:"audio"`
+	Agent struct {
+		Listen struct {
+			Model string `json:"model"`
+		} `json:"listen"`
+		Think struct {
+			Provider struct {
+				Type string `json:"type"`
+			} `json:"provider"`
+			Model        string `json:"model"`
+			Instructions string `json:"instructions"`
+			Functions    []struct {
+				Name        string `json:"name"`
+				Description string `json:"description"`
+				URL         string `json:"url"`
+				Headers     []struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				} `json:"headers"`
+				Method     string          `json:"method"`
+				Parameters json.RawMessage `json:"parameters"`
+			} `json:"functions"`
+		} `json:"think"`
+		Speak struct {
+			Model string `json:"model"`
+		} `json:"speak"`
+	} `json:"agent"`
+	Context struct {
+		Messages []json.RawMessage `json:"messages"`
+		Replay   bool              `json:"replay"`
+	} `json:"context"`
+}
+
+type GenericMessage struct {
+	Type string `json:"type"`
+}
 
 var (
 	upgrader = websocket.Upgrader{
@@ -139,6 +204,63 @@ func HandleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 		Msg("API key validated for WebSocket connection")
 }
 
+// Function call messages are received from the Deepgram agent server
+// and forwarded to the client.
+// Here, we intercept SOME function calls and respond to Deepgram.
+// Other function calls are forwarded to the client.
+func handleFunctionCall(msg []byte, src *websocket.Conn, dst *websocket.Conn) error {
+	var funcRequest FunctionCallRequest
+	if err := json.Unmarshal(msg, &funcRequest); err != nil {
+		return err
+	}
+
+	log.Debug().
+		Str("direction", "Server -> Client").
+		Str("type", "function_call").
+		Interface("function_call", funcRequest).
+		Msg("Processing WebSocket message")
+
+	if funcRequest.FunctionName == "ask_kapa" {
+		response := FunctionCallResponse{
+			Type:           "FunctionCallResponse",
+			FunctionCallID: funcRequest.FunctionCallID,
+			Output:         "This is a test response",
+		}
+
+		responseBytes, err := json.Marshal(response)
+		if err != nil {
+			return fmt.Errorf("failed to marshal function response: %w", err)
+		}
+
+		// send response back to server
+		return handleMessage(responseBytes, src)
+	}
+
+	// forward message to the client
+	return handleMessage(msg, dst)
+}
+
+// Client -> Server
+func handleSettingsConfiguration(msg []byte, dst *websocket.Conn) error {
+	var settings SettingsConfiguration
+	if err := json.Unmarshal(msg, &settings); err != nil {
+		return err
+	}
+
+	log.Debug().
+		Str("direction", "Server -> Client").
+		Str("type", "settings_configuration").
+		Interface("settings", settings).
+		Msg("Processing WebSocket message")
+
+	// For now, just forward the settings
+	return handleMessage(msg, dst)
+}
+
+func handleMessage(msg []byte, dst *websocket.Conn) error {
+	return dst.WriteMessage(websocket.TextMessage, msg)
+}
+
 func proxyMessages(src, dst *websocket.Conn, direction string, done chan struct{}, errChan chan error) {
 	for {
 		select {
@@ -148,16 +270,47 @@ func proxyMessages(src, dst *websocket.Conn, direction string, done chan struct{
 			messageType, msg, err := src.ReadMessage()
 			if err != nil {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-					log.Error().Str("direction", direction).Err(err).Msg("Error in proxy")
+					handleMessageError(direction, err, "Failed to read message")
 				}
 				errChan <- err
 				return
 			}
 
-			if err := dst.WriteMessage(messageType, msg); err != nil {
-				errChan <- err
+			// Try to determine message type
+			var genericMsg GenericMessage
+			if err := json.Unmarshal(msg, &genericMsg); err != nil {
+				handleMessageError(direction, err, "Failed to parse message type")
+				continue
+			}
+
+			var handleErr error
+			switch genericMsg.Type {
+			case "FunctionCallRequest":
+				handleErr = handleFunctionCall(msg, src, dst)
+			case "SettingsConfiguration":
+				handleErr = handleSettingsConfiguration(msg, dst)
+			default:
+				handleErr = handleMessage(msg, dst)
+			}
+
+			if handleErr != nil {
+				handleMessageError(direction, handleErr, "Failed to handle message")
+				errChan <- handleErr
 				return
 			}
+
+			log.Debug().
+				Str("direction", direction).
+				Int("message_type", messageType).
+				Msg("Forwarding WebSocket message")
 		}
 	}
+}
+
+func handleMessageError(direction string, err error, msg string) {
+	log.Error().
+		Err(err).
+		Str("direction", direction).
+		Str("context", msg).
+		Msg("WebSocket message handling error")
 }

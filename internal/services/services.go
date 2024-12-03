@@ -29,7 +29,7 @@ type Services struct {
 	sessionService    *session.Service
 	chatService       *chat.Implementation
 	openAIService     *openai.Service
-	toolExecutor      *tools.ToolExecutor
+	toolService       *tools.Service
 	widgetCodeService *widgetcode.Service
 }
 
@@ -56,9 +56,8 @@ func InitializeServices() (*Services, error) {
 	kapaService := kapa.NewService()
 	log.Info().Msg("Initializing infrastructure services")
 
-	// Initialize tool executor with optional services
-	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
-	log.Info().Msg("Initializing tool executor")
+	toolService := tools.NewService(algoliaService, githubService, kapaService)
+	log.Info().Msg("Initializing tool service")
 
 	// Initialize session service with optional Redis
 	sessionService := session.NewService(redisService)
@@ -69,7 +68,7 @@ func InitializeServices() (*Services, error) {
 	log.Info().Msg("Initializing widget code service")
 
 	// Initialize chat service (required)
-	chatService, err := chat.NewService(openAIService, toolExecutor)
+	chatService, err := chat.NewService(openAIService, toolService)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to initialize chat service - required for message processing")
 		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
@@ -86,7 +85,7 @@ func InitializeServices() (*Services, error) {
 		sessionService:    sessionService,
 		chatService:       chatService,
 		openAIService:     openAIService,
-		toolExecutor:      toolExecutor,
+		toolService:       toolService,
 		widgetCodeService: widgetCodeService,
 	}, nil
 }

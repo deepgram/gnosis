@@ -19,11 +19,11 @@ import (
 type Implementation struct {
 	mu           sync.RWMutex
 	openAI       *openai.Service
-	toolExecutor *tools.ToolExecutor
+	toolService  *tools.Service
 	systemPrompt *chatModels.SystemPrompt
 }
 
-func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor) (*Implementation, error) {
+func NewService(openAIService *openai.Service, toolService *tools.Service) (*Implementation, error) {
 	if openAIService == nil {
 		return nil, fmt.Errorf("OpenAI service is required")
 	}
@@ -33,12 +33,12 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 
 	log.Trace().
 		Interface("openai_service", openAIService).
-		Interface("tool_executor", toolExecutor).
+		Interface("tool_service", toolService).
 		Msg("Constructing new chat service with dependencies")
 
 	impl := &Implementation{
 		openAI:       openAIService,
-		toolExecutor: toolExecutor,
+		toolService:  toolService,
 		systemPrompt: chatModels.DefaultSystemPrompt(),
 	}
 
@@ -89,6 +89,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			TopP:             config.TopP,
 			PresencePenalty:  config.PresencePenalty,
 			FrequencyPenalty: config.FrequencyPenalty,
+			Tools:            s.toolService.GetOpenAITools(),
 		}
 
 		log.Info().
@@ -146,7 +147,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			openaiMessages = append(openaiMessages, message)
 
 			for _, toolCall := range message.ToolCalls {
-				result, err := s.toolExecutor.ExecuteToolCall(ctx, toolsModels.ToolCall{
+				result, err := s.toolService.GetToolExecutor().ExecuteToolCall(ctx, toolsModels.ToolCall{
 					ID:   toolCall.ID,
 					Type: string(toolCall.Type),
 					Function: struct {
