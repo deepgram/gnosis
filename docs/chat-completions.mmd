@@ -1,0 +1,43 @@
+sequenceDiagram
+    participant Client
+    participant Gnosis
+    participant OpenAI
+    participant Tools
+    
+    Note over Client, Tools: Chat Completion Flow
+    
+    Client->>Gnosis: POST /v1/chat/completions
+    Note right of Client: {<br/>messages: [...],<br/>config: {<br/>  temperature: 0.7,<br/>  max_tokens: 1000<br/>}<br/>}
+    
+    Gnosis->>Gnosis: Validate request
+    Gnosis->>Gnosis: Apply default config if none provided
+    
+    Gnosis->>OpenAI: CreateChatCompletion request
+    Note right of Gnosis: Include available tools<br/>in the request
+    
+    alt Direct Response
+        OpenAI->>Gnosis: Chat completion response
+        Gnosis->>Client: 200 OK with completion
+        Note left of Gnosis: {<br/>id: "gnosis-xxx",<br/>choices: [{<br/>  message: {<br/>    role: "assistant",<br/>    content: "..."<br/>  }<br/>}],<br/>usage: {...}<br/>}
+    else Tool Call Required
+        OpenAI->>Gnosis: Tool call request
+        Note right of OpenAI: {<br/>tool_calls: [{<br/>  name: "search_algolia",<br/>  arguments: {...}<br/>}]<br/>}
+        
+        loop For each tool call
+            Gnosis->>Tools: Execute tool call
+            Tools->>Gnosis: Tool result
+            Gnosis->>OpenAI: Tool result as message
+            Note right of Gnosis: Continue conversation<br/>with tool results
+        end
+        
+        OpenAI->>Gnosis: Final chat completion
+        Gnosis->>Client: 200 OK with completion
+    else Error Cases
+        OpenAI->>Gnosis: API Error
+        Gnosis->>Client: 500 Internal Server Error
+        
+        Note over Client, Tools: Or
+        
+        Tools->>Gnosis: Tool Execution Error
+        Gnosis->>Client: 500 Internal Server Error
+    end 

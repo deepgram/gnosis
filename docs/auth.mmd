@@ -1,0 +1,53 @@
+sequenceDiagram
+    participant Client
+    participant Gnosis
+    participant Redis
+
+    Note over Client, Redis: Client Credentials Flow
+    
+    Client->>Gnosis: POST /v1/oauth/token
+    Note right of Client: {<br/>grant_type: "client_credentials",<br/>client_id: "xxx",<br/>client_secret: "xxx"<br/>}
+    
+    Gnosis->>Gnosis: Validate client credentials
+    Note over Gnosis: Reference client configs<br/>from environment
+    
+    alt Valid credentials
+        Gnosis->>Gnosis: Generate JWT token
+        Gnosis->>Client: 200 OK with Bearer token
+        Note left of Gnosis: {<br/>access_token: "xxx",<br/>token_type: "Bearer",<br/>expires_in: 900<br/>}
+    else Invalid credentials
+        Gnosis->>Client: 401 Unauthorized
+    end
+
+    Note over Client, Redis: Widget Code Flow
+    
+    Client->>Gnosis: POST /v1/oauth/widget
+    Note right of Client: {<br/>client_id: "xxx",<br/>state: "xxx"<br/>}
+    
+    Gnosis->>Gnosis: Validate session cookie
+    Gnosis->>Gnosis: Validate client ID
+    
+    alt Valid request
+        Gnosis->>Gnosis: Generate widget code
+        Gnosis->>Redis: Store widget code
+        Note right of Gnosis: Store for 10 minutes
+        Gnosis->>Client: 200 OK with widget code
+        Note left of Gnosis: {<br/>code: "xxx",<br/>state: "xxx"<br/>}
+        
+        Client->>Gnosis: POST /v1/oauth/token
+        Note right of Client: {<br/>grant_type: "widget",<br/>client_id: "xxx",<br/>code: "xxx"<br/>}
+        
+        Gnosis->>Redis: Validate widget code
+        Redis->>Gnosis: Widget code status
+        
+        alt Valid widget code
+            Gnosis->>Redis: Invalidate widget code
+            Gnosis->>Gnosis: Generate JWT token
+            Gnosis->>Client: 200 OK with Bearer token
+            Note left of Gnosis: {<br/>access_token: "xxx",<br/>token_type: "Bearer",<br/>expires_in: 900<br/>}
+        else Invalid/expired code
+            Gnosis->>Client: 401 Unauthorized
+        end
+    else Invalid request
+        Gnosis->>Client: 401 Unauthorized
+    end
