@@ -5,11 +5,13 @@ import (
 	"sync"
 
 	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
+	"github.com/deepgram/gnosis/internal/infrastructure/deepgram"
 	"github.com/deepgram/gnosis/internal/infrastructure/github"
 	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
 	"github.com/deepgram/gnosis/internal/infrastructure/openai"
 	"github.com/deepgram/gnosis/internal/infrastructure/redis"
 	"github.com/deepgram/gnosis/internal/services/chat"
+	"github.com/deepgram/gnosis/internal/services/proxy"
 	"github.com/deepgram/gnosis/internal/services/session"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/deepgram/gnosis/internal/services/widgetcode"
@@ -23,12 +25,14 @@ var (
 
 type Services struct {
 	algoliaService    *algolia.Service
+	chatService       *chat.Implementation
+	deepgramService   *deepgram.Service
 	githubService     *github.Service
 	kapaService       *kapa.Service
+	openAIService     *openai.Service
+	agentProxyService *proxy.Service
 	redisService      *redis.Service
 	sessionService    *session.Service
-	chatService       *chat.Implementation
-	openAIService     *openai.Service
 	toolService       *tools.Service
 	widgetCodeService *widgetcode.Service
 }
@@ -39,12 +43,6 @@ func InitializeServices() (*Services, error) {
 	defer servicesMu.Unlock()
 
 	log.Info().Msg("Initializing core services")
-
-	// Initialize OpenAI service (required)
-	openAIService := openai.NewService()
-	if openAIService == nil {
-		log.Fatal().Msg("Failed to initialize OpenAI service - service is required for core functionality")
-	}
 
 	// Initialize Redis service (optional)
 	redisService := redis.NewService()
@@ -67,6 +65,24 @@ func InitializeServices() (*Services, error) {
 	widgetCodeService := widgetcode.NewService(redisService)
 	log.Info().Msg("Initializing widget code service")
 
+	// Initialize Deepgram service (required)
+	deepgramService := deepgram.NewService()
+	if deepgramService == nil {
+		log.Fatal().Msg("Failed to initialize Deepgram service - service is required for core functionality")
+	}
+
+	// Initialize Deepgram service (required)
+	agentProxyService := proxy.NewAgentService(deepgramService)
+	if agentProxyService == nil {
+		log.Fatal().Msg("Failed to initialize Proxy service - service is required for core functionality")
+	}
+
+	// Initialize OpenAI service (required)
+	openAIService := openai.NewService()
+	if openAIService == nil {
+		log.Fatal().Msg("Failed to initialize OpenAI service - service is required for core functionality")
+	}
+
 	// Initialize chat service (required)
 	chatService, err := chat.NewService(openAIService, toolService)
 	if err != nil {
@@ -79,12 +95,14 @@ func InitializeServices() (*Services, error) {
 
 	return &Services{
 		algoliaService:    algoliaService,
+		chatService:       chatService,
+		deepgramService:   deepgramService,
 		githubService:     githubService,
 		kapaService:       kapaService,
+		openAIService:     openAIService,
+		agentProxyService: agentProxyService,
 		redisService:      redisService,
 		sessionService:    sessionService,
-		chatService:       chatService,
-		openAIService:     openAIService,
 		toolService:       toolService,
 		widgetCodeService: widgetCodeService,
 	}, nil
@@ -108,4 +126,9 @@ func (s *Services) GetSessionService() *session.Service {
 // GetToolService returns the tool service
 func (s *Services) GetToolService() *tools.Service {
 	return s.toolService
+}
+
+// GetAgentProxyService returns the agent proxy service
+func (s *Services) GetAgentProxyService() *proxy.Service {
+	return s.agentProxyService
 }
