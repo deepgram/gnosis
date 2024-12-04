@@ -1,16 +1,12 @@
+---
 asyncapi: "2.6.0"
 
 info:
-  title: Gnosis - Deepgram Agent WebSocket Proxy
-  version: "1.0.0"
+  title: Gnosis - Deepgram AI Support Agent WebSocket
   description: |
-    Secure WebSocket proxy for Deepgram's Voice Agent API. 
-    Provides authenticated access to real-time voice agent interactions with:
-
-    - Secure authentication via Bearer tokens
-    - Bidirectional message proxying
-    - Support for text and binary messages
-    - Automatic connection management
+    Gnosis provides secure, managed access to Deepgram's AI Support Agent and
+    knowledge services
+  version: "1.0.0"
   contact:
     name: Deepgram DevRel Team
     email: devrel@deepgram.com

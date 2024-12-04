@@ -18,6 +18,10 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Run prettier
+        run: |
+          npx prettier --check .
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -28,9 +32,20 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
 
-      - name: Run prettier
-        run: |
-          npx prettier --check .
-
       - name: Run golangci-lint
-        run: golangci-lint run --timeout=5m
+        run: |
+          golangci-lint run --timeout=5m
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install yamllint
+        run: |
+          pip install yamllint
+
+      - name: Run yamllint
+        run: |
+          yamllint docs/asyncapi.yaml
+          yamllint docs/openapi.yaml
