@@ -25,7 +25,7 @@ func RequireAuth(allowedGrants []string) func(http.Handler) http.Handler {
 				return
 			}
 
-			validation := oauth.ValidateToken(tokenString)
+			validation := oauth.ValidateTestToken(tokenString)
 			if !validation.Valid {
 				httpext.JsonError(w, "Invalid token", http.StatusUnauthorized)
 				return

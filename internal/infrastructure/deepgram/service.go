@@ -70,9 +70,7 @@ func (s *Service) MakeRequest(method, path string, body io.Reader) (*http.Respon
 }
 
 // ConnectSocket connects to the Deepgram WebSocket API
-func (s *Service) ConnectSocket(path string) (*websocket.Conn, error) {
-	errChan := make(chan error, 2)
-
+func (s *Service) ConnectSocket(path string, done chan struct{}, errChan chan error) (*websocket.Conn, error) {
 	// error if trying to connect without url
 	if s.SocketURL == "" {
 		return nil, fmt.Errorf("socket URL is required before connecting to Deepgram agent server")
@@ -90,20 +88,23 @@ func (s *Service) ConnectSocket(path string) (*websocket.Conn, error) {
 		return nil, err
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), s.Headers)
+	log.Info().
+		Str("url", u.String()).
+		Interface("service", s).
+		Msg("Attempting to connect to Deepgram WebSocket")
+
+	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), s.Headers)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to connect to Deepgram agent server")
+		log.Error().
+			Err(err).
+			Interface("response", resp).
+			Msg("Failed to connect to Deepgram agent server")
 		return nil, err
 	}
 
-	err = <-errChan
-	if err != nil {
-		if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-			log.Error().Err(err).Msg("Unexpected WebSocket closure")
-		} else {
-			log.Info().Err(err).Msg("WebSocket connection closed gracefully")
-		}
-	}
+	log.Info().
+		Str("url", u.String()).
+		Msg("Successfully connected to Deepgram WebSocket")
 
 	return conn, nil
 }

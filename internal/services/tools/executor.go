@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"slices"
 
-	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
+	"github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/rs/zerolog/log"
 	"github.com/sashabaranov/go-openai"
 )
@@ -40,6 +40,14 @@ func NewToolExecutor(toolService *Service) *ToolExecutor {
 	}
 }
 
+/*
+TODO: The ExecuteToolCall function needs to be refactored to make better use of the GetTools
+functionality for validating tool availability. We should implement a proper mapping system
+between tool call names and their corresponding `service.Function` implementations within the
+ToolService. This will help encapsulate service dependencies and make the execution logic
+more maintainable. The refactoring should include improved error handling and logging for
+each tool type, whilst potentially adding metrics to monitor execution success rates.
+*/
 func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool openai.ToolCall) (string, error) {
 	if tool.Type != "function" {
 		log.Error().Str("type", string(tool.Type)).Msg("Unsupported tool type requested")
@@ -68,7 +76,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool openai.ToolCall
 			return "", fmt.Errorf("algolia service not available")
 		}
 
-		var params chatModels.AlgoliaSearchParams
+		var params models.AlgoliaSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse Algolia search parameters")
 			return "", fmt.Errorf("invalid parameters: %w", err)
@@ -105,7 +113,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool openai.ToolCall
 			return "", fmt.Errorf("github service not available")
 		}
 
-		var params chatModels.StarterAppSearchParams
+		var params models.StarterAppSearchParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse starter app search parameters")
 			return "", fmt.Errorf("invalid parameters: %w", err)
@@ -160,7 +168,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool openai.ToolCall
 			return "", fmt.Errorf("kapa service not available")
 		}
 
-		var params chatModels.KapaQueryParams
+		var params models.KapaQueryParams
 		if err := json.Unmarshal([]byte(tool.Function.Arguments), &params); err != nil {
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Failed to parse Kapa query parameters")
 			return "", fmt.Errorf("invalid parameters: %w", err)

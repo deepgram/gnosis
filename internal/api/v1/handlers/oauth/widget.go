@@ -30,6 +30,9 @@ type WidgetCodeRequest struct {
 	Code      string `json:"code"`
 }
 
+// TODO: modify to act as a /oauth/token endpoint that checks for a cookie and
+// a client ID, and issues a access token with a refresh token, instead of acting
+// as an /oauth/authorize endpoint
 func HandleWidgetAuth(widgetCodeService *widgetcode.Service, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		log.Warn().

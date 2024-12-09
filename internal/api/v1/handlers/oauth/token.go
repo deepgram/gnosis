@@ -37,6 +37,7 @@ type ClientCredentialsRequest struct {
 	ClientSecret string `json:"client_secret"`
 }
 
+// TODO: modify to support a refresh grant type
 func HandleToken(widgetCodeService *widgetcode.Service, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpext.JsonError(w, "Method not allowed", http.StatusMethodNotAllowed)
