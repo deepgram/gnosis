@@ -16,11 +16,9 @@ clean:
 lint:
 	npx prettier --write .
 	$(HOME)/go/bin/golangci-lint run
-	yamllint docs/openapi.yaml
 
 install-lint:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	pip install --user yamllint
 
 build-docs:
 	npx @redocly/cli build-docs docs/openapi.yaml \
