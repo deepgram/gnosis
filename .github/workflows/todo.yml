@@ -1,6 +1,7 @@
 permissions:
   actions: write
   contents: write
+  issues: write
 
 name: "To-dos"
 
