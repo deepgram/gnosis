@@ -23,6 +23,10 @@ func RegisterV1Routes(router *mux.Router, services *services.Services) {
 		widget.HandleWidgetJS(services.GetSessionService(), w, r)
 	}).Methods("GET")
 
+	// Protected v1 agent routes
+	agentRoutes := publicRoutes.NewRoute().Subrouter()
+	agentRoutes.HandleFunc("/agent", websocket.HandleAgentWebSocket)
+
 	// OAuth v1 routes (no auth required)
 	oauthRoutes := v1.PathPrefix("/oauth").Subrouter()
 	oauthRoutes.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
@@ -34,11 +38,7 @@ func RegisterV1Routes(router *mux.Router, services *services.Services) {
 
 	// Protected v1 routes (require auth)
 	protectedRoutes := v1.NewRoute().Subrouter()
-	// protectedRoutes.Use(v1mware.RequireAuth([]string{"client_credentials", "widget"}))
-
-	// Protected v1 agent routes
-	agentRoutes := protectedRoutes.NewRoute().Subrouter()
-	agentRoutes.HandleFunc("/agent", websocket.HandleAgentWebSocket)
+	protectedRoutes.Use(middleware.RequireAuth([]string{"client_credentials", "widget"}))
 
 	// Protected v1 chat routes
 	chatRoutes := protectedRoutes.PathPrefix("/chat").Subrouter()
