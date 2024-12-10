@@ -5,39 +5,48 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"slices"
 
+	"github.com/deepgram/gnosis/internal/infrastructure/algolia"
+	"github.com/deepgram/gnosis/internal/infrastructure/github"
+	"github.com/deepgram/gnosis/internal/infrastructure/kapa"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/rs/zerolog/log"
-	"github.com/sashabaranov/go-openai"
 )
 
 type ToolExecutor struct {
-	toolService *Service
+	algoliaService *algolia.Service
+	githubService  *github.Service
+	kapaService    *kapa.Service
 }
 
-func NewToolExecutor(toolService *Service) *ToolExecutor {
+func NewToolExecutor(
+	algoliaService *algolia.Service,
+	githubService *github.Service,
+	kapaService *kapa.Service,
+) *ToolExecutor {
 	log.Info().
-		Str("algolia", fmt.Sprintf("%v", toolService.algoliaService != nil)).
-		Str("github", fmt.Sprintf("%v", toolService.githubService != nil)).
-		Str("kapa", fmt.Sprintf("%v", toolService.kapaService != nil)).
+		Str("algolia", fmt.Sprintf("%v", algoliaService != nil)).
+		Str("github", fmt.Sprintf("%v", githubService != nil)).
+		Str("kapa", fmt.Sprintf("%v", kapaService != nil)).
 		Msg("Initializing tool executor")
 
 	log.Trace().
-		Bool("has_algolia", toolService.algoliaService != nil).
-		Bool("has_github", toolService.githubService != nil).
-		Bool("has_kapa", toolService.kapaService != nil).
+		Bool("has_algolia", algoliaService != nil).
+		Bool("has_github", githubService != nil).
+		Bool("has_kapa", kapaService != nil).
 		Msg("Tool executor dependency details")
 
 	log.Trace().
-		Interface("algolia_config", toolService.algoliaService).
-		Interface("github_config", toolService.githubService).
-		Interface("kapa_config", toolService.kapaService).
+		Interface("algolia_config", algoliaService).
+		Interface("github_config", githubService).
+		Interface("kapa_config", kapaService).
 		Msg("Initializing tool executor with service configurations")
 
 	return &ToolExecutor{
-		toolService: toolService,
+		algoliaService: algoliaService,
+		githubService:  githubService,
+		kapaService:    kapaService,
 	}
 }
 
@@ -52,17 +61,9 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		Str("tool_name", tool.Function.Name).
 		Msg("Executing tool call")
 
-	// if the tool.ToolCall.Function.Name is not in the list of e.tools return a string "We have no tool for that"
-	if !slices.ContainsFunc(e.toolService.GetTools(), func(t openai.Tool) bool {
-		return t.Function.Name == tool.Function.Name
-	}) {
-		log.Warn().Str("tool_name", tool.Function.Name).Msg("Tool not found in list of tools")
-		return "We have no tool for that", nil
-	}
-
 	switch tool.Function.Name {
 	case "search_algolia":
-		if e.toolService.algoliaService == nil {
+		if e.algoliaService == nil {
 			log.Warn().
 				Str("tool_id", tool.ID).
 				Msg("Algolia search attempted but service not configured")
@@ -75,7 +76,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
 
-		result, err := e.toolService.algoliaService.Search(ctx, params.Query)
+		result, err := e.algoliaService.Search(ctx, params.Query)
 		if err != nil {
 			log.Error().Err(err).Str("query", params.Query).Msg("Algolia search failed")
 			return "", fmt.Errorf("algolia search failed: %w", err)
@@ -99,7 +100,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		return response, nil
 
 	case "search_starter_apps":
-		if e.toolService.githubService == nil {
+		if e.githubService == nil {
 			log.Warn().
 				Str("tool_id", tool.ID).
 				Msg("GitHub search attempted but service not configured")
@@ -112,7 +113,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
 
-		searchResult, err := e.toolService.githubService.SearchRepos(ctx, "deepgram-starters", params.Language, params.Topics)
+		searchResult, err := e.githubService.SearchRepos(ctx, "deepgram-starters", params.Language, params.Topics)
 		if err != nil {
 			log.Error().Err(err).
 				Str("language", params.Language).
@@ -126,7 +127,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		}
 
 		repo := searchResult.Items[0]
-		readmeResult, err := e.toolService.githubService.GetRepoReadme(ctx, repo.FullName)
+		readmeResult, err := e.githubService.GetRepoReadme(ctx, repo.FullName)
 		if err != nil {
 			log.Error().Err(err).
 				Str("repo", repo.FullName).
@@ -154,7 +155,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 		return response, nil
 
 	case "ask_kapa":
-		if e.toolService.kapaService == nil {
+		if e.kapaService == nil {
 			log.Warn().
 				Str("tool_id", tool.ID).
 				Msg("Kapa query attempted but service not configured")
@@ -167,7 +168,7 @@ func (e *ToolExecutor) ExecuteToolCall(ctx context.Context, tool toolsModels.Too
 			return "", fmt.Errorf("invalid parameters: %w", err)
 		}
 
-		resp, err := e.toolService.kapaService.Query(ctx, params.Question, params.Product, params.Tags)
+		resp, err := e.kapaService.Query(ctx, params.Question, params.Product, params.Tags)
 		if err != nil {
 			log.Error().Err(err).Str("tool", tool.Function.Name).Str("args", tool.Function.Arguments).Msg("Kapa query failed")
 			return "", fmt.Errorf("kapa query failed: %w", err)

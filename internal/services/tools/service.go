@@ -13,17 +13,14 @@ import (
 )
 
 type Service struct {
-	tools          []openai.Tool
-	mu             sync.RWMutex
-	algoliaService *algolia.Service
-	githubService  *github.Service
-	kapaService    *kapa.Service
+	tools []openai.Tool
+	mu    sync.RWMutex
 }
 
-func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service) *Service {
+func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service) (*Service, error) {
 	toolsConfig, err := config.LoadToolsConfig("internal/config/tools.json")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	log.Debug().
@@ -67,30 +64,12 @@ func NewService(algoliaService *algolia.Service, githubService *github.Service, 
 		Msg("Tools service initialized with enabled integrations")
 
 	return &Service{
-		tools:          tools,
-		algoliaService: algoliaService,
-		githubService:  githubService,
-		kapaService:    kapaService,
-	}
+		tools: tools,
+	}, nil
 }
 
 func (s *Service) GetTools() []openai.Tool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.tools
-}
-
-// return functions in an openAI format
-func (s *Service) GetOpenAITools() []openai.Tool {
-	return s.GetTools()
-}
-
-// return functions in a Deepgram format
-func (s *Service) GetDeepgramTools() []openai.Tool {
-	return s.GetTools()
-}
-
-// return the tool executor
-func (s *Service) GetToolExecutor() *ToolExecutor {
-	return NewToolExecutor(s)
 }
