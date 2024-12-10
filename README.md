@@ -1,12 +1,13 @@
 # Gnosis
-*(ˈnəʊ.sɪs)*  
-*noun*
+
+_(ˈnəʊ.sɪs)_  
+_noun_
 
 1. Knowledge of spiritual mysteries.
-   - *Example:* "The philosopher dedicated his life to the pursuit of gnosis."
+   - _Example:_ "The philosopher dedicated his life to the pursuit of gnosis."
 
 **Origin:**  
-Late 16th century: from Greek *gnōsis*, meaning ‘knowledge’, from *gignōskein*, meaning ‘to know’.
+Late 16th century: from Greek _gnōsis_, meaning ‘knowledge’, from _gignōskein_, meaning ‘to know’.
 
 ---
 
