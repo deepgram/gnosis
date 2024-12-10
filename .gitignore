@@ -32,3 +32,4 @@ docs/index.html
 
 # Linter files
 .golangci.yml.swp
+markdownlint.summary.txt

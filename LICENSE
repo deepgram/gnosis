@@ -1,7 +1,5 @@
 Deepgram Proprietary License
 
-// SPDX-License-Identifier: LicenseRef-Proprietary-Deepgram
-
 Copyright (c) 2024 Deepgram, Inc. All rights reserved.
 
 This software and associated documentation files (the "Software") are proprietary 
@@ -22,3 +20,5 @@ PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL DEEPGRAM BE LIABLE FOR
 ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR 
 OTHER DEALINGS IN THE SOFTWARE.
+
+SPDX-License-Identifier: LicenseRef-Proprietary-Deepgram

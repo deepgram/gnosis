@@ -1,0 +1,146 @@
+---
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        severity: error
+  dupl:
+    threshold: 250
+  funlen:
+    lines: 125
+    statements: 75
+  goheader:
+    values:
+      const:
+        LICENSE: "LicenseRef-Proprietary-Deepgram"
+      regexp:
+        YEAR: (?:20\d{2}-2\d{3}|20\d{2})
+    template: |-
+      Copyright (c) {{ YEAR }} Deepgram, Inc. All rights reserved.
+
+      This software and associated documentation files (the "Software") are proprietary 
+      and confidential to Deepgram, Inc. ("Deepgram"). The Software may not be copied, 
+      reproduced, modified, distributed, transmitted, displayed, published, licensed, 
+      transferred, sold, or otherwise made available to any third party without the 
+      prior written consent of Deepgram.
+
+      SPDX-License-Identifier: {{ LICENSE }}
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    settings:
+      rangeValCopy:
+        sizeThreshold: 1024
+  gocyclo:
+    min-complexity: 20
+  goimports:
+    local-prefixes: github.com/deepgram/gnosis
+  govet:
+    enable-all: true
+    settings:
+      printf:
+        funcs:
+          - (github.com/aunum/log").Infof
+          - (github.com/aunum/log").Warnf
+          - (github.com/aunum/log").Errorf
+          - (github.com/aunum/log").Fatalf
+  misspell:
+    locale: US
+  nolintlint:
+    allow-unused: false # report any unused nolint directives
+    require-explanation: false # don't require an explanation for nolint directives
+    require-specific: false # don't require nolint directives to be specific about which linter is being skipped
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - dupl
+    - errcheck
+    - funlen
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goheader
+    - goimports
+    - goprintffuncname
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - revive
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - whitespace
+
+issues:
+  exclude:
+    - 'declaration of "(err|ctx)" shadows declaration at'
+    - "unnamedResult: consider giving a name to these results"
+    - "G306: Expect WriteFile permissions to be 0600 or less"
+
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - dupl
+        - gocritic
+        - funlen
+        - gocyclo
+    # https://github.com/go-critic/go-critic/issues/926
+    - linters:
+        - gocritic
+      text: "unnecessaryDefer:"
+    - path: pkg/api/listen/v1/websocket/chan_router.go
+      linters:
+        - gocritic
+    - path: pkg/client/common/v1/websocket.go
+      linters:
+        - gocritic
+    - path: pkg/client/listen/client.go
+      linters:
+        - gocritic
+    - path: pkg/client/listen/v1/websocket/new_using_chan.go
+      linters:
+        - gocritic
+    - path: pkg/client/speak/v1/websocket/client_callback.go
+      linters:
+        - dupl
+    - path: pkg/client/speak/v1/websocket/client_channel.go
+      linters:
+        - dupl
+    - path: pkg/client/listen/v1/websocket/client_callback.go
+      linters:
+        - dupl
+    - path: pkg/client/listen/v1/websocket/client_channel.go
+      linters:
+        - dupl
+    - path: pkg/api/manage/v1/manage.go
+      linters:
+        - staticcheck
+      text: SA1019
+    - path: pkg/client/live/deprecated.go
+      linters:
+        - staticcheck
+      text: SA1019
+    - path: pkg/api/prerecorded/v1/deprecated.go
+      linters:
+        - staticcheck
+      text: SA1019
+    - path: pkg/api/speak/v1/speak.go
+      linters:
+        - staticcheck
+      text: SA1019

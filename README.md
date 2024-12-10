@@ -7,11 +7,15 @@ _noun_
    - _Example:_ "The philosopher dedicated his life to the pursuit of gnosis."
 
 **Origin:**  
-Late 16th century: from Greek _gnōsis_, meaning ‘knowledge’, from _gignōskein_, meaning ‘to know’.
+Late 16th century: from Greek _gnōsis_, meaning ‘knowledge’, from _gignōskein_,
+meaning ‘to know’.
 
 ---
 
-Gnosis is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
+Gnosis is a lightweight API gateway that provides secure, managed access to
+various knowledge and assistance services. It acts as a unified interface for
+both internal and external clients, handling authentication, request routing,
+and response formatting.
 
 ## Roadmap
 
@@ -49,16 +53,16 @@ Gnosis is a lightweight API gateway that provides secure, managed access to vari
 
 1. Clone the repository:
 
-```sh
-git clone https://github.com/deepgram/gnosis.git
-cd gnosis
-```
+   ```sh
+   git clone https://github.com/deepgram/gnosis.git
+   cd gnosis
+   ```
 
 2. Install dependencies:
 
-```sh
-go mod download
-```
+   ```sh
+   go mod download
+   ```
 
 ## Configuration
 
@@ -100,14 +104,21 @@ REDIS_PASSWORD=
 
 ## Client Configuration
 
-Gnosis supports dynamic client configuration through environment variables. Each client requires a specific set of environment variables following this pattern:
+Gnosis supports dynamic client configuration through environment variables. Each
+client requires a specific set of environment variables following this pattern:
 
 ```sh
 GNOSIS_<CLIENT_TYPE>_CLIENT_ID=your_client_id
 GNOSIS_<CLIENT_TYPE>_CLIENT_SECRET=your_client_secret
-GNOSIS_<CLIENT_TYPE>_NO_SECRET=true # Optional, defaults to false
-GNOSIS_<CLIENT_TYPE>_ALLOWED_URLS=https://example.com,https://app.example.com # Optional, defaults to empty
-GNOSIS_<CLIENT_TYPE>_SCOPES=scope1,scope2 # Optional, defaults to empty
+
+ # Optional, defaults to false
+GNOSIS_<CLIENT_TYPE>_NO_SECRET=true
+
+# Optional, defaults to empty
+GNOSIS_<CLIENT_TYPE>_ALLOWED_URLS=https://example.com,https://app.example.com
+
+# Optional, defaults to empty
+GNOSIS_<CLIENT_TYPE>_SCOPES=scope1,scope2
 ```
 
 ### Example
@@ -176,8 +187,8 @@ This project is proprietary software owned by Deepgram. All rights reserved.
 
 ## Security
 
-For security concerns, please email security@deepgram.com
+For security concerns, please email <security@deepgram.com>
 
 ## Support
 
-For support questions, please email devrel@deepgram.com
+For support questions, please email <devrel@deepgram.com>

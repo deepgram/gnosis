@@ -14,8 +14,9 @@ clean:
 	rm -f bin/gnosis
 
 lint:
-	npx prettier --write .
 	$(HOME)/go/bin/golangci-lint run
+	npx markdownlint-cli2 "**/*.md" --config=.markdownlint.json --fix
+	npx prettier --write .
 
 install-lint:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
