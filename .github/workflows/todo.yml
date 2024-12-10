@@ -39,7 +39,7 @@ jobs:
           git add -A
           if [[ `git status --porcelain` ]]; then
             git commit -m "docs: automatically added GitHub issue links to TODOs"
-            git push -f "https://${{ secrets.DGPAT }}@github.com/${{ github.repository }}.git" HEAD:main
+            git push -f "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git" HEAD:main
           else
             echo "No changes to commit"
           fi
