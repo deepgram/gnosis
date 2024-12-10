@@ -32,6 +32,7 @@ type WidgetCodeRequest struct {
 
 // HandleWidgetAuth handles the widget auth request
 // TODO: modify to act as a /oauth/token endpoint that checks for a cookie and
+// Issue URL: https://github.com/deepgram/gnosis/issues/25
 // a client ID, and issues a access token with a refresh token, instead of acting
 // as an /oauth/authorize endpoint
 func HandleWidgetAuth(widgetCodeService *widgetcode.Service, w http.ResponseWriter, r *http.Request) {
