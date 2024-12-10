@@ -12,6 +12,7 @@ import (
 )
 
 // HandleChatCompletions handles chat completions requests
+// TODO: update chat endpoint to use the latest change to the OpenAPI spec
 func HandleChatCompletions(chatService chat.Service, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req struct {
