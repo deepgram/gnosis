@@ -12,11 +12,30 @@ import (
 	"github.com/deepgram/gnosis/internal/services"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
 	// Initialize zerolog
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+
+	// Set log level from environment variable
+	logLevel := os.Getenv("LOG_LEVEL")
+
+	// Default to trace if not set
+	if logLevel == "" {
+		logLevel = "trace"
+	}
+
+	level, err := zerolog.ParseLevel(logLevel)
+
+	if err != nil {
+		log.Warn().Err(err).Msg("Invalid log level - defaulting to info")
+		level = zerolog.InfoLevel // Default to info if invalid
+	}
+
+	zerolog.SetGlobalLevel(level)
+
 	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 	// Log environment variables
