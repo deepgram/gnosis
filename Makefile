@@ -3,6 +3,8 @@ export
 
 LATEST_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
 REDOC_CLI := npx @redocly/cli
+GOARCH := $(shell go env GOARCH)
+GOOS := $(shell go env GOOS)
 
 # Test commands
 test:
@@ -14,7 +16,7 @@ dev:
 
 # Build commands
 build:
-	CGO_ENABLED=0 GOOS=linux \
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
 	go build -a \
 	-ldflags="-w -s -extldflags '-static'" \
 	-trimpath \
@@ -45,7 +47,13 @@ view-docs:
 
 # Docker commands
 build-image:
-	docker build --pull --rm -f "Dockerfile" -t gnosis:latest --build-arg VERSION=$(LATEST_TAG) "."
+	docker build --pull --rm -f "Dockerfile" \
+		-t gnosis:latest \
+		--build-arg VERSION=$(LATEST_TAG) \
+		--build-arg GOOS=$(GOOS) \
+		--build-arg GOARCH=$(GOARCH) \
+		--platform $(GOOS)/$(GOARCH) \
+		"."
 
 run-image:
 	docker run -p 8080:8080 --rm -it \
