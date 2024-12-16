@@ -1,10 +1,10 @@
 #syntax=docker/dockerfile:1.4
 
-FROM golang:1.22-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN apk add --no-cache upx
-RUN go build -a -ldflags="-w -s" -o bin/gnosis ./cmd/main.go
+RUN GOOS=linux GOARCH=amd64 go build -a -ldflags="-w -s" -o bin/gnosis ./cmd/main.go
 RUN upx --best --lzma bin/gnosis
 
 FROM scratch
