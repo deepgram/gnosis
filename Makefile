@@ -1,7 +1,7 @@
 -include .env
 export
 
-LATEST_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+LATEST_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
 REDOC_CLI := npx @redocly/cli
 
 # Test commands
@@ -45,7 +45,7 @@ view-docs:
 
 # Docker commands
 build-image:
-	docker build --pull --rm -f "Dockerfile" -t gnosis:latest "."
+	docker build --pull --rm -f "Dockerfile" -t gnosis:latest --build-arg VERSION=$(LATEST_TAG) "."
 
 run-image:
 	docker run -p 8080:8080 --rm -it \
