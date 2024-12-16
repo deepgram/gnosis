@@ -3,11 +3,14 @@
 FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN apk add --no-cache upx
+RUN apk add --no-cache upx ca-certificates
 RUN GOOS=linux GOARCH=amd64 go build -a -ldflags="-w -s" -o bin/gnosis ./cmd/main.go
 RUN upx --best --lzma bin/gnosis
 
 FROM scratch
+
+# Copy SSL certificates from builder
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 LABEL org.opencontainers.image.source="https://github.com/deepgram/gnosis"
 LABEL org.opencontainers.image.title="Gnosis - Deepgram AI Support Agent API"
