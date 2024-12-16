@@ -65,4 +65,13 @@ retag-image:
 	docker tag gnosis:latest quay.io/deepgram/gnosis:$(LATEST_TAG)
 	docker push quay.io/deepgram/gnosis:$(LATEST_TAG)
 
-.PHONY: retag-image test dev build clean lint install-lint build-docs view-docs build-image run-image
+nomad-plan:
+	$(eval DEPLOY_CMD := $(shell nomad job plan -var version=$(LATEST_TAG) ../nomad-jobs/appeng/gnosis.nomad | grep "nomad job run" | tail -n 1))
+	@echo "Planning gnosis job with version $(LATEST_TAG)"
+	@echo "Running: $(DEPLOY_CMD)"
+
+nomad-deploy: nomad-plan
+	@echo "Deploying gnosis job with version $(LATEST_TAG)"
+	@$(DEPLOY_CMD)
+
+.PHONY: retag-image test dev build clean lint install-lint build-docs view-docs build-image run-image nomad-deploy
