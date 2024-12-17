@@ -13,24 +13,6 @@ Late 16th century: from Greek _gnōsis_, meaning ‘knowledge’, from _gignōsk
 
 Gnosis is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
 
-## Roadmap
-
-### API Enhancements
-
-- [ ] Implement streaming responses for real-time LLM processing feedback
-- [x] Allow clients to safely augment system prompts
-- [ ] Support custom tool calls alongside Gnosis's built-in ones
-- [x] Enable/disable tool calls based on environment configuration
-- [ ] Add session cookies for certain special routes
-
-### Widget Integration
-
-- [ ] Serve widget from /widget.js (loaded from disk on runtime)
-
-### Deployment
-
-- [ ] Host inside VPN for access to internal tools API
-
 ## Features
 
 - **Authentication & Security**: JWT-based auth, anonymous sessions
@@ -47,14 +29,14 @@ Gnosis is a lightweight API gateway that provides secure, managed access to vari
 
 ## Installation
 
-1. Clone the repository:
+Clone the repository:
 
 ```sh
 git clone https://github.com/deepgram/gnosis.git
 cd gnosis
 ```
 
-2. Install dependencies:
+Install dependencies:
 
 ```sh
 go mod download
@@ -131,11 +113,24 @@ Start the development server:
 make dev
 ```
 
-Or build and run the binary:
+Build and run the binary:
 
 ```sh
+# Build the binary
 make build
+
+# Run the binary
 ./bin/gnosis
+```
+
+Build and run using Docker:
+
+```sh
+# Build the Docker image
+make build-image
+
+# Run the Docker container
+make run-image
 ```
 
 The service will start on port 8080 by default.
@@ -162,6 +157,42 @@ make lint
 make clean
 ```
 
+## Deployment
+
+Build the Docker image
+
+```sh
+make build-image
+```
+
+Login to Quay
+
+```sh
+docker login quay.io
+```
+
+Or if you use 1Password you can reference your credentials from the `Quay` item in a `Personal` vault.
+
+```sh
+# e.g. op://Personal/Quay/password
+echo $(op read "op://<VAULT>/<ITEM>/<PASSWORD>") | \
+   docker login quay.io --username=$(op read "op://<VAULT>/<ITEM>/<PASSWORD>") --password-stdin
+```
+
+## Version the image
+
+```sh
+export VERSION=1.0.0
+docker image tag gnosis:latest quay.io/deepgram/gnosis:$VERSION
+make tag-image
+```
+
+## Push the Docker image to Quay
+
+```sh
+docker push quay.io/deepgram/gnosis:$VERSION
+```
+
 ## Contributing
 
 1. Fork the repository
@@ -176,8 +207,8 @@ This project is proprietary software owned by Deepgram. All rights reserved.
 
 ## Security
 
-For security concerns, please email security@deepgram.com
+For security concerns, please email <security@deepgram.com>
 
 ## Support
 
-For support questions, please email devrel@deepgram.com
+For support questions, please email <devrel@deepgram.com>
