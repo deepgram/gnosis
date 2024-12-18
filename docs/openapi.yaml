@@ -2,10 +2,12 @@
 openapi: "3.1.0"
 
 info:
-  title: Gnosis - Deepgram AI Support Agent API
+  title: Gnosis - Intelligent Knowledge Gateway
   description: |
-    Gnosis provides secure, managed access to Deepgram's AI Support Agent and
-    knowledge services
+    Gnosis provides secure, managed access to AI interactions enhanced with 
+    contextual knowledge from diverse sources. It acts as a unified gateway 
+    for accessing Deepgram's knowledge services across multiple communication 
+    modalities.
   termsOfService: https://deepgram.com/terms/
   contact:
     name: Deepgram DevRel Team

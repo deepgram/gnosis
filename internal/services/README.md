@@ -1,6 +1,6 @@
 # Services Layer
 
-This directory contains the service implementations and domain models for the Gnosis application.
+This directory contains the service implementations and domain models for the Gnosis knowledge gateway.
 
 ## Structure
 
@@ -11,9 +11,9 @@ services/
 │   ├── prompt.go           # System prompt handling
 │   └── models/             # Chat-specific domain models
 ├── tools/
-│   ├── service.go          # Tools service implementation
-│   ├── executor.go         # Tool execution logic
-│   └── models/             # Tool-specific domain models
+│   ├── service.go          # Knowledge source integration
+│   ├── executor.go         # Source execution logic
+│   └── models/             # Source-specific domain models
 └── README.md
 ```
 
@@ -24,6 +24,8 @@ services/
 2. **Interface Segregation**: Services are defined through interfaces, allowing for multiple implementations and easier testing.
 
 3. **Clean Architecture**: The domain models have no dependencies on infrastructure or external services. All external integrations are handled through the infrastructure layer.
+
+4. **Source Architecture**: Knowledge sources are implemented as pluggable components with standardised interfaces for execution and caching.
 
 ## Key Components
 

@@ -15,8 +15,8 @@ FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 LABEL org.opencontainers.image.source="https://github.com/deepgram/gnosis"
-LABEL org.opencontainers.image.title="Gnosis - Deepgram AI Support Agent API"
-LABEL org.opencontainers.image.description="Gnosis provides secure, managed access to Deepgram's AI Support Agent and knowledge services"
+LABEL org.opencontainers.image.title="Gnosis - Intelligent Knowledge Gateway"
+LABEL org.opencontainers.image.description="A unified API gateway that enhances AI interactions with contextual knowledge from diverse sources, providing intelligent responses across multiple communication modalities"
 LABEL org.opencontainers.image.version=${VERSION}
 LABEL org.opencontainers.image.authors="Luke Oliff <luke.oliff@deepgram.com>"
 LABEL org.opencontainers.image.documentation="https://deepgram.github.io/gnosis"

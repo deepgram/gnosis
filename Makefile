@@ -71,4 +71,4 @@ nomad-deploy: nomad-plan
 	@echo "Running: $(DEPLOY_CMD)"
 	@$(DEPLOY_CMD)
 
-.PHONY: tag-image push-image test dev build clean lint install-lint build-docs view-docs build-image run-image nomad-deploy
+.PHONY: build-image run-image tag-image push-image nomad-plan nomad-deploy test dev build clean lint install-lint build-docs view-docs

@@ -4,9 +4,11 @@ on:
   push:
     paths:
       - "docs/openapi.yaml"
+      - "docs/asyncapi.yaml"
   pull_request:
     paths:
       - "docs/openapi.yaml"
+      - "docs/asyncapi.yaml"
   workflow_dispatch:
     inputs:
       branch:
@@ -28,12 +30,12 @@ jobs:
       - name: Create docs directory
         run: mkdir -p docs
 
-      - name: Gnosis by Deepgram - Docs
+      - name: Gnosis - Intelligent Knowledge Gateway
         run: |
           npx @redocly/cli build-docs docs/openapi.yaml \
             --theme.openapi.colors.primary.main="#00A89C" \
             --theme.openapi.typography.headings.fontFamily="Inter, sans-serif" \
-            --title="Gnosis API Documentation" \
+            --title="Gnosis - Intelligent Knowledge Gateway" \
             --output docs/index.html
 
       - name: Deploy to GitHub Pages

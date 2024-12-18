@@ -1,4 +1,4 @@
-# Gnosis
+# Gnosis: Intelligent Knowledge Gateway
 
 _(ˈnəʊ.sɪs)_  
 _noun_
@@ -7,20 +7,20 @@ _noun_
    - _Example:_ "The philosopher dedicated his life to the pursuit of gnosis."
 
 **Origin:**  
-Late 16th century: from Greek _gnōsis_, meaning ‘knowledge’, from _gignōskein_, meaning ‘to know’.
+Late 16th century: from Greek _gnōsis_, meaning 'knowledge', from _gignōskein_, meaning 'to know'.
 
 ---
 
-Gnosis is a lightweight API gateway that provides secure, managed access to various knowledge and assistance services. It acts as a unified interface for both internal and external clients, handling authentication, request routing, and response formatting.
+Gnosis is a unified API gateway that enhances AI interactions with contextual knowledge from diverse sources, providing intelligent responses across multiple communication modalities.
 
-## Features
+## Key Features
 
-- **Authentication & Security**: JWT-based auth, anonymous sessions
-- **API Integration**: OpenAI, Kapa.ai, Algolia, GitHub
-- **Performance**: Lightweight stateless design, concurrent request handling
-- **Development**: Go best practices, environment-based config
-- **Monitoring**: Structured logging with configurable levels
-- **Standards**: RESTful API, OpenAPI 3.0 spec, JSON responses, Bearer scheme
+- **Multi-Modal Support**: Handle text, voice, and real-time streaming interactions
+- **Dynamic Knowledge Integration**: Real-time function calling with contextual knowledge injection
+- **Flexible Authentication**: Support for anonymous sessions and authenticated access
+- **Source Architecture**: Pluggable knowledge sources with customisable caching strategies
+- **API Compatibility**: Drop-in replacement for OpenAI and Voice Agent APIs
+- **WebSocket Support**: Real-time bidirectional communication for voice interactions
 
 ## Prerequisites
 
@@ -47,37 +47,7 @@ go mod download
 Create a `.env` file in the project root:
 
 ```sh
-# JWT Secret (required)
-JWT_SECRET=your-256-bit-secret
-
-# OpenAI API Key (required)
-OPENAI_KEY=your-openai-key
-
-# Algolia Credentials (required)
-ALGOLIA_APP_ID=your_algolia_app_id
-ALGOLIA_API_KEY=your_algolia_api_key
-ALGOLIA_INDEX_NAME=your_index_name
-
-# GitHub Token (required)
-GITHUB_TOKEN=your_github_token
-
-# Kapa Credentials (required)
-KAPA_INTEGRATION_ID=kapa-integration-id
-KAPA_PROJECT_ID=kapa-project-id
-KAPA_API_KEY=kapa-api-key
-
-# Client Configuration (required - see below)
-
-# Session Cookie Name
-SESSION_COOKIE_NAME=gnosis_session
-
-# Optional
-## Log Level (defaults to INFO)
-LOG_LEVEL=INFO # DEBUG|INFO|WARN|ERROR
-
-## Redis Configuration (optional - falls back to in-memory session store)
-REDIS_URL=
-REDIS_PASSWORD=
+cp sample.env .env
 ```
 
 ## Client Configuration
@@ -87,22 +57,20 @@ Gnosis supports dynamic client configuration through environment variables. Each
 ```sh
 GNOSIS_<CLIENT_TYPE>_CLIENT_ID=your_client_id
 GNOSIS_<CLIENT_TYPE>_CLIENT_SECRET=your_client_secret
-GNOSIS_<CLIENT_TYPE>_NO_SECRET=true # Optional, defaults to false
-GNOSIS_<CLIENT_TYPE>_ALLOWED_URLS=https://example.com,https://app.example.com # Optional, defaults to empty
+
+# define the scopes that the client needs
 GNOSIS_<CLIENT_TYPE>_SCOPES=scope1,scope2 # Optional, defaults to empty
 ```
 
 ### Example
 
 ```sh
+# Integrate with Slack
 GNOSIS_SLACK_CLIENT_ID=slack-client-id
 GNOSIS_SLACK_CLIENT_SECRET=slack-client-secret
-GNOSIS_SLACK_SCOPES=scope1,scope2
 
-GNOSIS_WIDGET_CLIENT_ID=widget-client-id
-GNOSIS_WIDGET_NO_SECRET=true
-GNOSIS_WIDGET_ALLOWED_URLS=https://example.com,https://app.example.com
-GNOSIS_WIDGET_SCOPES=scope1,scope2
+# doesn't need agent:write because we won't have a voice agent in Slack yet
+GNOSIS_SLACK_SCOPES=chat:write
 ```
 
 ## Usage
@@ -123,16 +91,6 @@ make build
 ./bin/gnosis
 ```
 
-Build and run using Docker:
-
-```sh
-# Build the Docker image
-make build-image
-
-# Run the Docker container
-make run-image
-```
-
 The service will start on port 8080 by default.
 
 ## API Documentation
@@ -143,6 +101,7 @@ Key endpoints:
 
 - `POST /v1/oauth/token`: Authentication endpoint
 - `POST /v1/chat/completions`: Chat completion endpoint
+- `WSS /v1/agent`: Agent endpoint
 
 ## Development
 
@@ -159,38 +118,38 @@ make clean
 
 ## Deployment
 
-Build the Docker image
+This deployment process is managed by the Makefile. It assumes that you have created a git tag for the version you want to deploy. It will use this tag to tag the Docker image and push it to Quay.
+
+To deploy Gnosis, follow these steps:
+
+1. Build the Docker image:
 
 ```sh
 make build-image
 ```
 
-Login to Quay
+1. Tag the Docker image:
 
 ```sh
-docker login quay.io
-```
-
-Or if you use 1Password you can reference your credentials from the `Quay` item in a `Personal` vault.
-
-```sh
-# e.g. op://Personal/Quay/password
-echo $(op read "op://<VAULT>/<ITEM>/<PASSWORD>") | \
-   docker login quay.io --username=$(op read "op://<VAULT>/<ITEM>/<PASSWORD>") --password-stdin
-```
-
-## Version the image
-
-```sh
-export VERSION=1.0.0
-docker image tag gnosis:latest quay.io/deepgram/gnosis:$VERSION
 make tag-image
 ```
 
-## Push the Docker image to Quay
+1. Push the Docker image to Quay:
 
 ```sh
-docker push quay.io/deepgram/gnosis:$VERSION
+make push-image
+```
+
+1. Plan the Nomad job:
+
+```sh
+make nomad-plan
+```
+
+1. Deploy the Nomad job:
+
+```sh
+make nomad-deploy
 ```
 
 ## Contributing
