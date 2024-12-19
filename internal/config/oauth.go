@@ -137,7 +137,7 @@ func scanForClientConfigs() map[string]ClientConfig {
 				Secret:      GetEnvOrDefault(fmt.Sprintf("%s_CLIENT_SECRET", prefix), ""),
 				NoSecret:    GetEnvOrDefault(fmt.Sprintf("%s_NO_SECRET", prefix), "false") == "true",
 				AllowedURLs: strings.Split(GetEnvOrDefault(fmt.Sprintf("%s_ALLOWED_URLS", prefix), ""), ","),
-				Scopes:      strings.Split(GetEnvOrDefault(fmt.Sprintf("%s_SCOPES", prefix), ""), ","),
+				Scopes:      strings.Split(GetEnvOrDefault(fmt.Sprintf("%s_SCOPES", prefix), ""), " "),
 			}
 
 			// Clean up empty strings from slice fields

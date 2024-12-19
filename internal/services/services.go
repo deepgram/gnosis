@@ -23,13 +23,13 @@ var (
 
 type Services struct {
 	algoliaService    *algolia.Service
+	chatService       *chat.Implementation
 	githubService     *github.Service
 	kapaService       *kapa.Service
+	openAIService     *openai.Service
 	redisService      *redis.Service
 	sessionService    *session.Service
-	chatService       *chat.Implementation
-	openAIService     *openai.Service
-	toolExecutor      *tools.ToolExecutor
+	toolService       *tools.Service
 	widgetCodeService *widgetcode.Service
 }
 
@@ -39,12 +39,6 @@ func InitializeServices() (*Services, error) {
 	defer servicesMu.Unlock()
 
 	log.Info().Msg("Initializing core services")
-
-	// Initialize OpenAI service (required)
-	openAIService := openai.NewService()
-	if openAIService == nil {
-		log.Fatal().Msg("Failed to initialize OpenAI service - service is required for core functionality")
-	}
 
 	// Initialize Redis service (optional)
 	redisService := redis.NewService()
@@ -56,9 +50,8 @@ func InitializeServices() (*Services, error) {
 	kapaService := kapa.NewService()
 	log.Info().Msg("Initializing infrastructure services")
 
-	// Initialize tool executor with optional services
-	toolExecutor := tools.NewToolExecutor(algoliaService, githubService, kapaService)
-	log.Info().Msg("Initializing tool executor")
+	toolService := tools.NewService(algoliaService, githubService, kapaService)
+	log.Info().Msg("Initializing tool service")
 
 	// Initialize session service with optional Redis
 	sessionService := session.NewService(redisService)
@@ -68,8 +61,14 @@ func InitializeServices() (*Services, error) {
 	widgetCodeService := widgetcode.NewService(redisService)
 	log.Info().Msg("Initializing widget code service")
 
+	// Initialize OpenAI service (required)
+	openAIService := openai.NewService()
+	if openAIService == nil {
+		log.Fatal().Msg("Failed to initialize OpenAI service - service is required for core functionality")
+	}
+
 	// Initialize chat service (required)
-	chatService, err := chat.NewService(openAIService, toolExecutor)
+	chatService, err := chat.NewService(openAIService, toolService)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to initialize chat service - required for message processing")
 		return nil, fmt.Errorf("failed to initialize chat service: %w", err)
@@ -80,13 +79,13 @@ func InitializeServices() (*Services, error) {
 
 	return &Services{
 		algoliaService:    algoliaService,
+		chatService:       chatService,
 		githubService:     githubService,
 		kapaService:       kapaService,
+		openAIService:     openAIService,
 		redisService:      redisService,
 		sessionService:    sessionService,
-		chatService:       chatService,
-		openAIService:     openAIService,
-		toolExecutor:      toolExecutor,
+		toolService:       toolService,
 		widgetCodeService: widgetCodeService,
 	}, nil
 }
@@ -104,4 +103,9 @@ func (s *Services) GetWidgetCodeService() *widgetcode.Service {
 // GetSessionService returns the session service
 func (s *Services) GetSessionService() *session.Service {
 	return s.sessionService
+}
+
+// GetToolService returns the tool service
+func (s *Services) GetToolService() *tools.Service {
+	return s.toolService
 }
