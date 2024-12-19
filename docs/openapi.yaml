@@ -29,271 +29,102 @@ tags:
     description: Create chat completions with Deepgram's AI assistant
 
 paths:
-  /oauth/widget:
+  /oauth/token:
     post:
-      summary: Get widget code
+      summary: Get an access token
       tags:
         - Auth
       security: []
       description: |
-        A custom OAuth2.0 flow that exchanges an already active cookie for a
-        widget code
+        Exchanges client credentials, session token, or refresh token for a JWT access token.
+        Supports multiple grant types:
+        - client_credentials: Exchange client ID/secret for access token
+        - session_token: Exchange session cookie (gnosis_session) for access token
+        - refresh_token: Exchange refresh token for new access token
       parameters:
         - in: cookie
           name: gnosis_session
-          required: true
+          description: Session cookie required for session_token grant type
           schema:
             type: string
-          description: Active session cookie containing a valid JWT token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - client_id
-                - state
-              properties:
-                client_id:
-                  type: string
-                  description: Registered client identifier for the application
-                  example: example-client-id
-                state:
-                  type: string
-                  description: Random string to prevent CSRF attacks
-                  example: example-state
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required:
-                - client_id
-                - state
-              properties:
-                client_id:
-                  type: string
-                  description: Registered client identifier for the application
-                  example: example-client-id
-                state:
-                  type: string
-                  description: Random string to prevent CSRF attacks
-                  example: example-state
-      responses:
-        "200":
-          description: |
-            Widget code generated successfully
-            Use this code to request an access token via /oauth/token endpoint
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - code
-                  - state
-                properties:
-                  code:
-                    type: string
-                    description: Single-use code valid for 10 minutes
-                  state:
-                    type: string
-                    description: Original state value from the request
-        "400":
-          description: Invalid request parameters or missing required fields
-        "401":
-          description: Invalid session cookie or unregistered client ID
-
-  /oauth/token:
-    post:
-      tags:
-        - Auth
-      summary: Get an access token
-      description: >-
-        This endpoint issues a JWT access token using the client_credentials or
-        custom widget grant
+          required: false
       requestBody:
         required: true
         content:
           application/json:
             schema:
               oneOf:
-                - type: object
-                  properties:
-                    grant_type:
-                      type: string
-                      enum: [client_credentials]
-                      description: |
-                        The grant type (must be `client_credentials`)
-                      example: client_credentials
-                    client_id:
-                      type: string
-                      description: |
-                        Registered client identifier for the application
-                      example: example-client-id
-                    client_secret:
-                      type: string
-                      description: Registered client secret for the application
-                      example: example-client-secret
-                    required:
-                      - grant_type
-                      - client_id
-                      - client_secret
-                - type: object
-                  properties:
-                    grant_type:
-                      type: string
-                      enum: [widget]
-                      description: The grant type (must be `widget`)
-                      example: widget
-                    client_id:
-                      type: string
-                      description: |
-                        Registered client identifier for the application
-                      example: example-client-id
-                    code:
-                      type: string
-                      description: |
-                        The widget code from the /oauth/widget endpoint
-                      example: example-widget-code
-                    required:
-                      - grant_type
-                      - client_id
-                      - code
+                - $ref: "#/components/schemas/ClientCredentialsRequest"
+                - $ref: "#/components/schemas/SessionTokenRequest"
+                - $ref: "#/components/schemas/RefreshTokenRequest"
           application/x-www-form-urlencoded:
             schema:
-              type: object
-              properties:
-                grant_type:
-                  type: string
-                  enum: [client_credentials]
-                  description: The grant type (must be `client_credentials`)
-                  example: client_credentials
-                client_id:
-                  type: string
-                  description: The client ID issued during registration
-                  example: example-client-id
-                client_secret:
-                  type: string
-                  description: The client secret issued during registration
-                  example: example-client-secret
-              required:
-                - grant_type
-                - client_id
-                - client_secret
+              oneOf:
+                - $ref: "#/components/schemas/ClientCredentialsRequest"
+                - $ref: "#/components/schemas/SessionTokenRequest"
+                - $ref: "#/components/schemas/RefreshTokenRequest"
       responses:
         "200":
-          description: Access token response
+          description: Successfully exchanged credentials/token for JWT tokens
           content:
             application/json:
               schema:
                 type: object
+                required:
+                  - access_token
+                  - token_type
+                  - expires_in
                 properties:
                   access_token:
                     type: string
-                    description: The issued JWT access token
+                    description: JWT access token
                   token_type:
                     type: string
-                    example: Bearer
-                    description: The type of token issued (e.g., `Bearer`)
+                    enum: [bearer]
                   expires_in:
                     type: integer
-                    example: 3600
-                    description: |
-                      The duration (in seconds) the token is valid for
-        "400":
-          description: Bad request
-        "401":
-          description: Invalid client credentials
-  /oauth/introspect:
-    post:
-      tags:
-        - Auth
-      summary: Validate an access token
-      description: Allows a client to validate the access token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                token:
-                  type: string
-                  description: The access token to be validated
-                  example: example-access-token
-              required:
-                - token
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                token:
-                  type: string
-                  description: The access token to be validated
-                  example: example-access-token
-              required:
-                - token
-      responses:
-        "200":
-          description: Token introspection response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  active:
-                    type: boolean
-                    description: Whether the token is active or not
+                    description: Token lifetime in seconds
+                  refresh_token:
+                    type: string
+                    description: Refresh token (only returned for client_credentials grant)
                   scope:
                     type: string
-                    description: Scopes associated with the token
-                  client_id:
-                    type: string
-                    description: |
-                      Registered client identifier for the application
-                  exp:
-                    type: integer
-                    description: Expiration timestamp of the token (Unix time)
-        "400":
-          description: Bad request
-  /oauth/revoke:
-    post:
-      tags:
-        - Auth
-      summary: Revoke an access token
-      description: Revokes a token, making it invalid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                token:
-                  type: string
-                  description: The access token to revoke
-                  example: example-access-token
-              required:
-                - token
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                token:
-                  type: string
-                  description: The access token to revoke
-                  example: example-access-token
-              required:
-                - token
-      responses:
-        "200":
-          description: Token successfully revoked
-        "400":
-          description: Bad request
-        "401":
-          description: Invalid client credentials
+                    description: Space-separated list of granted scopes
+      x-codeSamples:
+        - lang: curl
+          source: |
+            # Client Credentials Grant
+            curl -X POST https://gnosis.deepgram.com/v1/oauth/token \
+              -H "Content-Type: application/json" \
+              -d '{
+                "grant_type": "client_credentials",
+                "client_id": "your_client_id",
+                "client_secret": "your_client_secret",
+                "scope": "chat:write"
+              }'
+
+            # Session Token Grant
+            curl -X POST https://gnosis.deepgram.com/v1/oauth/token \
+              -H "Content-Type: application/json" \
+              -H "Cookie: gnosis_session=your_session_token" \
+              -d '{
+                "grant_type": "session_token",
+                "scope": "chat:write"
+              }'
+
+            # Refresh Token Grant
+            curl -X POST https://gnosis.deepgram.com/v1/oauth/token \
+              -H "Content-Type: application/json" \
+              -d '{
+                "grant_type": "refresh_token",
+                "refresh_token": "your_refresh_token"
+              }'
 
   /chat/completions:
     post:
+      security:
+        - oauth2: ["chat:write"]
+        - bearerAuth: ["chat:write"]
       operationId: createChatCompletion
       tags:
         - Chat
@@ -430,6 +261,65 @@ components:
           type: string
           format: uri
           description: Link to documentation about this error
+
+    ClientCredentialsRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [client_credentials]
+          description: Grant type
+        client_id:
+          type: string
+          description: Client ID
+        client_secret:
+          type: string
+          description: Client secret
+        scope:
+          type: string
+          description: Space-separated list of granted scopes
+      required:
+        - grant_type
+        - client_id
+        - client_secret
+      example:
+        grant_type: "client_credentials"
+        client_id: "client_123abc"
+        client_secret: "secret_xyz789"
+        scope: "chat:write"
+
+    SessionTokenRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [session_token]
+          description: Grant type
+        scope:
+          type: string
+          description: Space-separated list of granted scopes
+      required:
+        - grant_type
+      example:
+        grant_type: "session_token"
+        scope: "chat:write"
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [refresh_token]
+          description: Grant type
+        refresh_token:
+          type: string
+          description: Refresh token
+      required:
+        - grant_type
+        - refresh_token
+      example:
+        grant_type: "refresh_token"
+        refresh_token: "rt_abc123xyz789"
 
     CreateChatCompletionRequest:
       type: object
@@ -681,7 +571,7 @@ components:
       required:
         - messages
       example:
-        model: "gpt-4o"
+        model: "gpt-4o-mini"
         messages:
           - role: system
             content: "You are a helpful assistant."
@@ -1294,23 +1184,14 @@ components:
         - total_tokens
 
   securitySchemes:
-    client_credentials:
+    oauth2:
       type: oauth2
       flows:
         clientCredentials:
           tokenUrl: /oauth/token
           scopes:
-            chat:write: Write access to chat resource
+            chat:write: Create a chat completions request
 
-    widget:
-      type: oauth2
-      flows:
-        authorizationCode:
-          authorizationUrl: /v1/oauth/widget
-          tokenUrl: /v1/oauth/token
-          scopes:
-            chat:write: Write access to chat resource
-
-security:
-  - client_credentials: ["chat:write"]
-  - widget: ["chat:write"]
+    bearerAuth:
+      type: http
+      scheme: bearer
