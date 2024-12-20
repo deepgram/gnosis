@@ -42,6 +42,7 @@ func NewToolExecutor(toolService *Service) *ToolExecutor {
 
 /*
 TODO: The ExecuteToolCall function needs to be refactored to make better use of the GetTools
+Issue URL: https://github.com/deepgram/gnosis/issues/29
 functionality for validating tool availability. We should implement a proper mapping system
 between tool call names and their corresponding `service.Function` implementations within the
 ToolService. This will help encapsulate service dependencies and make the execution logic
