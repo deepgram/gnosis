@@ -87,6 +87,18 @@ func GetClientTypeByID(clientID string) string {
 	return ""
 }
 
+// GetClientBySecret returns the client (map key) for a given client secret,
+// or an empty string if not found
+func GetClientBySecret(clientSecret string) ClientConfig {
+	for clientType, config := range AllowedClients {
+		if config.Secret == clientSecret {
+			log.Info().Str("client_type", clientType).Str("client_secret", clientSecret).Msg("Found client type")
+			return config
+		}
+	}
+	return ClientConfig{}
+}
+
 // GetClientConfig returns the client configuration for a given client type
 func GetClientConfig(clientType string) ClientConfig {
 	config, exists := AllowedClients[clientType]
@@ -125,7 +137,7 @@ func scanForClientConfigs() map[string]ClientConfig {
 				Secret:      GetEnvOrDefault(fmt.Sprintf("%s_CLIENT_SECRET", prefix), ""),
 				NoSecret:    GetEnvOrDefault(fmt.Sprintf("%s_NO_SECRET", prefix), "false") == "true",
 				AllowedURLs: strings.Split(GetEnvOrDefault(fmt.Sprintf("%s_ALLOWED_URLS", prefix), ""), ","),
-				Scopes:      strings.Split(GetEnvOrDefault(fmt.Sprintf("%s_SCOPES", prefix), ""), ","),
+				Scopes:      strings.Split(GetEnvOrDefault(fmt.Sprintf("%s_SCOPES", prefix), ""), " "),
 			}
 
 			// Clean up empty strings from slice fields

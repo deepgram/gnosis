@@ -11,7 +11,6 @@ import (
 	"github.com/deepgram/gnosis/internal/infrastructure/openai"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/tools"
-	toolsModels "github.com/deepgram/gnosis/internal/services/tools/models"
 	"github.com/google/uuid"
 	gopenai "github.com/sashabaranov/go-openai"
 )
@@ -19,11 +18,11 @@ import (
 type Implementation struct {
 	mu           sync.RWMutex
 	openAI       *openai.Service
-	toolExecutor *tools.ToolExecutor
+	toolService  *tools.Service
 	systemPrompt *chatModels.SystemPrompt
 }
 
-func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor) (*Implementation, error) {
+func NewService(openAIService *openai.Service, toolService *tools.Service) (*Implementation, error) {
 	if openAIService == nil {
 		return nil, fmt.Errorf("OpenAI service is required")
 	}
@@ -33,12 +32,12 @@ func NewService(openAIService *openai.Service, toolExecutor *tools.ToolExecutor)
 
 	log.Trace().
 		Interface("openai_service", openAIService).
-		Interface("tool_executor", toolExecutor).
+		Interface("tool_service", toolService).
 		Msg("Constructing new chat service with dependencies")
 
 	impl := &Implementation{
 		openAI:       openAIService,
-		toolExecutor: toolExecutor,
+		toolService:  toolService,
 		systemPrompt: chatModels.DefaultSystemPrompt(),
 	}
 
@@ -89,6 +88,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			TopP:             config.TopP,
 			PresencePenalty:  config.PresencePenalty,
 			FrequencyPenalty: config.FrequencyPenalty,
+			Tools:            s.toolService.GetOpenAITools(),
 		}
 
 		log.Info().
@@ -146,17 +146,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			openaiMessages = append(openaiMessages, message)
 
 			for _, toolCall := range message.ToolCalls {
-				result, err := s.toolExecutor.ExecuteToolCall(ctx, toolsModels.ToolCall{
-					ID:   toolCall.ID,
-					Type: string(toolCall.Type),
-					Function: struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
-					}{
-						Name:      toolCall.Function.Name,
-						Arguments: toolCall.Function.Arguments,
-					},
-				})
+				result, err := s.toolService.GetToolExecutor().ExecuteToolCall(ctx, toolCall)
 
 				if err != nil {
 					log.Error().
