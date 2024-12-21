@@ -1,6 +1,7 @@
 package tools
 
 import (
+	_ "embed"
 	"encoding/json"
 	"sync"
 
@@ -14,6 +15,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+//go:embed tools.json
+var toolsConfigData []byte
+
 type Service struct {
 	tools          []openai.Tool
 	mu             sync.RWMutex
@@ -23,8 +27,8 @@ type Service struct {
 }
 
 func NewService(algoliaService *algolia.Service, githubService *github.Service, kapaService *kapa.Service) *Service {
-	toolsConfig, err := config.LoadToolsConfig("internal/config/tools.json")
-	if err != nil {
+	var toolsConfig config.ToolsConfig
+	if err := json.Unmarshal(toolsConfigData, &toolsConfig); err != nil {
 		return nil
 	}
 

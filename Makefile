@@ -16,7 +16,7 @@ dev:
 
 # Build commands
 build:
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) --platform $(GOOS)/$(GOARCH) go build -a -o bin/gnosis ./cmd/main.go
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -a -o bin/gnosis ./cmd/main.go
 
 clean:
 	rm -f bin/gnosis
