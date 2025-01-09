@@ -3,13 +3,13 @@ package chat
 import (
 	"context"
 
-	"github.com/deepgram/gnosis/internal/services/chat/models"
+	"github.com/sashabaranov/go-openai"
 )
 
 // Service defines the interface for chat operations
 type Service interface {
 	// ProcessChat processes a chat conversation and returns a response
-	ProcessChat(ctx context.Context, messages []models.ChatMessage, config *models.ChatConfig) (*models.ChatResponse, error)
+	ProcessChat(ctx context.Context, req openai.ChatCompletionRequest) (*openai.ChatCompletionResponse, error)
 }
 
 // Repository defines the interface for chat storage operations
