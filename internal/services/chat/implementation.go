@@ -4,25 +4,25 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/deepgram/gnosis/internal/infrastructure/openai"
+	iopenai "github.com/deepgram/gnosis/internal/infrastructure/openai"
 	chatModels "github.com/deepgram/gnosis/internal/services/chat/models"
 	"github.com/deepgram/gnosis/internal/services/tools"
 	"github.com/google/uuid"
-	gopenai "github.com/sashabaranov/go-openai"
+
+	"github.com/sashabaranov/go-openai"
 )
 
 type Implementation struct {
 	mu           sync.RWMutex
-	openAI       *openai.Service
+	openAI       *iopenai.Service
 	toolService  *tools.Service
 	systemPrompt *chatModels.SystemPrompt
 }
 
-func NewService(openAIService *openai.Service, toolService *tools.Service) (*Implementation, error) {
+func NewService(openAIService *iopenai.Service, toolService *tools.Service) (*Implementation, error) {
 	if openAIService == nil {
 		return nil, fmt.Errorf("OpenAI service is required")
 	}
@@ -48,89 +48,79 @@ func NewService(openAIService *openai.Service, toolService *tools.Service) (*Imp
 	return impl, nil
 }
 
-func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.ChatMessage, config *chatModels.ChatConfig) (*chatModels.ChatResponse, error) {
+func (s *Implementation) ProcessChat(ctx context.Context, req openai.ChatCompletionRequest) (*openai.ChatCompletionResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if len(messages) == 0 {
+	if len(req.Messages) == 0 {
 		return nil, fmt.Errorf("empty messages array")
 	}
 
+	// Unsupported OpenAI features by Gnosis
+	req.N = 1                     // We only ever want a single response
+	req.Store = false             // We don't want to store the conversation history on OpenAI, but we may want to intercept this and store it ourselves
+	req.MaxTokens = 0             // This is deprecated in favor of MaxCompletionTokens
+	req.Stream = false            // TODO: We don't support streaming (yet), but we should prioritize adding this soon
+	req.StreamOptions = nil       // We don't support streaming options
+	req.ParallelToolCalls = false // TODO: We don't support parallel tool calls (yet), but we should prioritize adding this soon
+	req.FunctionCall = nil        // This is deprecated in favor of Tools
+	req.Functions = nil           // This is deprecated in favor of Tools
+	// req.ReasoningEffort = 0 // We don't support reasoning effort
+	// req.Modalities = nil // We don't support modalities
+	// req.Audio = nil // We don't support audio
+
 	// Check if first message is a system message
-	if messages[0].Role == "system" {
-		s.systemPrompt.SetCustom(messages[0].Content)
-		messages = messages[1:]
-		if len(messages) == 0 {
+	if req.Messages[0].Role == "system" {
+		s.systemPrompt.SetCustom(req.Messages[0].Content)
+		req.Messages = req.Messages[1:]
+		if len(req.Messages) == 0 {
 			return nil, fmt.Errorf("empty messages array after system prompt")
 		}
 	}
 
 	// Convert domain messages to OpenAI messages
-	openaiMessages := make([]gopenai.ChatCompletionMessage, len(messages)+1)
-	openaiMessages[0] = gopenai.ChatCompletionMessage{
-		Role:    gopenai.ChatMessageRoleSystem,
+	openaiMessages := make([]openai.ChatCompletionMessage, len(req.Messages)+1)
+	openaiMessages[0] = openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleSystem,
 		Content: s.systemPrompt.String(),
 	}
-	for i, msg := range messages {
-		openaiMessages[i+1] = gopenai.ChatCompletionMessage{
+
+	for i, msg := range req.Messages {
+		openaiMessages[i+1] = openai.ChatCompletionMessage{
 			Role:    msg.Role,
 			Content: msg.Content,
 		}
 	}
 
 	for {
-		// Create completion request
-		req := gopenai.ChatCompletionRequest{
-			Model:            gopenai.GPT4oMini,
-			Messages:         openaiMessages,
-			Temperature:      config.Temperature,
-			MaxTokens:        config.MaxTokens,
-			TopP:             config.TopP,
-			PresencePenalty:  config.PresencePenalty,
-			FrequencyPenalty: config.FrequencyPenalty,
-			Tools:            s.toolService.GetOpenAITools(),
-		}
+		// Augment the OpenAI chat completion request
+		req.Messages = openaiMessages
+		req.Tools = s.toolService.GetOpenAITools()
 
 		log.Info().
-			Int("message_count", len(messages)).
-			Str("model", gopenai.GPT4oMini).
-			Float32("temperature", config.Temperature).
+			Int("message_count", len(req.Messages)).
+			Str("model", req.Model).
+			Float32("temperature", req.Temperature).
 			Msg("Processing chat request")
 
 		log.Debug().
-			Int("message_count", len(messages)).
-			Interface("config", config).
+			Int("message_count", len(req.Messages)).
+			Interface("config", req).
 			Msg("Processing new chat request")
 
-		resp, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
+		response, err := s.openAI.GetClient().CreateChatCompletion(ctx, req)
 		if err != nil {
 			log.Error().Err(err).Msg("OpenAI API request failed")
 			return nil, fmt.Errorf("chat completion failed: %w", err)
 		}
 
-		if len(resp.Choices) == 0 {
+		if len(response.Choices) == 0 {
 			return nil, fmt.Errorf("no response choices returned")
 		}
 
-		message := resp.Choices[0].Message
-
 		// Return if we have a content response
-		if message.Role == gopenai.ChatMessageRoleAssistant && message.Content != "" {
-			response := &chatModels.ChatResponse{
-				ID:      fmt.Sprintf("gnosis-%s", uuid.New().String()[:5]),
-				Created: time.Now().Unix(),
-				Choices: []chatModels.Choice{{
-					Message: chatModels.ChatMessage{
-						Role:    message.Role,
-						Content: message.Content,
-					},
-				}},
-				Usage: chatModels.Usage{
-					PromptTokens:     resp.Usage.PromptTokens,
-					CompletionTokens: resp.Usage.CompletionTokens,
-					TotalTokens:      resp.Usage.TotalTokens,
-				},
-			}
+		if response.Choices[0].Message.Role == openai.ChatMessageRoleAssistant && response.Choices[0].Message.Content != "" {
+			response.ID = fmt.Sprintf("gnosis-%s", uuid.New().String()[:5])
 
 			log.Info().
 				Str("response_id", response.ID).
@@ -138,14 +128,14 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 				Int("total_tokens", response.Usage.TotalTokens).
 				Msg("Chat request processed successfully")
 
-			return response, nil
+			return &response, nil
 		}
 
 		// Handle tool calls
-		if message.Role == gopenai.ChatMessageRoleAssistant && len(message.ToolCalls) > 0 {
-			openaiMessages = append(openaiMessages, message)
+		if response.Choices[0].Message.Role == openai.ChatMessageRoleAssistant && len(response.Choices[0].Message.ToolCalls) > 0 {
+			openaiMessages = append(openaiMessages, response.Choices[0].Message)
 
-			for _, toolCall := range message.ToolCalls {
+			for _, toolCall := range response.Choices[0].Message.ToolCalls {
 				result, err := s.toolService.GetToolExecutor().ExecuteToolCall(ctx, toolCall)
 
 				if err != nil {
@@ -156,8 +146,8 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 					return nil, fmt.Errorf("tool call failed: %w", err)
 				}
 
-				openaiMessages = append(openaiMessages, gopenai.ChatCompletionMessage{
-					Role:       gopenai.ChatMessageRoleTool,
+				openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
+					Role:       openai.ChatMessageRoleTool,
 					Content:    result,
 					ToolCallID: toolCall.ID,
 				})
@@ -165,9 +155,9 @@ func (s *Implementation) ProcessChat(ctx context.Context, messages []chatModels.
 			continue
 		}
 
-		if message.Role != gopenai.ChatMessageRoleAssistant {
+		if response.Choices[0].Message.Role != openai.ChatMessageRoleAssistant {
 			log.Error().
-				Str("role", string(message.Role)).
+				Str("role", string(response.Choices[0].Message.Role)).
 				Msg("Unexpected message role from OpenAI API")
 			return nil, fmt.Errorf("unexpected message type from assistant")
 		}

@@ -333,7 +333,7 @@ components:
             $ref: "#/components/schemas/ChatCompletionRequestMessage"
 
         model:
-          description: ID of the model to use
+          description: ID of the model to use. A subset of the models supported by OpenAI are supported by Gnosis.
           example: gpt-4o-mini
           default: gpt-4o-mini
           anyOf:
@@ -407,19 +407,6 @@ components:
             completion
           type: integer
           nullable: true
-
-        n:
-          type: integer
-          minimum: 1
-          maximum: 128
-          default: 1
-          example: 1
-          nullable: true
-          description:
-            How many chat completion choices to generate for each input
-            message. Note that you will be charged based on the number of
-            generated tokens across all of the choices. Keep `n` as `1` to
-            minimize costs
 
         prediction:
           nullable: true
