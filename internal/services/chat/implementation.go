@@ -63,6 +63,7 @@ func (s *Implementation) ProcessChat(ctx context.Context, req openai.ChatComplet
 	req.Stream = false            // TODO: We don't support streaming (yet), but we should prioritize adding this soon
 	req.StreamOptions = nil       // We don't support streaming options
 	req.ParallelToolCalls = false // TODO: We don't support parallel tool calls (yet), but we should prioritize adding this soon
+	                              // Issue URL: https://github.com/deepgram/gnosis/issues/32
 	req.FunctionCall = nil        // This is deprecated in favor of Tools
 	req.Functions = nil           // This is deprecated in favor of Tools
 	// req.ReasoningEffort = 0 // We don't support reasoning effort
