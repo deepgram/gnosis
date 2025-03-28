@@ -1,19 +1,21 @@
 #syntax=docker/dockerfile:1.4
 
-FROM golang:1.22-alpine AS builder
+FROM python:3.12-slim
+
 WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
-RUN apk add --no-cache upx ca-certificates
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -a \
-    -o bin/gnosis ./cmd/main.go
-RUN upx --best --lzma bin/gnosis
 
-FROM scratch
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=warn
 
-# Copy SSL certificates from builder
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
+# Labels
 LABEL org.opencontainers.image.source="https://github.com/deepgram/gnosis"
 LABEL org.opencontainers.image.title="Gnosis - Intelligent Knowledge Gateway"
 LABEL org.opencontainers.image.description="A unified API gateway that enhances AI interactions with contextual knowledge from diverse sources, providing intelligent responses across multiple communication modalities"
@@ -23,8 +25,8 @@ LABEL org.opencontainers.image.documentation="https://deepgram.github.io/gnosis"
 LABEL org.opencontainers.image.licenses="LicenseRef-Proprietary-Deepgram"
 LABEL org.opencontainers.image.base.name="gnosis"
 
-ENV LOG_LEVEL=warn
-
-COPY --from=builder /app/bin/gnosis /gnosis
+# Expose port
 EXPOSE 8080
-ENTRYPOINT ["/gnosis"]
+
+# Run the application
+CMD ["python", "main.py"]

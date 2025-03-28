@@ -3,31 +3,35 @@ export
 
 LATEST_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
 REDOC_CLI := npx @redocly/cli
-GOARCH := $(shell go env GOARCH)
-GOOS := $(shell go env GOOS)
 
 # Test commands
 test:
-	go test -timeout 10s ./...
+	pytest
 
 # Dev commands
 dev:
-	go run ./cmd/main.go
+	python main.py
 
-# Build commands
-build:
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -a -o bin/gnosis ./cmd/main.go
+# Install dependencies
+install:
+	pip install -r requirements.txt
 
-clean:
-	rm -f bin/gnosis
+# Install development dependencies
+install-dev:
+	pip install -r requirements.txt
+	pip install pytest flake8 black isort mypy
 
 # Lint commands
 lint:
-	npx prettier --write .
-	$(HOME)/go/bin/golangci-lint run
+	flake8 .
+	black --check .
+	isort --check .
+	mypy .
 
-install-lint:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+# Format code
+format:
+	black .
+	isort .
 
 # Docs commands
 build-docs:
@@ -71,4 +75,4 @@ nomad-deploy: nomad-plan
 	@echo "Running: $(DEPLOY_CMD)"
 	@$(DEPLOY_CMD)
 
-.PHONY: build-image run-image tag-image push-image nomad-plan nomad-deploy test dev build clean lint install-lint build-docs view-docs
+.PHONY: test dev install install-dev lint format build-docs view-docs build-image run-image tag-image push-image nomad-plan nomad-deploy

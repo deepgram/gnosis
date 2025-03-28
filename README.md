@@ -24,7 +24,7 @@ Gnosis is a unified API gateway that enhances AI interactions with contextual kn
 
 ## Prerequisites
 
-- Go 1.21 or higher
+- Python 3.10 or higher
 - Make (optional, for using Makefile commands)
 
 ## Installation
@@ -39,7 +39,7 @@ cd gnosis
 Install dependencies:
 
 ```sh
-go mod download
+pip install -r requirements.txt
 ```
 
 ## Configuration
@@ -50,29 +50,6 @@ Create a `.env` file in the project root:
 cp sample.env .env
 ```
 
-## Client Configuration
-
-Gnosis supports dynamic client configuration through environment variables. Each client requires a specific set of environment variables following this pattern:
-
-```sh
-GNOSIS_<CLIENT_TYPE>_CLIENT_ID=your_client_id
-GNOSIS_<CLIENT_TYPE>_CLIENT_SECRET=your_client_secret
-
-# define the scopes that the client needs
-GNOSIS_<CLIENT_TYPE>_SCOPES=scope1,scope2 # Optional, defaults to empty
-```
-
-### Example
-
-```sh
-# Integrate with Slack
-GNOSIS_SLACK_CLIENT_ID=slack-client-id
-GNOSIS_SLACK_CLIENT_SECRET=slack-client-secret
-
-# doesn't need agent:write because we won't have a voice agent in Slack yet
-GNOSIS_SLACK_SCOPES=chat:write
-```
-
 ## Usage
 
 Start the development server:
@@ -81,39 +58,28 @@ Start the development server:
 make dev
 ```
 
-Build and run the binary:
+Or run directly with Python:
 
 ```sh
-# Build the binary
-make build
-
-# Run the binary
-./bin/gnosis
+python main.py
 ```
 
 The service will start on port 8080 by default.
 
-## API Documentation
-
-See [docs/openapi.yaml](./docs/openapi.yaml) for detailed API documentation.
-
-Key endpoints:
-
-- `POST /v1/oauth/token`: Authentication endpoint
-- `POST /v1/chat/completions`: Chat completion endpoint
-- `WSS /v1/agent`: Agent endpoint
-
 ## Development
 
 ```sh
+# Install development dependencies
+make install-dev
+
 # Run tests
 make test
 
 # Run linter
 make lint
 
-# Clean build artifacts
-make clean
+# Format code
+make format
 ```
 
 ## Deployment
@@ -151,6 +117,14 @@ make nomad-plan
 ```sh
 make nomad-deploy
 ```
+
+## Tech Stack
+
+- **Litestar**: Fast ASGI framework for building APIs
+- **httpx**: Modern HTTP client
+- **websockets**: WebSocket client and server for Python
+- **python-dotenv**: Environment variable management
+- **uvicorn**: ASGI server implementation
 
 ## Contributing
 
