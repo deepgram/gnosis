@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = Field(default="https://api.openai.com")
     DEEPGRAM_BASE_URL: str = Field(default="https://api.deepgram.com")
     
+    # Legacy settings (for backward compatibility)
+    MCP_ENABLED: bool = Field(default=False, description="Legacy setting")
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
