@@ -19,7 +19,7 @@ This directory contains Git hooks to ensure consistent commit message formatting
 Run the install script from the project root:
 
 ```bash
-./git-hooks/install-hooks.sh
+./.bin/hooks/install-hooks.sh
 ```
 
 This will copy the hooks to your local `.git/hooks` directory and make them executable.
@@ -30,8 +30,8 @@ If you prefer to install manually:
 
 1. Copy the hooks to your `.git/hooks` directory:
    ```bash
-   cp git-hooks/commit-msg .git/hooks/
-   cp git-hooks/prepare-commit-msg .git/hooks/
+   cp .bin/hooks/commit-msg .git/hooks/
+   cp .bin/hooks/prepare-commit-msg .git/hooks/
    ```
 
 2. Make them executable:

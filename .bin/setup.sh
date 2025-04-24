@@ -49,4 +49,12 @@ else
     echo ".env file already exists."
 fi
 
+# Install Git hooks
+echo "Installing Git hooks..."
+if [ -f "$SCRIPT_DIR/hooks/install-hooks.sh" ]; then
+    bash "$SCRIPT_DIR/hooks/install-hooks.sh"
+else
+    echo "Git hooks installation script not found. Skipping."
+fi
+
 echo "Setup complete! Run 'python run.py' to start the server." 

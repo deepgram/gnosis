@@ -88,14 +88,14 @@ This project uses Git hooks to enforce consistent commit message formatting acco
 To install the Git hooks:
 
 ```bash
-./git-hooks/install-hooks.sh
+./.bin/hooks/install-hooks.sh
 ```
 
 This will:
 - Install a `commit-msg` hook that validates your commit messages
 - Install a `prepare-commit-msg` hook that provides a template for your commits
 
-For more information about the Git hooks, see the [git-hooks/README.md](git-hooks/README.md) file.
+For more information about the Git hooks, see the [.bin/hooks/README.md](.bin/hooks/README.md) file.
 
 ## License
 
