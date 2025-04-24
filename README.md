@@ -24,7 +24,7 @@ Gnosis works as a proxy to the OpenAI Chat Completion's API and the Deepgram Voi
 ## Installation
 
 1. Clone this repository
-2. Run the setup script:
+2. Run the developer environment setup script:
    ```
    ./.bin/setup.sh
    ```
@@ -33,6 +33,7 @@ Gnosis works as a proxy to the OpenAI Chat Completion's API and the Deepgram Voi
    - Create a virtual environment
    - Install dependencies
    - Create a default `.env` file if one doesn't exist
+   - Install Git hooks for consistent commit message formatting
 
 3. Alternatively, manually set up the environment:
    ```
@@ -85,15 +86,23 @@ The application will use hot reloading in development mode.
 
 This project uses Git hooks to enforce consistent commit message formatting according to the [Conventional Commits](https://www.conventionalcommits.org/) standard.
 
-To install the Git hooks:
+Git hooks are automatically installed when you run the `.bin/setup.sh` script. If you need to install the hooks manually:
 
 ```bash
-./.bin/hooks/install-hooks.sh
+# From project root, using the setup script with hooks only
+GIT_DIR=$(git rev-parse --git-dir)
+HOOKS_DIR=.bin/hooks
+
+# Install the hooks manually
+cp $HOOKS_DIR/commit-msg $GIT_DIR/hooks/
+cp $HOOKS_DIR/prepare-commit-msg $GIT_DIR/hooks/
+chmod +x $GIT_DIR/hooks/commit-msg
+chmod +x $GIT_DIR/hooks/prepare-commit-msg
 ```
 
-This will:
-- Install a `commit-msg` hook that validates your commit messages
-- Install a `prepare-commit-msg` hook that provides a template for your commits
+The hooks will:
+- Validate your commit messages against Conventional Commits format
+- Provide a template for writing well-formatted commits
 
 For more information about the Git hooks, see the [.bin/hooks/README.md](.bin/hooks/README.md) file.
 
