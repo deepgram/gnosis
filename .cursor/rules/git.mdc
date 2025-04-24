@@ -5,6 +5,26 @@ alwaysApply: true
 ---
 # Git requirements
 
-After you make a code change, prepare a commit command. Never run it automatically. 
+AFTER code changes you:
+- MUST stage the changed files
+- MUST commit the changes
+- MUST follow conventional commit standards
+- MUST include a body
+- MUST include a list of files changed i.e.
 
-It should follow conventional commits, include a body, and a simple list of files from the `git diff --stat main` command indented by 4 characters.
+    feat(oauth): implement client credentials and authorization code flows
+    
+    Replace anonymous grant type with standard OAuth2 flows:
+    - Add client credentials grant type for server-to-server auth
+    - Add authorization code grant type for user-authorized access
+    - Implement secure client secret validation using constant-time comparison
+    - Add widget origin validation for widget client type
+    - Update token handler to support both grant types
+    - Remove deprecated anonymous grant type
+    
+    References:
+    internal/handlers/v1/oauth.go (lines 1-304)
+    internal/config/oauth.go (lines 41-47, 94-96)
+    internal/services/authcode/service.go (lines 140-156)
+
+- MUST include a footer, which should also follow conventional commits when necessary
