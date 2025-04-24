@@ -1,8 +1,11 @@
 import logging
+import os
+import uvicorn
 from litestar import Litestar
 from litestar.config.cors import CORSConfig
 from litestar.logging import LoggingConfig
 from litestar.openapi import OpenAPIConfig
+from litestar.handlers import get
 
 from app.config import settings
 from app.routes.openai import openai_router
@@ -13,6 +16,11 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
+
+@get("/health")
+async def health_check() -> dict[str, str]:
+    """Health check endpoint for the server."""
+    return {"status": "ok"}
 
 def create_app() -> Litestar:
     """
@@ -47,11 +55,24 @@ def create_app() -> Litestar:
     )
 
     return Litestar(
-        route_handlers=[openai_router, deepgram_router],
+        route_handlers=[health_check, openai_router, deepgram_router],
         cors_config=cors_config,
         logging_config=logging_config,
         openapi_config=openapi_config,
         debug=settings.DEBUG,
     )
 
-app = create_app() 
+app = create_app()
+
+if __name__ == "__main__":
+    # Get port from environment variable or use default
+    port = int(os.environ.get("PORT", 8000))
+    
+    # Run the server
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower(),
+    ) 
