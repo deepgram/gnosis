@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Git requirements
+
+After you make a code change, prepare a commit command. Never run it automatically. 
+
+It should follow conventional commits, include a body, and a simple list of files from the `git diff --stat main` command indented by 4 characters.
