@@ -1,20 +1,20 @@
 # Gnosis
 
-An intelligence API proxy for OpenAI's Chat Completions API, Deepgram's Voice Agent API, and Model Context Protocol.
+An intelligence API proxy for OpenAI Chat Completions and Deepgram Voice Agent.
 
 ## Overview
 
-Gnosis works as a proxy to the OpenAI Chat Completion's API and the Deepgram Voice Agent API. When a user sends a chat completion or connects to an agent, we hijack the config and insert function/tool call configuration. When tool call requests come back from the upstream service, we intercept it, run our built-in tool calls, respond to the service, and then resume the standard proxy.
-
-This application also implements the Model Context Protocol (MCP) for standardized interactions between LLM applications and external data sources/tools.
+Gnosis works as a proxy to the OpenAI Chat Completion's API and the Deepgram Voice Agent API. It provides a simple and clean way to route requests to these services.
 
 ## Features
 
 - **OpenAI API Proxy**: Forwards requests to OpenAI's Chat Completions API
-- **Deepgram API Proxy**: Forwards requests to Deepgram's Voice Agent API
-- **Tool Interception**: Intercepts and handles tool calls from AI services
-- **MCP Implementation**: Supports the Model Context Protocol for standardized LLM integrations
-- **WebSocket Support**: Handles both HTTP and WebSocket connections
+  - Endpoint: `POST /v1/chat/completions`
+  - Target: `https://api.openai.com/v1/chat/completions`
+
+- **Deepgram WebSocket Proxy**: Forwards WebSocket connections to Deepgram Voice Agent
+  - Endpoint: `WebSocket /v1/agent`
+  - Target: `wss://agent.deepgram.com/v1/agent`
 
 ## Requirements
 
@@ -42,10 +42,17 @@ This application also implements the Model Context Protocol (MCP) for standardiz
    python .bin/create_env.py
    ```
 
-4. Run the application:
-   ```
-   python run.py
-   ```
+4. Update your `.env` file with your actual API keys for OpenAI and Deepgram
+
+## Running the Application
+
+To run the application:
+
+```
+python run.py
+```
+
+This will start the server on port 8080.
 
 ## API Endpoints
 
@@ -53,14 +60,16 @@ This application also implements the Model Context Protocol (MCP) for standardiz
 
 - `POST /v1/chat/completions` - Proxy for OpenAI's chat completions API
 
+Example:
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
 ### Deepgram Proxy
 
-- `POST /v1/agent` - Proxy for Deepgram's agent API
-- `WebSocket /v1/agent/live` - WebSocket proxy for Deepgram's live agent API
-
-### Model Context Protocol (MCP)
-
-- `WebSocket /mcp` - MCP WebSocket endpoint for integration with MCP clients
+- `WebSocket /v1/agent` - WebSocket proxy for Deepgram's voice agent API
 
 ## Development
 
@@ -69,6 +78,8 @@ To run in development mode with auto-reload:
 ```
 python run.py
 ```
+
+The application will use hot reloading in development mode.
 
 ## License
 
