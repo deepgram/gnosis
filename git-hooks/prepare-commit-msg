@@ -1,0 +1,46 @@
+#!/bin/sh
+#
+# Git hook to prepare a commit message with a template for conventional commits
+# and required sections based on cursor rules
+#
+# Installation: Copy to .git/hooks/prepare-commit-msg and make executable
+
+# Get the commit message file
+commit_msg_file=$1
+commit_source=$2
+sha1=$3
+
+# Only modify if this is not an existing commit (e.g., not from merge, squash, etc.)
+if [ -z "$commit_source" ]; then
+    # Get the list of staged files for reference
+    staged_files=$(git diff --staged --name-only)
+    
+    # If there are staged files and the commit msg file doesn't already have content
+    if [ -n "$staged_files" ] && [ ! -s "$commit_msg_file" ]; then
+        # Create a template for conventional commit format
+        cat > "$commit_msg_file" << EOF
+# <type>(<scope>): <short summary>
+# |       |             |
+# |       |             └─⫸ Summary in present tense. Not capitalized. No period at the end.
+# |       |
+# |       └─⫸ Commit Scope: Optional component name (e.g., api, auth, config)
+# |
+# └─⫸ Commit Type: build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test
+
+# Description of the change (required):
+# - Write in imperative mood (e.g., "Fix bug" not "Fixed bug")
+# - Include motivation for the change
+# - List all major changes made
+
+# References:
+# List files changed with line numbers, e.g.:
+# app/config.py (lines 23-26)
+# app/main.py (lines 10-15, 42)
+
+# IMPORTANT: Lines starting with '#' will be removed.
+# For guidance, see: https://www.conventionalcommits.org/
+EOF
+    fi
+fi
+
+exit 0 
