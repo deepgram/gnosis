@@ -6,6 +6,8 @@ alwaysApply: true
 # Git requirements
 
 AFTER code changes you:
+- MUST try to make atomic commits
+- MUST try to only commit working code
 - MUST stage the changed files
 - MUST commit the changes
 - MUST follow conventional commit standards
