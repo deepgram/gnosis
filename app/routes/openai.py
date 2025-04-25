@@ -9,14 +9,13 @@ from litestar.response import Stream, Response
 from litestar.status_codes import HTTP_502_BAD_GATEWAY
 
 from app.config import settings
-from app.models.openai import ChatCompletionRequest
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
 
 @post("/chat/completions")
-async def proxy_chat_completion(request: Request, data: ChatCompletionRequest) -> Response:
+async def proxy_chat_completion(request: Request, data: Any) -> Response:
     """
     Proxy requests to OpenAI's chat completion API.
     Proxies to https://api.openai.com/v1/chat/completions
@@ -35,16 +34,19 @@ async def proxy_chat_completion(request: Request, data: ChatCompletionRequest) -
     # For non-streaming responses, we just proxy directly
     async with httpx.AsyncClient() as client:
         try:
+            # Convert data to JSON-serializable dict
+            json_data = data.model_dump(exclude_none=True) if hasattr(data, 'model_dump') else data
+            
             # For streaming responses
-            if data.stream:
+            if getattr(data, 'stream', False):
                 logger.info("Streaming response enabled")
-                return await handle_streaming_response(client, target_url, headers, data)
+                return await handle_streaming_response(client, target_url, headers, json_data)
             
             # For regular responses
             response = await client.post(
                 target_url,
                 headers=headers,
-                json=data.model_dump(exclude_none=True),
+                json=json_data,
                 timeout=60.0,
             )
             
@@ -72,17 +74,17 @@ async def proxy_chat_completion(request: Request, data: ChatCompletionRequest) -
             )
 
 
-async def handle_streaming_response(client, target_url, headers, data):
+async def handle_streaming_response(client, target_url, headers, json_data):
     """
     Handle streaming responses from OpenAI.
     """
     return Stream(
-        stream_chat_completion_response(client, target_url, headers, data),
+        stream_chat_completion_response(client, target_url, headers, json_data),
         media_type="text/event-stream"
     )
 
 
-async def stream_chat_completion_response(client, target_url, headers, data):
+async def stream_chat_completion_response(client, target_url, headers, json_data):
     """
     Stream response from OpenAI's chat completion API.
     """
@@ -91,7 +93,7 @@ async def stream_chat_completion_response(client, target_url, headers, data):
             "POST",
             target_url,
             headers=headers,
-            json=data.model_dump(exclude_none=True),
+            json=json_data,
             timeout=60.0,
         ) as response:
             logger.info(f"Streaming response from OpenAI with status code: {response.status_code}")

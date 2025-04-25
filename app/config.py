@@ -5,7 +5,10 @@ from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+# Print environment variables for debugging
+print(f"Before load_dotenv: OPENAI_API_KEY={os.environ.get('OPENAI_API_KEY', 'not set')}")
 load_dotenv()
+print(f"After load_dotenv: OPENAI_API_KEY={os.environ.get('OPENAI_API_KEY', 'not set')}")
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -32,4 +35,5 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
-settings = Settings() 
+settings = Settings()
+print(f"Settings loaded: OPENAI_API_KEY={settings.OPENAI_API_KEY}") 
