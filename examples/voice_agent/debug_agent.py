@@ -223,11 +223,11 @@ async def debug_agent_proxy(hostname, verbose=False, timeout=15):
             except Exception as e:
                 log(f"Error during listening period: {e}", "error")
                 
-            # Send close message
-            log("→ Sending CloseStream message...", "send")
-            await websocket.send(json.dumps({"type": "CloseStream"}))
+            # Close connection normally without sending CloseStream
+            log("Closing WebSocket connection...", "info")
+            await websocket.close(1000, "Normal closure")
             
-            # Wait for the server to close the connection gracefully
+            # Wait for the server to acknowledge the close
             close_timeout = 5
             log(f"Waiting for connection to close (timeout: {close_timeout}s)...", "info")
             
@@ -258,7 +258,7 @@ async def debug_agent_proxy(hostname, verbose=False, timeout=15):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Debug test for Gnosis Voice Agent Proxy")
-    parser.add_argument("--host", type=str, default="ws://localhost:8000", help="Hostname of Gnosis server")
+    parser.add_argument("--host", type=str, default="ws://localhost:8080", help="Hostname of Gnosis server")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument("-t", "--timeout", type=int, default=10, help="Timeout in seconds for operations")
     
