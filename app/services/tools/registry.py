@@ -20,23 +20,3 @@ def register_tool(name: str) -> Callable[[Callable], Callable]:
         tools[name] = func
         return func
     return decorator
-
-
-# Register built-in tools
-@register_tool("search_knowledge_base")
-async def search_knowledge_base(arguments: Dict[str, Any]) -> Any:
-    """
-    Search the knowledge base for information.
-    """
-    query = arguments.get("query", "")
-    
-    # In a real implementation, this would search a knowledge base
-    return {
-        "results": [
-            {
-                "title": f"Result for '{query}'",
-                "content": f"This is a sample result for the query '{query}'.",
-                "score": 0.95
-            }
-        ]
-    } 
