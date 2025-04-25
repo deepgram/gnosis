@@ -69,7 +69,7 @@ async def agent_websocket(socket: WebSocket) -> None:
     # Main proxy logic
     try:
         # Connect to Deepgram WebSocket
-        deepgram_url = "wss://api.deepgram.com/v1/agent"
+        deepgram_url = "wss://agent.deepgram.com/agent"
         logger.info(f"[{session_id}] Connecting to Deepgram at {deepgram_url}")
         
         # Create connection to Deepgram
@@ -77,7 +77,7 @@ async def agent_websocket(socket: WebSocket) -> None:
         
         try:
             deepgram_socket = await asyncio.wait_for(
-                websockets.connect(deepgram_url, extra_headers=headers),
+                websockets.connect(deepgram_url, additional_headers=headers),
                 timeout=10.0  # Add reasonable timeout for connection
             )
             logger.info(f"[{session_id}] Connected to Deepgram WebSocket")
