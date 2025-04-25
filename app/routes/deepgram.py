@@ -101,15 +101,26 @@ async def agent_websocket(socket: WebSocket) -> None:
             nonlocal messages_from_client
             try:
                 while True:
-                    # Get message from client
-                    message = await socket.receive_text()
+                    # Get message from client (could be text or binary)
+                    message = await socket.receive()
                     messages_from_client += 1
                     
-                    # Log the message
-                    log_message("outgoing", "client → deepgram", message)
-                    
-                    # Forward to Deepgram
-                    await deepgram_socket.send(message)
+                    # Handle different types of messages
+                    if message["type"] == "websocket.receive":
+                        if "text" in message:
+                            # Text message
+                            text_message = message["text"]
+                            log_message("outgoing", "client → deepgram", text_message)
+                            
+                            # Forward to Deepgram
+                            await deepgram_socket.send(text_message)
+                        elif "bytes" in message:
+                            # Binary message
+                            binary_message = message["bytes"]
+                            logger.debug(f"OUTGOING client → deepgram | Binary data: {len(binary_message)} bytes")
+                            
+                            # Forward binary data to Deepgram
+                            await deepgram_socket.send(binary_message)
             except websockets.exceptions.ConnectionClosed as e:
                 logger.info(f"[{session_id}] Client connection closed (code: {e.code}, reason: {e.reason})")
             except Exception as e:
@@ -124,11 +135,19 @@ async def agent_websocket(socket: WebSocket) -> None:
                     message = await deepgram_socket.recv()
                     messages_to_client += 1
                     
-                    # Log the message
-                    log_message("incoming", "deepgram → client", message)
-                    
-                    # Forward to client
-                    await socket.send_text(message)
+                    # Handle different message types (text or binary)
+                    if isinstance(message, str):
+                        # Text message
+                        log_message("incoming", "deepgram → client", message)
+                        
+                        # Send text message to client
+                        await socket.send({"type": "websocket.send", "text": message})
+                    else:
+                        # Binary message (likely audio)
+                        logger.debug(f"INCOMING deepgram → client | Binary data: {len(message)} bytes")
+                        
+                        # Send binary message to client
+                        await socket.send({"type": "websocket.send", "bytes": message})
             except websockets.exceptions.ConnectionClosed as e:
                 logger.info(f"[{session_id}] Deepgram connection closed (code: {e.code}, reason: {e.reason})")
             except Exception as e:

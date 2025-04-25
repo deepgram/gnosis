@@ -6,6 +6,9 @@ import websockets
 import colorama
 from colorama import Fore, Style
 import time
+import os
+import pathlib
+import base64
 
 # Initialize colorama for cross-platform color support
 colorama.init()
@@ -13,12 +16,17 @@ colorama.init()
 # Global variable to track test status
 test_success = True
 
-async def test_agent_proxy(hostname, verbose=False, timeout=5):
+async def test_agent_proxy(hostname, verbose=False, timeout=5, send_audio=True):
     """
     Advanced test of the voice agent proxy with proper message handling and error management.
+    
+    If send_audio is True, sends a test audio file after receiving the welcome message.
     """
     global test_success
     test_success = True  # Reset test status
+    
+    # Initialize start_time at the beginning of the function to make it available in all scopes
+    start_time = time.time()
     
     gnosis_url = f"{hostname}/v1/agent"
     log(f"Connecting to Gnosis Voice Agent proxy at {gnosis_url}...", "important")
@@ -53,6 +61,10 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5):
         }
     }
     
+    # Prepare the audio file path for later use
+    current_dir = pathlib.Path(__file__).parent.absolute()
+    audio_file_path = os.path.join(current_dir, "spacewalk1.mp3")
+    
     try:
         # Connect to WebSocket
         async with websockets.connect(gnosis_url) as websocket:
@@ -61,7 +73,6 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5):
             await websocket.send(json.dumps(settings_config))
             
             # Wait for initial responses
-            start_time = time.time()
             received_welcome = False
             received_settings_applied = False
             session_id = None
@@ -87,6 +98,22 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5):
                                 session_id = data.get("session_id", "unknown")
                             elif msg_type == "SettingsApplied":
                                 received_settings_applied = True
+                                
+                                # Send audio file after receiving settings applied message
+                                if send_audio and os.path.exists(audio_file_path):
+                                    log("Sending spacewalk1.mp3 audio file...", "important")
+                                    try:
+                                        with open(audio_file_path, "rb") as audio_file:
+                                            # Read the file as binary
+                                            audio_bytes = audio_file.read()
+                                            
+                                            # Send raw binary data directly
+                                            await websocket.send(audio_bytes)
+                                            log(f"✅ Sent raw binary audio file ({len(audio_bytes)} bytes)", "success")
+                                    except Exception as e:
+                                        log(f"❌ Failed to send audio file: {str(e)}", "error")
+                                elif send_audio:
+                                    log(f"❌ Audio file not found at: {audio_file_path}", "error")
                         except json.JSONDecodeError:
                             # Already logged in process_message
                             pass
@@ -113,6 +140,39 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5):
                 
                 # Continue only if connections still open
                 if test_success:
+                    # Wait a bit for any responses to the audio
+                    if send_audio:
+                        log("Waiting for responses to audio...", "info")
+                        audio_response_timeout = 8  # seconds to wait for audio responses
+                        audio_wait_start = time.time()
+                        
+                        while time.time() - audio_wait_start < audio_response_timeout:
+                            try:
+                                audio_response = await asyncio.wait_for(websocket.recv(), timeout=0.5)
+                                await process_message(audio_response, verbose)
+                                
+                                # If we received an error message, we can stop waiting
+                                if isinstance(audio_response, str):
+                                    try:
+                                        data = json.loads(audio_response)
+                                        if data.get("type") == "Error":
+                                            log("Stopping audio response wait due to error", "warning")
+                                            break
+                                    except json.JSONDecodeError:
+                                        pass
+                            except asyncio.TimeoutError:
+                                # No response yet, keep waiting
+                                pass
+                            except websockets.exceptions.ConnectionClosed as e:
+                                if e.code == 1000:
+                                    log("WebSocket connection closed normally", "info")
+                                else:
+                                    log(f"WebSocket connection closed unexpectedly: {e}", "error")
+                                test_success = False
+                                break
+                        
+                        log(f"Finished waiting for audio responses after {time.time() - audio_wait_start:.2f} seconds", "info")
+                    
                     # Send keep-alive message
                     await asyncio.sleep(1)
                     log("Sending KeepAlive message...", "info", verbose)
@@ -126,23 +186,23 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5):
                         # No response or already closed, that's okay
                         pass
                 
-                    # Send close message
+                    # Close the connection gracefully
                     await asyncio.sleep(1)
-                    log("Sending CloseStream message...", "important")
-                    await websocket.send(json.dumps({"type": "CloseStream"}))
+                    log("Closing WebSocket connection...", "important")
+                    await websocket.close(1000, "Normal closure")
                     
-                    # Wait for the server to close the connection gracefully
+                    # Wait for the server to acknowledge the close
                     try:
                         # Try to receive a final message or wait for the connection to close
                         final_response = await asyncio.wait_for(websocket.recv(), timeout=3.0)
                         await process_message(final_response, verbose)
                     except websockets.exceptions.ConnectionClosed as e:
                         if e.code == 1000:
-                            log("Server closed the connection normally after CloseStream", "important")
+                            log("Server closed the connection normally", "important")
                         else:
                             log(f"Server closed the connection with code {e.code}", "warning")
                     except asyncio.TimeoutError:
-                        log("No response after CloseStream, closing connection", "info")
+                        log("No response after closing connection", "info")
             
             except Exception as e:
                 # Check if this is a normal WebSocket closure
@@ -180,6 +240,11 @@ async def process_message(message, verbose=False):
     """Process and log a message received from the WebSocket."""
     global test_success
     try:
+        # Check if the message is binary data (likely audio)
+        if isinstance(message, bytes):
+            log(f"✅ Received binary audio data ({len(message)} bytes) - ignoring for CLI test", "info", verbose)
+            return
+        
         # Try to parse JSON
         data = json.loads(message)
         msg_type = data.get("type", "unknown")
@@ -196,6 +261,17 @@ async def process_message(message, verbose=False):
             test_success = False
         elif msg_type == "KeepAliveResponse":
             log("ℹ️ Received KeepAliveResponse", "info", verbose)
+        elif msg_type == "ConversationText":
+            transcript = data.get("transcript", {}).get("text", "No transcript")
+            log(f"🗣️ Conversation: {transcript}", "important")
+        elif msg_type == "UserStartedSpeaking":
+            log("🎤 User started speaking", "important")
+        elif msg_type == "AgentThinking":
+            log("🤔 Agent is thinking", "important")
+        elif msg_type == "AgentStartedSpeaking":
+            log("🔊 Agent started speaking", "important")
+        elif msg_type == "AgentAudioDone":
+            log("✓ Agent audio finished", "important")
         else:
             log(f"ℹ️ Received message type: {msg_type}", "info")
         
@@ -233,6 +309,16 @@ def log(message, level="info", verbose=True):
         prefix = f"{Fore.BLUE}"
     elif message.startswith("❌"):
         prefix = f"{Fore.RED}"
+    elif message.startswith("🗣️"):
+        prefix = f"{Fore.CYAN}"
+    elif message.startswith("🎤"):
+        prefix = f"{Fore.YELLOW}"
+    elif message.startswith("🤔"):
+        prefix = f"{Fore.MAGENTA}"
+    elif message.startswith("🔊"):
+        prefix = f"{Fore.GREEN}"
+    elif message.startswith("✓"):
+        prefix = f"{Fore.GREEN}"
         
     print(f"{prefix}{message}{Style.RESET_ALL}")
 
@@ -244,6 +330,8 @@ def main():
                         help="Enable verbose output with detailed message contents")
     parser.add_argument("--timeout", "-t", type=int, default=5,
                         help="Maximum seconds to wait for responses (default: 5)")
+    parser.add_argument("--no-audio", action="store_true",
+                        help="Skip sending audio file")
     args = parser.parse_args()
     
     print(f"{Style.BRIGHT}{Fore.CYAN}Advanced Voice Agent Test{Style.RESET_ALL}")
@@ -251,11 +339,12 @@ def main():
     print(f"{Style.BRIGHT}Hostname:{Style.RESET_ALL} {args.hostname}")
     print(f"{Style.BRIGHT}Timeout:{Style.RESET_ALL} {args.timeout} seconds")
     print(f"{Style.BRIGHT}Verbose:{Style.RESET_ALL} {'Yes' if args.verbose else 'No'}")
+    print(f"{Style.BRIGHT}Send Audio:{Style.RESET_ALL} {'No' if args.no_audio else 'Yes'}")
     print("═════════════════════════════════════════")
     
     try:
         # Run the test
-        asyncio.run(test_agent_proxy(args.hostname, args.verbose, args.timeout))
+        asyncio.run(test_agent_proxy(args.hostname, args.verbose, args.timeout, not args.no_audio))
     except KeyboardInterrupt:
         print("\nTest interrupted by user")
     except Exception as e:
