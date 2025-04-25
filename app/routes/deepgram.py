@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 import httpx
 from litestar import Router, WebSocket, websocket
 from litestar.exceptions import HTTPException
+import websockets
 
 from app.config import settings
 
@@ -17,120 +18,56 @@ logger = logging.getLogger(__name__)
 async def agent_websocket(socket: WebSocket) -> None:
     """
     Handle WebSocket connections for Deepgram's agent API.
-    Proxies to wss://agent.deepgram.com/agent
+    Proxies to wss://api.deepgram.com/v1/agent
     """
     await socket.accept()
     
     # Log the proxy destination
     logger.info("Proxying WebSocket connection to Deepgram Agent API")
     
-    # Create a custom WebSocket implementation using httpx directly
-    class DeepgramSocket:
-        def __init__(self, url, api_key):
-            self.url = url
-            self.api_key = api_key
-            self.connected = False
-            self.ws = None
-            self.client = None
-            
-        async def connect(self):
-            # Create a client that will stay alive for the duration of the connection
-            self.client = httpx.AsyncClient()
-            
-            # Manually initiate a WebSocket connection
-            headers = {"Authorization": f"Token {self.api_key}"}
-            r = await self.client.get(
-                self.url,
-                headers=headers,
-                timeout=30.0
-            )
-            
-            if r.status_code == 101:  # Switching Protocols
-                self.connected = True
-                self.ws = r
-                logger.info(f"Connected to {self.url}")
-                return True
-            else:
-                logger.error(f"Failed to connect to {self.url}: {r.status_code} {r.text}")
-                return False
-                
-        async def send(self, message):
-            if not self.connected or not self.client:
-                raise Exception("Not connected")
-                
-            if isinstance(message, dict):
-                message = json.dumps(message)
-                
-            await self.client.post(
-                self.url,
-                content=message,
-                headers={"Content-Type": "application/json"}
-            )
-            
-        async def receive(self):
-            if not self.connected or not self.client:
-                raise Exception("Not connected")
-                
-            # Poll for messages
-            r = await self.client.get(
-                f"{self.url}/messages",
-                timeout=5.0
-            )
-            
-            if r.status_code == 200:
-                return r.text
-            else:
-                return None
-                
-        async def close(self):
-            if self.client:
-                await self.client.aclose()
-            self.connected = False
+    deepgram_socket = None
     
     # Main proxy logic
     try:
-        # Simple pass-through approach
+        # Connect to Deepgram WebSocket
+        deepgram_url = "wss://api.deepgram.com/v1/agent"
+        logger.info(f"Connecting to Deepgram at {deepgram_url}")
+        
+        # Create connection to Deepgram
+        headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
+        deepgram_socket = await websockets.connect(deepgram_url, extra_headers=headers)
+        logger.info("Connected to Deepgram WebSocket")
+        
+        # Forward client messages to Deepgram
         async def forward_client_to_deepgram():
-            while True:
-                try:
+            try:
+                while True:
                     # Get message from client
                     message = await socket.receive_text()
+                    logger.debug(f"Client → Deepgram: {message[:100]}...")
                     
-                    # Forward directly to Deepgram
-                    async with httpx.AsyncClient() as client:
-                        headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
-                        await client.post(
-                            "https://agent.deepgram.com/v1/agent", 
-                            content=message,
-                            headers=headers
-                        )
-                except Exception as e:
-                    logger.error(f"Error forwarding client → Deepgram: {e}")
-                    break
-                    
+                    # Forward to Deepgram
+                    await deepgram_socket.send(message)
+            except websockets.exceptions.ConnectionClosed:
+                logger.info("Client connection closed")
+            except Exception as e:
+                logger.error(f"Error forwarding client → Deepgram: {e}")
+                
+        # Forward Deepgram responses to client
         async def forward_deepgram_to_client():
-            while True:
-                try:
+            try:
+                while True:
                     # Get response from Deepgram
-                    # This is simplified - in reality you'd need to use a proper streaming approach
-                    await asyncio.sleep(0.5)  # Poll interval
+                    message = await deepgram_socket.recv()
+                    logger.debug(f"Deepgram → Client: {message[:100]}...")
                     
-                    # Placeholder for receiving from Deepgram
-                    # In a real implementation, you would receive from a queue or stream
-                    
-                    # Send to client
-                    # await socket.send_text(message)
-                    await socket.send_text('{"type": "Welcome", "session_id": "test-session-id"}')
-                    await asyncio.sleep(2)
-                    await socket.send_text('{"type": "SettingsApplied"}')
-                    
-                    # Only send these messages once in this simplified example
-                    break
-                    
-                except Exception as e:
-                    logger.error(f"Error forwarding Deepgram → client: {e}")
-                    break
-                    
+                    # Forward to client
+                    await socket.send_text(message)
+            except websockets.exceptions.ConnectionClosed:
+                logger.info("Deepgram connection closed")
+            except Exception as e:
+                logger.error(f"Error forwarding Deepgram → client: {e}")
+                
         # Run both directions concurrently
         forward_task = asyncio.create_task(forward_client_to_deepgram())
         response_task = asyncio.create_task(forward_deepgram_to_client())
@@ -147,16 +84,23 @@ async def agent_websocket(socket: WebSocket) -> None:
             
     except Exception as e:
         logger.error(f"Error in WebSocket proxy: {str(e)}")
-        await socket.send_text(f"Error: {str(e)}")
+        error_message = json.dumps({"type": "Error", "message": str(e)})
+        await socket.send_text(error_message)
     
     finally:
-        # Ensure the socket is closed
+        # Ensure both sockets are closed
+        try:
+            if deepgram_socket and not deepgram_socket.closed:
+                await deepgram_socket.close()
+        except:
+            pass
+            
         try:
             await socket.close()
         except:
             pass
             
-        logger.info("WebSocket connection closed")
+        logger.info("WebSocket connections closed")
 
 
 deepgram_router = Router(
