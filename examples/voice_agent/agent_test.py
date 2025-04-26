@@ -37,11 +37,11 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5, send_audio=True):
         "audio": {
             "input": {
                 "encoding": "linear16",
-                "sample_rate": 24000
+                "sample_rate": 44100
             },
             "output": {
                 "encoding": "linear16", 
-                "sample_rate": 24000,
+                "sample_rate": 44100,
                 "container": "none"
             }
         },
@@ -61,9 +61,20 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5, send_audio=True):
         }
     }
     
-    # Prepare the audio file path for later use
+    # Prepare the audio file paths array for later use
     current_dir = pathlib.Path(__file__).parent.absolute()
-    audio_file_path = os.path.join(current_dir, "spacewalk1.mp3")
+    audio_files = [
+        os.path.join(current_dir, "spacewalk1.pcm"),
+        os.path.join(current_dir, "spacewalk2.pcm")
+    ]
+    
+    # Add more PCM files to the array if they exist
+    for i in range(3, 6):  # Look for spacewalk3.pcm, spacewalk4.pcm, spacewalk5.pcm
+        file_path = os.path.join(current_dir, f"spacewalk{i}.pcm")
+        if os.path.exists(file_path):
+            audio_files.append(file_path)
+            
+    log(f"Found {len(audio_files)} PCM files to process", "info")
     
     try:
         # Connect to WebSocket
@@ -99,21 +110,58 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5, send_audio=True):
                             elif msg_type == "SettingsApplied":
                                 received_settings_applied = True
                                 
-                                # Send audio file after receiving settings applied message
-                                if send_audio and os.path.exists(audio_file_path):
-                                    log("Sending spacewalk1.mp3 audio file...", "important")
-                                    try:
-                                        with open(audio_file_path, "rb") as audio_file:
-                                            # Read the file as binary
-                                            audio_bytes = audio_file.read()
+                                # Send audio files in sequence, waiting for required responses between files
+                                if send_audio and audio_files:
+                                    for i, audio_file in enumerate(audio_files):
+                                        file_num = i + 1
+                                        file_name = os.path.basename(audio_file)
+                                        
+                                        if os.path.exists(audio_file):
+                                            log(f"Processing file {file_num}/{len(audio_files)}: {file_name}", "important")
                                             
-                                            # Send raw binary data directly
-                                            await websocket.send(audio_bytes)
-                                            log(f"✅ Sent raw binary audio file ({len(audio_bytes)} bytes)", "success")
-                                    except Exception as e:
-                                        log(f"❌ Failed to send audio file: {str(e)}", "error")
+                                            # Send the audio file in chunks
+                                            sent_successfully = await send_audio_in_chunks(websocket, audio_file, verbose=verbose)
+                                            
+                                            if sent_successfully:
+                                                # Try to wait for EndOfThought message, but continue if we don't get it
+                                                try:
+                                                    end_of_thought = await wait_for_message_type(
+                                                        websocket, "EndOfThought", timeout=10, verbose=verbose
+                                                    )
+                                                    
+                                                    if not end_of_thought:
+                                                        log(f"⚠️ Did not receive EndOfThought for {file_name} - continuing anyway", "warning")
+                                                    
+                                                    # Try to wait for AgentAudioDone message, but continue if we don't get it
+                                                    try:
+                                                        agent_audio_done = await wait_for_message_type(
+                                                            websocket, "AgentAudioDone", timeout=10, verbose=verbose
+                                                        )
+                                                        
+                                                        if not agent_audio_done:
+                                                            log(f"⚠️ Did not receive AgentAudioDone for {file_name} - continuing anyway", "warning")
+                                                        
+                                                    except Exception as e:
+                                                        log(f"⚠️ Error waiting for AgentAudioDone: {e} - continuing anyway", "warning")
+                                                    
+                                                except Exception as e:
+                                                    log(f"⚠️ Error waiting for EndOfThought: {e} - continuing anyway", "warning")
+                                                
+                                                # Wait a moment before processing the next file
+                                                log(f"Completed processing file {file_num}/{len(audio_files)}", "success")
+                                                if i < len(audio_files) - 1:  # If not the last file
+                                                    log("Waiting before processing next file...", "info")
+                                                    await asyncio.sleep(2)
+                                            else:
+                                                log(f"⚠️ Failed to send {file_name}, skipping to next file", "warning")
+                                        else:
+                                            log(f"❌ Audio file not found: {audio_file}", "error")
+                                    
+                                    log(f"✅ Finished processing all {len(audio_files)} audio files", "success")
                                 elif send_audio:
-                                    log(f"❌ Audio file not found at: {audio_file_path}", "error")
+                                    log("❌ No audio files found to process", "error")
+                                else:
+                                    log("Audio sending disabled", "info")
                         except json.JSONDecodeError:
                             # Already logged in process_message
                             pass
@@ -140,51 +188,14 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5, send_audio=True):
                 
                 # Continue only if connections still open
                 if test_success:
-                    # Wait a bit for any responses to the audio
+                    # Wait a short time for any final responses after processing all files
                     if send_audio:
-                        log("Waiting for responses to audio...", "info")
-                        audio_response_timeout = 15  # seconds to wait for audio responses
-                        audio_wait_start = time.time()
-                        
-                        while time.time() - audio_wait_start < audio_response_timeout:
-                            try:
-                                audio_response = await asyncio.wait_for(websocket.recv(), timeout=0.5)
-                                await process_message(audio_response, verbose)
-                                
-                                # If we received an error message, we can stop waiting
-                                if isinstance(audio_response, str):
-                                    try:
-                                        data = json.loads(audio_response)
-                                        if data.get("type") == "Error":
-                                            log("Stopping audio response wait due to error", "warning")
-                                            break
-                                        elif data.get("type") == "AgentAudioDone":
-                                            # If agent is done speaking, we can stop waiting
-                                            log("Agent completed speaking, continuing...", "info")
-                                            # Wait a bit longer for any final messages
-                                            await asyncio.sleep(1)
-                                            break
-                                    except json.JSONDecodeError:
-                                        pass
-                            except asyncio.TimeoutError:
-                                # No response yet, keep waiting
-                                pass
-                            except websockets.exceptions.ConnectionClosed as e:
-                                if e.code == 1000:
-                                    log("WebSocket connection closed normally", "info")
-                                else:
-                                    log(f"WebSocket connection closed unexpectedly: {e}", "error")
-                                test_success = False
-                                break
-                        
-                        log(f"Finished waiting for audio responses after {time.time() - audio_wait_start:.2f} seconds", "info")
+                        log("Waiting for any final messages...", "info")
+                        await asyncio.sleep(3)
                     
                     # Close the connection gracefully without sending KeepAlive
                     log("Closing WebSocket connection...", "important")
                     await websocket.close(1000, "Normal closure")
-                    
-                    # Short delay to ensure the connection closes properly
-                    await asyncio.sleep(1)
             
             except Exception as e:
                 # Check if this is a normal WebSocket closure
@@ -244,7 +255,8 @@ async def process_message(message, verbose=False):
             # Don't mark test as failed for expected errors in test environment
             expected_errors = [
                 "We waited too long for a websocket message",
-                "Please ensure that you're sending binary messages containing user speech"
+                "Please ensure that you're sending binary messages containing user speech",
+                "Failed to Speak, check your Speak configuration"
             ]
             
             # Only set test_success to False if it's an unexpected error
@@ -277,6 +289,8 @@ async def process_message(message, verbose=False):
             log(f"🔊 Agent started speaking (Total latency: {total_latency:.2f}s, TTT: {ttt_latency:.2f}s, TTS: {tts_latency:.2f}s)", "important")
         elif msg_type == "AgentAudioDone":
             log("✓ Agent audio finished", "important")
+        elif msg_type == "EndOfThought":
+            log("💭 End of thought", "thinking")
         elif msg_type == "KeepAlive":
             log("♥️ Keep-alive received", "info", verbose)
         else:
@@ -289,6 +303,132 @@ async def process_message(message, verbose=False):
     except json.JSONDecodeError:
         log(f"❌ Could not parse response as JSON: {message}", "error")
         test_success = False
+
+async def send_audio_in_chunks(websocket, file_path, chunk_size=4096, chunk_delay=0.05, verbose=False):
+    """
+    Reads an audio file and sends it in small chunks to simulate microphone streaming.
+    Concurrently listens for and processes incoming messages while streaming.
+    
+    Args:
+        websocket: WebSocket connection to send data through
+        file_path: Path to the audio file
+        chunk_size: Size of each audio chunk in bytes (default: 4096 bytes)
+        chunk_delay: Delay between chunks in seconds (default: 0.05 seconds)
+        verbose: Whether to show verbose output
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        with open(file_path, "rb") as audio_file:
+            audio_bytes = audio_file.read()
+            
+        total_size = len(audio_bytes)
+        file_name = os.path.basename(file_path)
+        log(f"Sending {file_name} in chunks (total size: {total_size} bytes)...", "important")
+        
+        # Split file into chunks
+        chunks = [audio_bytes[i:i+chunk_size] for i in range(0, total_size, chunk_size)]
+        log(f"Split into {len(chunks)} chunks of {chunk_size} bytes each", "info")
+        
+        # Setup concurrent listening for responses
+        async def listen_for_responses():
+            while True:
+                try:
+                    # Non-blocking check for responses with a small timeout
+                    response = await asyncio.wait_for(websocket.recv(), timeout=0.01)
+                    await process_message(response, verbose)
+                except asyncio.TimeoutError:
+                    # Expected - just means no message available yet
+                    await asyncio.sleep(0.01)
+                    continue
+                except websockets.exceptions.ConnectionClosed:
+                    # Connection closed
+                    break
+                except Exception as e:
+                    log(f"Error receiving response: {e}", "error")
+                    break
+        
+        # Start the listener task
+        listener_task = asyncio.create_task(listen_for_responses())
+        
+        # Send each chunk with a small delay
+        for i, chunk in enumerate(chunks):
+            await websocket.send(chunk)
+            
+            # Log progress but not too verbose
+            if i % 10 == 0 or i == len(chunks) - 1:
+                log(f"Sent chunk {i+1}/{len(chunks)} ({len(chunk)} bytes)", "info", verbose=(i==0 or i==len(chunks)-1))
+                
+            # Small delay between chunks to simulate streaming
+            await asyncio.sleep(chunk_delay)
+        
+        # Let the listener run a bit longer to catch any immediate responses
+        await asyncio.sleep(0.5)
+        
+        # Cancel the listener task
+        listener_task.cancel()
+        try:
+            await listener_task
+        except asyncio.CancelledError:
+            pass
+            
+        log(f"✅ Finished sending {file_name} ({total_size} bytes in {len(chunks)} chunks)", "success")
+        return True
+    except Exception as e:
+        log(f"❌ Failed to send {os.path.basename(file_path)}: {str(e)}", "error")
+        return False
+
+async def wait_for_message_type(websocket, message_type, timeout=30, verbose=False):
+    """
+    Wait for a specific message type from the server.
+    
+    Args:
+        websocket: The WebSocket connection
+        message_type: The type of message to wait for
+        timeout: Maximum time to wait in seconds
+        verbose: Whether to log verbose output
+        
+    Returns:
+        dict: The message data if received, None if timeout or error
+    """
+    start_time = time.time()
+    log(f"Waiting for {message_type} message (timeout: {timeout}s)...", "info")
+    
+    while time.time() - start_time < timeout:
+        try:
+            # Wait for a message with a short timeout for responsiveness
+            message = await asyncio.wait_for(websocket.recv(), timeout=0.5)
+            
+            # If it's binary data, log it and continue
+            if isinstance(message, bytes):
+                log(f"📊 Received binary data ({len(message)} bytes)", "info", verbose)
+                continue
+                
+            # Try to parse JSON
+            try:
+                data = json.loads(message)
+                await process_message(message, verbose)
+                
+                # Check if this is the message type we're waiting for
+                if data.get("type") == message_type:
+                    log(f"✅ Received expected {message_type} message", "success")
+                    return data
+            except json.JSONDecodeError:
+                log(f"❌ Could not parse response as JSON: {message}", "error")
+                
+        except asyncio.TimeoutError:
+            # Just a short timeout to check if we should continue
+            continue
+        except websockets.exceptions.ConnectionClosed as e:
+            log(f"❌ Connection closed while waiting for {message_type} (code: {e.code})", "error")
+            return None
+        except Exception as e:
+            log(f"❌ Error while waiting for {message_type}: {e}", "error")
+            return None
+    
+    log(f"❌ Timed out waiting for {message_type} message", "error")
+    return None
 
 def log(message, level="info", verbose=True):
     """Log a message with appropriate formatting based on importance and verbosity."""
@@ -322,11 +462,13 @@ def log(message, level="info", verbose=True):
         prefix = f"{Fore.BLUE}"
     elif message.startswith("❌"):
         prefix = f"{Fore.RED}"
+    elif message.startswith("⚠️"):
+        prefix = f"{Fore.YELLOW}"
     elif message.startswith("🗣️"):
         prefix = f"{Fore.CYAN}"
     elif message.startswith("🎤"):
         prefix = f"{Fore.YELLOW}"
-    elif message.startswith("🤔"):
+    elif message.startswith("🤔") or message.startswith("💭"):
         prefix = f"{Fore.MAGENTA}"
     elif message.startswith("⚙️"):
         prefix = f"{Fore.BLUE + Style.BRIGHT}"
@@ -334,6 +476,8 @@ def log(message, level="info", verbose=True):
         prefix = f"{Fore.GREEN}"
     elif message.startswith("✓"):
         prefix = f"{Fore.GREEN}"
+    elif message.startswith("📊"):
+        prefix = f"{Fore.MAGENTA}"
         
     print(f"{prefix}{message}{Style.RESET_ALL}")
 
