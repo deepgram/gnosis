@@ -8,7 +8,6 @@ from colorama import Fore, Style
 import time
 import os
 import pathlib
-import base64
 
 # Initialize colorama for cross-platform color support
 colorama.init()
@@ -64,15 +63,8 @@ async def test_agent_proxy(hostname, verbose=False, timeout=5, send_audio=True):
     # Prepare the audio file paths array for later use
     current_dir = pathlib.Path(__file__).parent.absolute()
     audio_files = [
-        os.path.join(current_dir, "spacewalk1.pcm"),
-        os.path.join(current_dir, "spacewalk2.pcm")
+        os.path.join(current_dir, "spacewalk.pcm")
     ]
-    
-    # Add more PCM files to the array if they exist
-    for i in range(3, 6):  # Look for spacewalk3.pcm, spacewalk4.pcm, spacewalk5.pcm
-        file_path = os.path.join(current_dir, f"spacewalk{i}.pcm")
-        if os.path.exists(file_path):
-            audio_files.append(file_path)
             
     log(f"Found {len(audio_files)} PCM files to process", "info")
     
