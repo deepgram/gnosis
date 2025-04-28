@@ -1,12 +1,22 @@
 import os
+import logging
 from typing import List
 
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-# Print environment variables for debugging
+# Define consistent log format
+LOG_FORMAT = '%(levelname)s:     %(message)s'
+
+# Load environment variables
 load_dotenv()
+
+# Configure module logger with padding
+logging.basicConfig(
+    level=logging.INFO,
+    format=LOG_FORMAT,  # Consistent format
+)
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -20,6 +30,8 @@ class Settings(BaseSettings):
     # API Keys
     OPENAI_API_KEY: str = Field(default="")
     DEEPGRAM_API_KEY: str = Field(default="")
+    SUPABASE_URL: str = Field(default="")
+    SUPABASE_KEY: str = Field(default="")
     
     # Endpoints
     OPENAI_BASE_URL: str = Field(default="https://api.openai.com")
@@ -33,5 +45,13 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
+# Initialize settings
 settings = Settings()
-print(f"Settings loaded: OPENAI_API_KEY") 
+
+# Log settings
+logger = logging.getLogger(__name__)
+logger.info(f"Settings loaded: "
+            f"OPENAI_API_KEY={'✓' if settings.OPENAI_API_KEY else '✗'}, "
+            f"DEEPGRAM_API_KEY={'✓' if settings.DEEPGRAM_API_KEY else '✗'}, "
+            f"SUPABASE_URL={'✓' if settings.SUPABASE_URL else '✗'}, "
+            f"SUPABASE_KEY={'✓' if settings.SUPABASE_KEY else '✗'}") 
