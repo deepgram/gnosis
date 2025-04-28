@@ -66,7 +66,7 @@ app = create_app()
 
 if __name__ == "__main__":
     # Get port from environment variable or use default
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8080))
     
     # Run the server
     uvicorn.run(
