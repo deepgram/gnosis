@@ -9,8 +9,8 @@ from litestar.openapi import OpenAPIConfig
 from litestar.handlers import get
 
 from app.config import settings
-from app.routes.openai import openai_router
-from app.routes.deepgram import deepgram_router
+from app.routes.chat_completions import chat_completions_router
+from app.routes.agent import agent_router
 
 # Define consistent log format
 LOG_FORMAT = '%(levelname)s:     %(message)s'
@@ -72,15 +72,15 @@ def create_app() -> Litestar:
     openapi_config = OpenAPIConfig(
         title="Gnosis API",
         version=settings.VERSION,
-        summary="An intelligence API proxy for OpenAI and Deepgram",
+        summary="An intelligence API proxy for LLMs and voice agents",
         description=(
-            "Gnosis works as a proxy to the OpenAI Chat Completion's API and "
-            "the Deepgram Voice Agent API."
+            "Gnosis works as a proxy to the Chat Completion's API and "
+            "the Voice Agent API, adding tools and RAG capabilities."
         ),
     )
 
     return Litestar(
-        route_handlers=[health_check, openai_router, deepgram_router],
+        route_handlers=[health_check, chat_completions_router, agent_router],
         cors_config=cors_config,
         logging_config=logging_config,
         openapi_config=openapi_config,

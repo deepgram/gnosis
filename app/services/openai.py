@@ -11,6 +11,16 @@ logger = logging.getLogger(__name__)
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
+def get_client() -> OpenAI:
+    """
+    Get an initialized OpenAI client.
+    
+    Returns:
+        An initialized OpenAI client
+    """
+    return client
+
+
 async def vector_store_search(
     query: str,
     vector_store_id: str,
