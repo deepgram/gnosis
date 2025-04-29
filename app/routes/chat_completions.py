@@ -7,6 +7,7 @@ from litestar import Router, Request, post
 from litestar.exceptions import HTTPException
 from litestar.response import Stream, Response
 from litestar.status_codes import HTTP_502_BAD_GATEWAY
+from pydantic import BaseModel
 
 from app.config import settings
 from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage
@@ -20,6 +21,15 @@ logger = logging.getLogger(__name__)
 
 # Get OpenAI client
 client = get_client()
+
+
+# Custom JSON encoder for serializing Pydantic models
+class PydanticJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles Pydantic models."""
+    def default(self, obj):
+        if isinstance(obj, BaseModel):
+            return obj.model_dump()
+        return super().default(obj)
 
 
 def extract_query_from_messages(messages: List[Union[ChatMessage, Dict[str, Any]]]) -> str:
@@ -247,11 +257,18 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     
                     # Add tool results
                     for tool_call_id, result in tool_results.items():
+                        # Serialize the result using our custom encoder if needed
+                        try:
+                            result_json = json.dumps(result, cls=PydanticJSONEncoder)
+                        except TypeError:
+                            # Fallback to string representation if serialization fails
+                            result_json = json.dumps(str(result))
+                        
                         # Create tool result message
                         tool_message = ToolResultMessage(
                             role="tool",
                             tool_call_id=tool_call_id,
-                            content=json.dumps(result)
+                            content=result_json
                         )
                         
                         # Add tool result message as dict for serialization
@@ -289,6 +306,13 @@ async def chat_completion(request: Request, data: Any) -> Response:
         raise HTTPException(
             status_code=e.response.status_code,
             detail=e.response.text,
+        )
+    except TypeError as e:
+        # This is likely a JSON serialization error
+        logger.error(f"TypeError (likely JSON serialization error): {str(e)}")
+        raise HTTPException(
+            status_code=HTTP_502_BAD_GATEWAY,
+            detail=f"JSON serialization error: {str(e)}",
         )
     except Exception as e:
         logger.error(f"Error proxying request: {str(e)}")

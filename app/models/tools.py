@@ -4,6 +4,7 @@ Pydantic models for tool definitions and tool responses.
 
 from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
 from pydantic import BaseModel, Field
+import json
 
 
 class ToolParameter(BaseModel):
@@ -27,10 +28,12 @@ class ToolParametersSchema(BaseModel):
 
 class ToolDefinition(BaseModel):
     """
-    Definition of a tool that can be used by the LLM.
+    Definition for a tool that can be called by a language model.
     """
-    type: Literal["function"] = "function"
-    function: Dict[str, Any] = Field(...)
+    name: str
+    description: str
+    parameters: Dict[str, Any]
+    required: Optional[List[str]] = None
 
 
 class VectorSearchResult(BaseModel):
@@ -48,11 +51,22 @@ class VectorSearchResponse(BaseModel):
     """
     results: List[VectorSearchResult]
     count: int
+    
+    def model_dump(self):
+        """Override model_dump to ensure serializable output"""
+        return {
+            "results": [result.model_dump() for result in self.results],
+            "count": self.count
+        }
+    
+    def __str__(self):
+        """String representation for fallback serialization"""
+        return f"VectorSearchResponse(count={self.count}, results={len(self.results)} items)"
 
 
 class ToolError(BaseModel):
     """
-    Error response from a tool.
+    Error from a tool execution.
     """
     error: str
 
