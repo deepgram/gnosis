@@ -61,89 +61,84 @@ async def vector_store_search(
         raise ValueError("OpenAI API key is missing")
     
     try:
-        # The OpenAI client might be using the wrong path; use a direct request instead
-        import httpx
-        
-        search_url = f"https://api.openai.com/v1/vector_stores/{vector_store_id}/search"
-        headers = {
-            "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-            "Content-Type": "application/json"
+        # Use the correct method for OpenAI client vector store search
+        # Prepare search parameters according to VectorStoreSearchParams type
+        search_params = {
+            "query": query,
+            "max_num_results": min(limit, 50)  # Limit should be between 1-50
         }
         
-        search_data = {
-            "query": query
-        }
+        # Add additional parameters if provided (filters, ranking_options, rewrite_query)
+        if additional_params:
+            # Only include valid parameters for VectorStoreSearchParams
+            valid_keys = ["filters", "ranking_options", "rewrite_query"]
+            for key in valid_keys:
+                if key in additional_params:
+                    search_params[key] = additional_params[key]
+            
+        # Execute the search
+        response = client.vector_stores.search(
+            vector_store_id=vector_store_id,
+            **search_params
+        )
         
-        logger.info(f"Making direct request to {search_url}")
-        
-        async with httpx.AsyncClient() as http_client:
-            response = await http_client.post(
-                search_url,
-                headers=headers,
-                json=search_data
-            )
-            
-            # Check if the response was successful
-            if response.status_code != 200:
-                logger.error(f"Vector store search failed with status {response.status_code}: {response.text}")
-                raise ValueError(f"Vector store search failed with status {response.status_code}")
-            
-            # Parse the response
-            response_data = response.json()
-            
         # Process the response
         results = []
         
         # Check if response has the expected data attribute
-        if "data" not in response_data:
+        if not hasattr(response, "data"):
             logger.error("Response doesn't contain data attribute")
             raise ValueError("Invalid response structure from vector store search")
         
         # Process the results
-        for item in response_data["data"]:
+        for item in response.data:
             # Build the content text based on response structure
             content_text = ""
             
-            if "content" in item and item["content"]:
+            if hasattr(item, "content") and item.content:
                 # Handle array of content items
-                if isinstance(item["content"], list):
-                    for content_item in item["content"]:
-                        if content_item.get("type") == "text":
-                            content_text += content_item.get("text", "") + "\n"
+                if isinstance(item.content, list):
+                    for content_item in item.content:
+                        if hasattr(content_item, "type") and content_item.type == "text":
+                            content_text += getattr(content_item, "text", "") + "\n"
                 # Handle direct text content            
-                elif isinstance(item["content"], dict) and "text" in item["content"]:
-                    content_text = item["content"]["text"]
+                elif hasattr(item.content, "text"):
+                    content_text = item.content.text
             # Try other common attributes
-            elif "text" in item:
-                content_text = item["text"]
+            elif hasattr(item, "text"):
+                content_text = item.text
             
             # Extract metadata
             metadata = {}
-            if "metadata" in item and item["metadata"]:
-                metadata = item["metadata"].copy()
+            if hasattr(item, "metadata") and item.metadata:
+                if isinstance(item.metadata, dict):
+                    metadata = item.metadata
+                else:
+                    # Try to convert to dict if it's another object
+                    metadata = {
+                        key: getattr(item.metadata, key) 
+                        for key in dir(item.metadata) 
+                        if not key.startswith('_') and not callable(getattr(item.metadata, key))
+                    }
                     
             # Add vector_store_id to metadata
             metadata["vector_store_id"] = vector_store_id
             
             # Extract file info if available
-            if "filename" in item:
-                metadata["filename"] = item["filename"]
-            if "file_id" in item:
-                metadata["file_id"] = item["file_id"]
+            if hasattr(item, "filename"):
+                metadata["filename"] = item.filename
+            if hasattr(item, "file_id"):
+                metadata["file_id"] = item.file_id
             
             # Create result object
             result = VectorStoreResult(
-                id=item.get("id", "unknown"),
-                score=item.get("score", 0.0),
+                id=getattr(item, "id", "unknown"),
+                score=getattr(item, "score", 0.0),
                 content=content_text.strip(),
                 metadata=metadata
             )
             
             results.append(result)
-            
-            # Limit results if needed
-            if limit and len(results) >= limit:
-                break
         
         logger.info(f"Found {len(results)} results in vector store search")
         return results
