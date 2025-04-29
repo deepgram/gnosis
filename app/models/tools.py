@@ -30,10 +30,8 @@ class ToolDefinition(BaseModel):
     """
     Definition for a tool that can be called by a language model.
     """
-    name: str
-    description: str
-    parameters: Dict[str, Any]
-    required: Optional[List[str]] = None
+    type: Literal["function"] = "function"
+    function: Dict[str, Any] = Field(...)
 
 
 class VectorSearchResult(BaseModel):

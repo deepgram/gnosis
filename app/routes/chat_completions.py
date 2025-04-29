@@ -125,6 +125,9 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> ToolResponse:
         
     Returns:
         The result of the tool call
+        
+    Raises:
+        Exception: If the tool call fails
     """
     tool_name = tool_call.get("function", {}).get("name")
     arguments_str = tool_call.get("function", {}).get("arguments", "{}")
@@ -134,29 +137,18 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> ToolResponse:
         arguments = json.loads(arguments_str)
     except json.JSONDecodeError:
         logger.error(f"Failed to parse arguments: {arguments_str}")
-        return {
-            "error": "Invalid arguments format"
-        }
+        raise ValueError(f"Invalid arguments format: {arguments_str}")
     
     # Check if the tool exists
     if tool_name not in tools:
         logger.error(f"Tool not found: {tool_name}")
-        return {
-            "error": f"Tool not found: {tool_name}"
-        }
+        raise ValueError(f"Tool not found: {tool_name}")
     
-    try:
-        # Call the tool handler
-        logger.info(f"Calling tool: {tool_name}")
-        result = await tools[tool_name](arguments)
-        logger.info(f"Tool {tool_name} completed successfully")
-        return result
-    
-    except Exception as e:
-        logger.error(f"Error calling tool {tool_name}: {str(e)}")
-        return {
-            "error": str(e)
-        }
+    # Call the tool handler
+    logger.info(f"Calling tool: {tool_name}")
+    result = await tools[tool_name](arguments)
+    logger.info(f"Tool {tool_name} completed successfully")
+    return result
 
 
 @post("/chat/completions")
@@ -208,14 +200,22 @@ async def chat_completion(request: Request, data: Any) -> Response:
         
         # Perform RAG search if a query was found and there's no direct tool call being made
         if query and tool_choice != "required":
-            # Perform vector search using the query
-            logger.info(f"Performing RAG search with query: {query}")
-            search_results = await perform_vector_search(query)
-            
-            if search_results:
-                # Enrich the messages with RAG results
-                json_data["messages"] = enrich_messages_with_rag_results(messages, search_results)
-                logger.info("Successfully enriched request with RAG results")
+            try:
+                # Perform vector search using the query
+                logger.info(f"Performing RAG search with query: {query}")
+                search_results = await perform_vector_search(query)
+                
+                if search_results:
+                    # Enrich the messages with RAG results
+                    json_data["messages"] = enrich_messages_with_rag_results(messages, search_results)
+                    logger.info("Successfully enriched request with RAG results")
+            except Exception as e:
+                # If RAG search fails, return a 500 error instead of continuing without context
+                logger.error(f"Vector search failed: {str(e)}")
+                raise HTTPException(
+                    status_code=HTTP_502_BAD_GATEWAY,
+                    detail=f"RAG search failed: {str(e)}"
+                )
         
         # For streaming responses
         if getattr(data, 'stream', False) or json_data.get('stream', False):
@@ -246,10 +246,18 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     
                     # Process all tool calls
                     tool_results = {}
-                    for tool_call in tool_calls:
-                        tool_call_id = tool_call.get("id")
-                        result = await process_tool_call(tool_call)
-                        tool_results[tool_call_id] = result
+                    try:
+                        for tool_call in tool_calls:
+                            tool_call_id = tool_call.get("id")
+                            result = await process_tool_call(tool_call)
+                            tool_results[tool_call_id] = result
+                    except Exception as e:
+                        # If tool call processing fails, return a 500 error
+                        logger.error(f"Tool call processing failed: {str(e)}")
+                        raise HTTPException(
+                            status_code=HTTP_502_BAD_GATEWAY,
+                            detail=f"Tool call failed: {str(e)}"
+                        )
                     
                     # Create a new request with tool results
                     new_messages = json_data.get("messages", []).copy()
@@ -259,7 +267,11 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     for tool_call_id, result in tool_results.items():
                         # Serialize the result using our custom encoder if needed
                         try:
-                            result_json = json.dumps(result, cls=PydanticJSONEncoder)
+                            # Make sure we serialize any Pydantic models in the result
+                            if isinstance(result, BaseModel):
+                                result_json = json.dumps(result.model_dump(), cls=PydanticJSONEncoder)
+                            else:
+                                result_json = json.dumps(result, cls=PydanticJSONEncoder)
                         except TypeError:
                             # Fallback to string representation if serialization fails
                             result_json = json.dumps(str(result))

@@ -49,14 +49,17 @@ async def vector_store_search(
         
     Returns:
         List of search results with content and metadata
+        
+    Raises:
+        Exception: If the vector store search fails
     """
     logger.info(f"Searching vector store '{vector_store_id}' with query: {query}")
     
     try:
-        # Prepare search parameters
+        # Prepare search parameters - try without specifying a limit parameter since the API
+        # is rejecting both 'limit' and 'top_k'
         search_params = {
-            "query": query,
-            "limit": limit
+            "query": query
         }
         
         # Add any additional parameters like filters
@@ -109,13 +112,18 @@ async def vector_store_search(
             )
                 
             results.append(result)
+            
+            # If we have a limit set, only take that many results
+            if limit and len(results) >= limit:
+                break
         
         logger.info(f"Found {len(results)} results in vector store '{vector_store_id}'")
         return results
         
     except Exception as e:
         logger.error(f"Error in vector store search: {str(e)}")
-        return []
+        # Re-raise the exception so the caller can handle it
+        raise
 
 
 async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, Any]]:
@@ -128,6 +136,9 @@ async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, An
         
     Returns:
         Combined list of search results
+        
+    Raises:
+        Exception: If the vector search fails
     """
     # Dictionary of vector store IDs to search
     vector_stores = {
@@ -141,7 +152,12 @@ async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, An
     ]
     
     # Gather all results
-    all_results = await asyncio.gather(*tasks)
+    try:
+        all_results = await asyncio.gather(*tasks)
+    except Exception as e:
+        # Log and re-raise the exception
+        logger.error(f"Vector search error: {str(e)}")
+        raise
     
     # Flatten results and sort by score
     flattened_results = [
