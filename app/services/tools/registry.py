@@ -1,5 +1,10 @@
 from typing import Any, Callable, Dict, Awaitable, List, Optional
 
+from app.models.tools import ToolDefinition, ToolRegistry, ToolResponse
+
+# Initialize the tool registry
+registry = ToolRegistry()
+
 # Dictionary of registered tools
 # Key is the tool name, value is an async function that takes arguments and returns a result
 tools: Dict[str, Callable[[Dict[str, Any]], Awaitable[Any]]] = {}
@@ -22,6 +27,7 @@ def register_tool(name: str) -> Callable[[Callable], Callable]:
     """
     def decorator(func: Callable[[Dict[str, Any]], Awaitable[Any]]) -> Callable[[Dict[str, Any]], Awaitable[Any]]:
         tools[name] = func
+        registry.tools[name] = func
         return func
     return decorator
 
@@ -35,7 +41,7 @@ def register_tool_definition(name: str, description: str, parameters: Dict[str, 
         description: A description of what the tool does
         parameters: The JSON Schema for the tool's parameters
     """
-    tool_definitions[name] = {
+    tool_definition = {
         "type": "function",
         "function": {
             "name": name,
@@ -43,6 +49,9 @@ def register_tool_definition(name: str, description: str, parameters: Dict[str, 
             "parameters": parameters
         }
     }
+    
+    tool_definitions[name] = tool_definition
+    registry.tool_definitions[name] = ToolDefinition(**tool_definition)
 
 
 def get_all_tool_definitions() -> List[Dict[str, Any]]:

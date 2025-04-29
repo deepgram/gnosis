@@ -4,6 +4,7 @@ from typing import Dict, List, Any, Optional, Union
 from app.config import settings
 from app.services.tools.registry import register_tool
 from app.services.openai import vector_store_search
+from app.models.tools import VectorSearchResponse, VectorSearchResult, ToolError
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -39,13 +40,13 @@ TOOL_DESCRIPTIONS = {
 }
 
 @register_tool("search_documentation")
-async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
+async def search_documentation(arguments: Dict[str, Any]) -> Union[VectorSearchResponse, ToolError]:
     """Search technical documentation and API references"""
     query = arguments.get("query")
     limit = arguments.get("limit", 5)
     
     if not query:
-        return {"error": "Query parameter is required"}
+        return ToolError(error="Query parameter is required")
     
     results = await vector_store_search(
         query=query,
@@ -55,25 +56,25 @@ async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     return format_vector_search_results(results)
 
-def format_vector_search_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+def format_vector_search_results(results: List[Dict[str, Any]]) -> VectorSearchResponse:
     """Format vector search results for return to the LLM"""
     formatted_results = []
     
     for result in results:
-        formatted_result = {
-            "content": result["content"],
-            "metadata": {
+        formatted_result = VectorSearchResult(
+            content=result["content"],
+            metadata={
                 key: value for key, value in result.get("metadata", {}).items()
                 if key != "vector_store_id"  # Exclude internal metadata
             }
-        }
+        )
         
         if "score" in result:
-            formatted_result["relevance_score"] = result["score"]
+            formatted_result.relevance_score = result["score"]
             
         formatted_results.append(formatted_result)
     
-    return {
-        "results": formatted_results,
-        "count": len(formatted_results)
-    }
+    return VectorSearchResponse(
+        results=formatted_results,
+        count=len(formatted_results)
+    )

@@ -9,6 +9,8 @@ from litestar.response import Stream, Response
 from litestar.status_codes import HTTP_502_BAD_GATEWAY
 
 from app.config import settings
+from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage
+from app.models.tools import ToolResponse, VectorSearchResponse
 from app.services.tools.vector_search import format_vector_search_results
 from app.services.tools.registry import get_all_tool_definitions, tools
 from app.services.openai import get_client, perform_vector_search
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 client = get_client()
 
 
-def extract_query_from_messages(messages: List[Dict[str, Any]]) -> str:
+def extract_query_from_messages(messages: List[Union[ChatMessage, Dict[str, Any]]]) -> str:
     """
     Extract the query from the last user message in the messages array.
     
@@ -35,22 +37,29 @@ def extract_query_from_messages(messages: List[Dict[str, Any]]) -> str:
     
     # Iterate through messages in reverse to find the last user message
     for message in reversed(messages):
-        if message.get("role") == "user":
-            content = message.get("content", "")
+        # Convert dict to ChatMessage if needed
+        if isinstance(message, dict):
+            message = ChatMessage(**message)
+            
+        if message.role == "user":
+            content = message.content or ""
             # Handle both string and list content formats
             if isinstance(content, list):
                 # Join text parts of the content
                 return " ".join([
-                    part.get("text", "")
+                    part.text or ""
                     for part in content
-                    if part.get("type") == "text"
+                    if part.type == "text"
                 ])
             return content
     
     return ""
 
 
-def enrich_messages_with_rag_results(messages: List[Dict[str, Any]], search_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def enrich_messages_with_rag_results(
+    messages: List[Union[ChatMessage, Dict[str, Any]]], 
+    search_results: List[Dict[str, Any]]
+) -> List[Union[ChatMessage, Dict[str, Any]]]:
     """
     Add a system message with RAG results before the user's query.
     
@@ -73,16 +82,18 @@ def enrich_messages_with_rag_results(messages: List[Dict[str, Any]], search_resu
         context += f"{result['content']}\n\n"
     
     # Create a new system message with the context
-    system_message = {
-        "role": "system",
-        "content": context
-    }
+    system_message = ChatMessage(
+        role="system",
+        content=context
+    )
     
     # Find the position to insert the system message
     # We want to insert it just before the last user message
     last_user_index = None
     for i in range(len(messages) - 1, -1, -1):
-        if messages[i].get("role") == "user":
+        msg = messages[i]
+        role = msg.get("role") if isinstance(msg, dict) else msg.role
+        if role == "user":
             last_user_index = i
             break
     
@@ -95,7 +106,7 @@ def enrich_messages_with_rag_results(messages: List[Dict[str, Any]], search_resu
     return messages + [system_message]
 
 
-async def process_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
+async def process_tool_call(tool_call: Dict[str, Any]) -> ToolResponse:
     """
     Process a tool call from the LLM.
     
@@ -155,6 +166,15 @@ async def chat_completion(request: Request, data: Any) -> Response:
         "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
+    
+    # Convert data to Pydantic model if possible
+    if not isinstance(data, ChatCompletionRequest) and hasattr(data, "__dict__"):
+        try:
+            data = ChatCompletionRequest(**data.model_dump(exclude_none=True) 
+                                        if hasattr(data, 'model_dump') 
+                                        else data.__dict__)
+        except Exception as e:
+            logger.debug(f"Failed to convert data to ChatCompletionRequest: {e}")
     
     # Convert data to JSON-serializable dict
     json_data = data.model_dump(exclude_none=True) if hasattr(data, 'model_dump') else data
@@ -227,12 +247,15 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     
                     # Add tool results
                     for tool_call_id, result in tool_results.items():
-                        # Add tool result message
-                        new_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call_id,
-                            "content": json.dumps(result),
-                        })
+                        # Create tool result message
+                        tool_message = ToolResultMessage(
+                            role="tool",
+                            tool_call_id=tool_call_id,
+                            content=json.dumps(result)
+                        )
+                        
+                        # Add tool result message as dict for serialization
+                        new_messages.append(tool_message.model_dump())
                     
                     # Create new request to send back to LLM
                     new_json_data = json_data.copy()

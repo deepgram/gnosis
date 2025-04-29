@@ -3,9 +3,19 @@ import json
 import asyncio
 import time
 import websockets
-from typing import Dict, Any, Callable, Literal
+from typing import Dict, Any, Callable, Literal, Union, Awaitable
 
 from app.config import settings
+from app.models.agent import (
+    MessageType, 
+    ClientMessage, 
+    AgentMessage, 
+    TranscriptMessage, 
+    SpeechMessage, 
+    ThinkingMessage,
+    FinishedMessage,
+    ErrorMessage
+)
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -33,9 +43,9 @@ def log_message(direction: Literal["incoming", "outgoing"], source: str, message
         data = json.loads(message)
         msg_type = data.get("type", "unknown")
         
-        if msg_type == "AudioMessage":
+        if msg_type == MessageType.AUDIO:
             # For audio messages just log the type and length to avoid spamming logs
-            audio_data_len = len(data.get("audio", {}).get("data", ""))
+            audio_data_len = len(data.get("audio", ""))
             logger.debug(f"{direction.upper()} {source} | Type: {msg_type} | Audio bytes: {audio_data_len}")
         else:
             # Pretty print other message types
@@ -83,8 +93,8 @@ async def connect_to_agent(session_id: str) -> websockets.WebSocketClientProtoco
 async def handle_agent_session(
     client_socket: Any,
     session_id: str,
-    on_receive: Callable[[Dict[str, Any]], Any],
-    on_send: Callable[[str | bytes], Any]
+    on_receive: Callable[[], Awaitable[Any]],
+    on_send: Callable[[Dict[str, Any]], Awaitable[None]]
 ) -> None:
     """
     Handle a complete agent session with message forwarding between client and Deepgram.
@@ -116,20 +126,29 @@ async def handle_agent_session(
                     messages_from_client += 1
                     
                     # Handle different types of messages
-                    if "text" in message:
+                    if isinstance(message, ClientMessage):
+                        # Pydantic model - serialize and send
+                        text_message = message.model_dump_json()
+                        log_message("outgoing", "client → deepgram", text_message)
+                        await deepgram_socket.send(text_message)
+                    elif isinstance(message, dict) and "text" in message:
                         # Text message
                         text_message = message["text"]
                         log_message("outgoing", "client → deepgram", text_message)
-                        
-                        # Forward to Deepgram
                         await deepgram_socket.send(text_message)
-                    elif "bytes" in message:
+                    elif isinstance(message, dict) and "bytes" in message:
                         # Binary message
                         binary_message = message["bytes"]
                         logger.debug(f"OUTGOING client → deepgram | Binary data: {len(binary_message)} bytes")
-                        
-                        # Forward binary data to Deepgram
                         await deepgram_socket.send(binary_message)
+                    else:
+                        # Handle other types of messages
+                        if hasattr(message, 'model_dump_json'):
+                            await deepgram_socket.send(message.model_dump_json())
+                        elif isinstance(message, dict):
+                            await deepgram_socket.send(json.dumps(message))
+                        else:
+                            logger.warning(f"Unknown message type from client: {type(message)}")
             except websockets.exceptions.ConnectionClosed as e:
                 logger.info(f"[{session_id}] Client connection closed (code: {e.code}, reason: {e.reason})")
             except Exception as e:
@@ -149,8 +168,34 @@ async def handle_agent_session(
                         # Text message
                         log_message("incoming", "deepgram → client", message)
                         
-                        # Send text message to client
-                        await on_send({"type": "text", "content": message})
+                        # Parse the message and create appropriate model
+                        try:
+                            data = json.loads(message)
+                            msg_type = data.get("type")
+                            
+                            # Create appropriate agent message based on type
+                            agent_message = None
+                            if msg_type == MessageType.TRANSCRIPT:
+                                agent_message = TranscriptMessage(**data)
+                            elif msg_type == MessageType.SPEECH:
+                                agent_message = SpeechMessage(**data)
+                            elif msg_type == MessageType.THINKING:
+                                agent_message = ThinkingMessage(**data)
+                            elif msg_type == MessageType.FINISHED:
+                                agent_message = FinishedMessage(**data)
+                            elif msg_type == MessageType.ERROR:
+                                agent_message = ErrorMessage(**data)
+                                
+                            # Send the message if we created a model
+                            if agent_message:
+                                await on_send({"type": "text", "content": agent_message.model_dump_json()})
+                            else:
+                                # Fall back to sending raw message
+                                await on_send({"type": "text", "content": message})
+                        except Exception as e:
+                            logger.error(f"Error parsing agent message: {e}")
+                            # Fall back to sending raw message
+                            await on_send({"type": "text", "content": message})
                     else:
                         # Binary message (likely audio)
                         logger.debug(f"INCOMING deepgram → client | Binary data: {len(message)} bytes")
@@ -178,8 +223,8 @@ async def handle_agent_session(
             
     except Exception as e:
         logger.error(f"[{session_id}] Error in WebSocket proxy: {str(e)}")
-        error_message = json.dumps({"type": "Error", "message": str(e)})
-        await on_send({"type": "text", "content": error_message})
+        error_message = ErrorMessage(message=str(e))
+        await on_send({"type": "text", "content": error_message.model_dump_json()})
     
     finally:
         session_duration = time.time() - session_start

@@ -6,6 +6,14 @@ from typing import Dict, Any
 
 from litestar import Router, WebSocket, websocket
 
+from app.models.agent import (
+    MessageType, 
+    ClientMessage, 
+    AgentMessage, 
+    AudioMessage, 
+    ConfigMessage, 
+    ErrorMessage
+)
 from app.services.deepgram import handle_agent_session
 
 # Get a logger for this module
@@ -28,7 +36,26 @@ async def agent_websocket(socket: WebSocket) -> None:
     
     # Define message handlers for the socket
     async def receive_from_client():
-        return await socket.receive()
+        data = await socket.receive()
+        # Try to parse the message as a ClientMessage
+        try:
+            if "text" in data:
+                msg_data = json.loads(data["text"])
+                msg_type = msg_data.get("type")
+                
+                if msg_type == MessageType.AUDIO:
+                    return AudioMessage(**msg_data)
+                elif msg_type == MessageType.CONFIG:
+                    return ConfigMessage(**msg_data)
+                else:
+                    return msg_data
+            elif "bytes" in data:
+                return {"type": "binary", "data": data["bytes"]}
+            else:
+                return data
+        except Exception as e:
+            logger.error(f"Error parsing client message: {e}")
+            return data
     
     async def send_to_client(message):
         if message["type"] == "text":
@@ -46,8 +73,8 @@ async def agent_websocket(socket: WebSocket) -> None:
         )
     except Exception as e:
         logger.error(f"[{session_id}] Error in agent websocket: {str(e)}")
-        error_message = json.dumps({"type": "Error", "message": str(e)})
-        await socket.send_text(error_message)
+        error_message = ErrorMessage(message=str(e))
+        await socket.send_text(error_message.model_dump_json())
     finally:
         # Ensure client socket is closed
         try:

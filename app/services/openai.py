@@ -3,6 +3,8 @@ import asyncio
 from typing import Dict, List, Any, Optional
 
 from openai import OpenAI
+from pydantic import BaseModel, Field
+
 from app.config import settings
 
 # Get a logger for this module
@@ -10,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 # Initialize OpenAI client
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+class VectorStoreResult(BaseModel):
+    """Result from a vector store search."""
+    id: str
+    score: float
+    content: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 def get_client() -> OpenAI:
@@ -27,7 +37,7 @@ async def vector_store_search(
     vector_store_id: str,
     limit: int = 5,
     additional_params: Optional[Dict[str, Any]] = None
-) -> List[Dict[str, Any]]:
+) -> List[VectorStoreResult]:
     """
     Search an OpenAI vector store using the provided query.
     
@@ -70,30 +80,33 @@ async def vector_store_search(
                     if content_item.type == "text":
                         content_text += content_item.text + "\n"
             
-            # Create result object
-            result = {
-                "id": item.id,
-                "score": item.score,
-                "content": content_text.strip(),
-                "metadata": {}
-            }
+            # Create metadata dictionary
+            metadata = {}
             
             # Add metadata if available
             if hasattr(item, "metadata") and item.metadata:
-                result["metadata"] = {
+                metadata = {
                     key: value for key, value in item.metadata.items()
                 }
                 
-                # Add vector_store_id to metadata for tracking
-                result["metadata"]["vector_store_id"] = vector_store_id
+            # Add vector_store_id to metadata for tracking
+            metadata["vector_store_id"] = vector_store_id
             
             # Add filename if available
             if hasattr(item, "filename"):
-                result["metadata"]["filename"] = item.filename
+                metadata["filename"] = item.filename
             
             # Add file_id if available
             if hasattr(item, "file_id"):
-                result["metadata"]["file_id"] = item.file_id
+                metadata["file_id"] = item.file_id
+            
+            # Create result object using the model
+            result = VectorStoreResult(
+                id=item.id,
+                score=item.score,
+                content=content_text.strip(),
+                metadata=metadata
+            )
                 
             results.append(result)
         
@@ -132,7 +145,7 @@ async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, An
     
     # Flatten results and sort by score
     flattened_results = [
-        result for sublist in all_results for result in sublist
+        result.model_dump() for sublist in all_results for result in sublist
     ]
     
     # Sort by score (descending)
