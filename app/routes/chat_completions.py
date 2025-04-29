@@ -9,9 +9,9 @@ from litestar.response import Stream, Response
 from litestar.status_codes import HTTP_502_BAD_GATEWAY
 
 from app.config import settings
-from app.services.tools.vector_search import perform_vector_search, format_vector_search_results
+from app.services.tools.vector_search import format_vector_search_results
 from app.services.tools.registry import get_all_tool_definitions, tools
-from app.services.openai import get_client
+from app.services.openai import get_client, perform_vector_search
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)

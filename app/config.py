@@ -51,7 +51,10 @@ settings = Settings()
 # Log settings
 logger = logging.getLogger(__name__)
 logger.info(f"Settings loaded: "
+            f"DEBUG={'✓' if settings.DEBUG else '✗'}, "
+            f"LOG_LEVEL={settings.LOG_LEVEL}, "
+            f"CORS_ORIGINS={settings.CORS_ORIGINS}, "
             f"OPENAI_API_KEY={'✓' if settings.OPENAI_API_KEY else '✗'}, "
             f"DEEPGRAM_API_KEY={'✓' if settings.DEEPGRAM_API_KEY else '✗'}, "
             f"SUPABASE_URL={'✓' if settings.SUPABASE_URL else '✗'}, "
-            f"SUPABASE_KEY={'✓' if settings.SUPABASE_KEY else '✗'}") 
+            f"SUPABASE_KEY={'✓' if settings.SUPABASE_KEY else '✗'}")

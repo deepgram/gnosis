@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Dict, List, Any, Optional, Union
 
@@ -56,10 +55,6 @@ async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     return format_vector_search_results(results)
 
-def get_vector_store_id_from_metadata(metadata: Dict[str, Any]) -> Optional[str]:
-    """Extract the vector store ID from result metadata"""
-    return metadata.get("vector_store_id")
-
 def format_vector_search_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Format vector search results for return to the LLM"""
     formatted_results = []
@@ -82,38 +77,3 @@ def format_vector_search_results(results: List[Dict[str, Any]]) -> Dict[str, Any
         "results": formatted_results,
         "count": len(formatted_results)
     }
-
-async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, Any]]:
-    """
-    Perform vector search across all vector stores for RAG.
-    
-    Args:
-        query: The search query
-        limit: Maximum number of results to return per store
-        
-    Returns:
-        Combined list of search results
-    """
-    # Search all vector stores concurrently
-    tasks = [
-        vector_store_search(query, store_id, limit)
-        for store_id in VECTOR_STORES.keys()
-    ]
-    
-    # Gather all results
-    all_results = await asyncio.gather(*tasks)
-    
-    # Flatten results and sort by score
-    flattened_results = [
-        result for sublist in all_results for result in sublist
-    ]
-    
-    # Sort by score (descending)
-    sorted_results = sorted(
-        flattened_results,
-        key=lambda x: x.get("score", 0),
-        reverse=True
-    )
-    
-    # Return top results across all stores
-    return sorted_results[:limit] 

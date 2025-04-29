@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Dict, List, Any, Optional
 
 from openai import OpenAI
@@ -101,4 +102,50 @@ async def vector_store_search(
         
     except Exception as e:
         logger.error(f"Error in vector store search: {str(e)}")
-        return [] 
+        return []
+
+
+async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, Any]]:
+    """
+    Perform vector search across multiple vector stores for RAG.
+    
+    Args:
+        query: The search query
+        limit: Maximum number of results to return per store
+        
+    Returns:
+        Combined list of search results
+    """
+    # Dictionary of vector store IDs to search
+    vector_stores = {
+        "vs_67ff646e0558819189933696b5b165b1": "Documentation"
+    }
+    
+    # Search all vector stores concurrently
+    tasks = [
+        vector_store_search(query, store_id, limit)
+        for store_id in vector_stores.keys()
+    ]
+    
+    # Gather all results
+    all_results = await asyncio.gather(*tasks)
+    
+    # Flatten results and sort by score
+    flattened_results = [
+        result for sublist in all_results for result in sublist
+    ]
+    
+    # Sort by score (descending)
+    sorted_results = sorted(
+        flattened_results,
+        key=lambda x: x.get("score", 0),
+        reverse=True
+    )
+    
+    # Return top results across all stores
+    return sorted_results[:limit]
+
+
+def get_vector_store_id_from_metadata(metadata: Dict[str, Any]) -> Optional[str]:
+    """Extract the vector store ID from result metadata"""
+    return metadata.get("vector_store_id") 
