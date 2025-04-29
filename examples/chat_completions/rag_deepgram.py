@@ -60,6 +60,16 @@ def main():
             stream=True
         )
         
+        # Check if the response status is not 200
+        if response.status_code != 200:
+            print(f"\n{Fore.RED}Error: Received status code {response.status_code}{Style.RESET_ALL}")
+            try:
+                error_data = response.json()
+                print(f"Error details: {json.dumps(error_data, indent=2)}")
+            except json.JSONDecodeError:
+                print(f"Error response: {response.text}")
+            sys.exit(1)
+        
         # Process the streaming response
         for line in response.iter_lines():
             if not line:
@@ -98,6 +108,16 @@ def main():
         if args.verbose:
             log(f"Response status: {response.status_code}", "info", args.verbose)
         
+        # Check if the response status is not 200
+        if response.status_code != 200:
+            print(f"\n{Fore.RED}Error: Received status code {response.status_code}{Style.RESET_ALL}")
+            try:
+                error_data = response.json()
+                print(f"Error details: {json.dumps(error_data, indent=2)}")
+            except json.JSONDecodeError:
+                print(f"Error response: {response.text}")
+            sys.exit(1)
+        
         try:
             response_data = response.json()
             
@@ -112,12 +132,15 @@ def main():
             else:
                 log("Unexpected response format", "error", args.verbose)
                 print(json.dumps(response_data, indent=2))
+                sys.exit(1)  # Exit with error if the response format is unexpected
         except json.JSONDecodeError:
             log(f"Error parsing response: {response.text}", "error", args.verbose)
             print(response.text)
+            sys.exit(1)  # Exit with error if we can't parse the response
     
     print("\n")
     log("Request completed.", "important", args.verbose)
+    sys.exit(0)  # Exit with success if everything went well
 
 def log(message, level="info", verbose=False):
     """Log a message with appropriate formatting if verbose mode is enabled."""
