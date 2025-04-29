@@ -76,11 +76,28 @@ def main():
                 # Try to safely print the error response
                 try:
                     error_data = response.json()
-                    print(f"Error details: {json.dumps(error_data, indent=2, cls=CustomEncoder)}")
+                    if "detail" in error_data:
+                        # Format the detail field for better readability
+                        detail = error_data["detail"]
+                        # Check if it contains HTML
+                        if "<html>" in detail:
+                            print(f"Error details: Server returned HTML content (likely a 404 Not Found)")
+                            # Extract just the error message without the HTML
+                            import re
+                            title_match = re.search(r"<title>(.*?)</title>", detail)
+                            if title_match:
+                                print(f"Error type: {title_match.group(1)}")
+                        else:
+                            print(f"Error details: {detail}")
+                    else:
+                        print(f"Error details: {json.dumps(error_data, indent=2, cls=CustomEncoder)}")
                 except (json.JSONDecodeError, TypeError):
                     print(f"Error response: {response.text}")
             except Exception as e:
                 print(f"Error processing response: {str(e)}")
+            
+            print(f"\n{Fore.YELLOW}Suggestion:{Style.RESET_ALL} Check that the vector store ID is correct and accessible.")
+            print(f"Check the Gnosis server logs for more details about the RAG search failure.")
             sys.exit(1)
         
         # Process the streaming response
@@ -128,11 +145,28 @@ def main():
                 # Try to safely print the error response
                 try:
                     error_data = response.json()
-                    print(f"Error details: {json.dumps(error_data, indent=2, cls=CustomEncoder)}")
+                    if "detail" in error_data:
+                        # Format the detail field for better readability
+                        detail = error_data["detail"]
+                        # Check if it contains HTML
+                        if "<html>" in detail:
+                            print(f"Error details: Server returned HTML content (likely a 404 Not Found)")
+                            # Extract just the error message without the HTML
+                            import re
+                            title_match = re.search(r"<title>(.*?)</title>", detail)
+                            if title_match:
+                                print(f"Error type: {title_match.group(1)}")
+                        else:
+                            print(f"Error details: {detail}")
+                    else:
+                        print(f"Error details: {json.dumps(error_data, indent=2, cls=CustomEncoder)}")
                 except (json.JSONDecodeError, TypeError):
                     print(f"Error response: {response.text}")
             except Exception as e:
                 print(f"Error processing response: {str(e)}")
+            
+            print(f"\n{Fore.YELLOW}Suggestion:{Style.RESET_ALL} Check that the vector store ID is correct and accessible.")
+            print(f"Check the Gnosis server logs for more details about the RAG search failure.")
             sys.exit(1)
         
         try:

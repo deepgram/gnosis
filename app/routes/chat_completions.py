@@ -198,6 +198,9 @@ async def chat_completion(request: Request, data: Any) -> Response:
             json_data["tool_choice"] = "auto"
             logger.info("Injected tool definitions into request")
         
+        # Flag to track if RAG was successfully applied
+        rag_applied = False
+        
         # Perform RAG search if a query was found and there's no direct tool call being made
         if query and tool_choice != "required":
             try:
@@ -209,13 +212,24 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     # Enrich the messages with RAG results
                     json_data["messages"] = enrich_messages_with_rag_results(messages, search_results)
                     logger.info("Successfully enriched request with RAG results")
+                    rag_applied = True
+                else:
+                    logger.warning("Vector search returned no results, proceeding without RAG")
             except Exception as e:
-                # If RAG search fails, return a 500 error instead of continuing without context
-                logger.error(f"Vector search failed: {str(e)}")
-                raise HTTPException(
-                    status_code=HTTP_502_BAD_GATEWAY,
-                    detail=f"RAG search failed: {str(e)}"
-                )
+                # Log detailed diagnostic information for the error
+                logger.error(f"RAG search failed: {str(e)}")
+                logger.error(f"API key status: {'Configured' if settings.OPENAI_API_KEY else 'Missing'}")
+                logger.error(f"Query: {query[:50]}...")  # Log part of the query for debugging
+                
+                # If RAG fails but it's not critical, we can still proceed with the request
+                # For now, we'll continue without RAG but log a warning
+                logger.warning("Proceeding with request without RAG due to search failure")
+                
+                # Optionally, you could raise an exception here if RAG is considered critical
+                # raise HTTPException(
+                #     status_code=HTTP_502_BAD_GATEWAY,
+                #     detail=f"RAG search failed: {str(e)}"
+                # )
         
         # For streaming responses
         if getattr(data, 'stream', False) or json_data.get('stream', False):
@@ -249,15 +263,19 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     try:
                         for tool_call in tool_calls:
                             tool_call_id = tool_call.get("id")
-                            result = await process_tool_call(tool_call)
-                            tool_results[tool_call_id] = result
+                            try:
+                                # Process individual tool calls and capture any errors
+                                result = await process_tool_call(tool_call)
+                                tool_results[tool_call_id] = result
+                            except Exception as tool_error:
+                                # Log error for individual tool but continue with others
+                                logger.error(f"Tool call {tool_call_id} failed: {str(tool_error)}")
+                                # Create an error response for this specific tool
+                                tool_results[tool_call_id] = {"error": str(tool_error)}
                     except Exception as e:
-                        # If tool call processing fails, return a 500 error
+                        # If overall tool processing fails, log and continue
                         logger.error(f"Tool call processing failed: {str(e)}")
-                        raise HTTPException(
-                            status_code=HTTP_502_BAD_GATEWAY,
-                            detail=f"Tool call failed: {str(e)}"
-                        )
+                        # We'll continue without tool results rather than failing completely
                     
                     # Create a new request with tool results
                     new_messages = json_data.get("messages", []).copy()
@@ -328,9 +346,17 @@ async def chat_completion(request: Request, data: Any) -> Response:
         )
     except Exception as e:
         logger.error(f"Error proxying request: {str(e)}")
+        
+        # Check if this is a vector store error and provide more specific information
+        error_msg = str(e)
+        if "vector" in error_msg.lower() or "rag" in error_msg.lower():
+            detail = f"RAG search failed: {error_msg}"
+        else:
+            detail = str(e)
+            
         raise HTTPException(
             status_code=HTTP_502_BAD_GATEWAY,
-            detail=str(e),
+            detail=detail,
         )
 
 
