@@ -16,15 +16,7 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 VECTOR_STORES = {
     "documentation": {
         "name": "Documentation",
-        "description": "Technical documentation and API references"
-    },
-    "knowledge_base": {
-        "name": "Knowledge Base",
-        "description": "General knowledge articles and FAQs"
-    },
-    "code_examples": {
-        "name": "Code Examples",
-        "description": "Code snippets and programming examples"
+        "description": "Technical documentation from the Deepgram docs site"
     }
 }
 
@@ -32,7 +24,7 @@ VECTOR_STORES = {
 TOOL_DESCRIPTIONS = {
     "search_documentation": {
         "name": "search_documentation",
-        "description": "Search technical documentation and API references",
+        "description": "Search technical documentation from the Deepgram docs site",
         "parameters": {
             "type": "object",
             "properties": {
@@ -48,46 +40,6 @@ TOOL_DESCRIPTIONS = {
             "required": ["query"]
         }
     },
-    "search_knowledge_base": {
-        "name": "search_knowledge_base",
-        "description": "Search knowledge base articles and FAQs",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The search query"
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return"
-                }
-            },
-            "required": ["query"]
-        }
-    },
-    "search_code_examples": {
-        "name": "search_code_examples",
-        "description": "Search code snippets and programming examples",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The search query"
-                },
-                "language": {
-                    "type": "string",
-                    "description": "Programming language (e.g., python, javascript)"
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return"
-                }
-            },
-            "required": ["query"]
-        }
-    }
 }
 
 async def vector_store_search(
@@ -111,74 +63,62 @@ async def vector_store_search(
     logger.info(f"Searching vector store '{vector_store_id}' with query: {query}")
     
     try:
-        # Get embedding from OpenAI
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=query
+        # Prepare search parameters
+        search_params = {
+            "query": query,
+            "limit": limit
+        }
+        
+        # Add any additional parameters like filters
+        if additional_params:
+            if "filters" in additional_params:
+                search_params["filter"] = additional_params["filters"]
+        
+        # Call OpenAI API to search the vector store
+        response = client.vector_stores.search(
+            vector_store_id=vector_store_id,
+            **search_params
         )
         
-        embedding = response.data[0].embedding
-        
-        # Here you would normally search a vector database (Pinecone, Weaviate, etc.)
-        # For now, we'll return mock data based on the vector_store_id
-        
-        # Mock search results for demonstration
-        if vector_store_id == "documentation":
-            results = [
-                {
-                    "content": f"Documentation result for '{query}'",
-                    "metadata": {
-                        "title": "API Reference",
-                        "source": "docs/api/v1.md",
-                        "vector_store_id": vector_store_id
-                    },
-                    "score": 0.92
-                },
-                {
-                    "content": f"Another documentation result for '{query}'",
-                    "metadata": {
-                        "title": "Getting Started",
-                        "source": "docs/getting-started.md",
-                        "vector_store_id": vector_store_id
-                    },
-                    "score": 0.85
-                }
-            ]
-        elif vector_store_id == "knowledge_base":
-            results = [
-                {
-                    "content": f"Knowledge base article about '{query}'",
-                    "metadata": {
-                        "title": "FAQ",
-                        "source": "kb/faq.md",
-                        "vector_store_id": vector_store_id
-                    },
-                    "score": 0.88
-                }
-            ]
-        elif vector_store_id == "code_examples":
-            # Use additional params for language filtering if provided
-            language = additional_params.get("language") if additional_params else None
-            language_str = f" in {language}" if language else ""
+        # Process the response
+        results = []
+        for item in response.data:
+            # Extract content from the response
+            content_text = ""
+            if hasattr(item, "content") and item.content:
+                for content_item in item.content:
+                    if content_item.type == "text":
+                        content_text += content_item.text + "\n"
             
-            results = [
-                {
-                    "content": f"Code example for '{query}'{language_str}",
-                    "metadata": {
-                        "title": "Code Snippet",
-                        "language": language or "python",
-                        "source": "examples/snippets.md",
-                        "vector_store_id": vector_store_id
-                    },
-                    "score": 0.91
-                }
-            ]
-        else:
-            # Default empty results
-            results = []
+            # Create result object
+            result = {
+                "id": item.id,
+                "score": item.score,
+                "content": content_text.strip(),
+                "metadata": {}
+            }
             
-        # Limit results
-        return results[:limit]
+            # Add metadata if available
+            if hasattr(item, "metadata") and item.metadata:
+                result["metadata"] = {
+                    key: value for key, value in item.metadata.items()
+                }
+                
+                # Add vector_store_id to metadata for tracking
+                result["metadata"]["vector_store_id"] = vector_store_id
+            
+            # Add filename if available
+            if hasattr(item, "filename"):
+                result["metadata"]["filename"] = item.filename
+            
+            # Add file_id if available
+            if hasattr(item, "file_id"):
+                result["metadata"]["file_id"] = item.file_id
+                
+            results.append(result)
+        
+        logger.info(f"Found {len(results)} results in vector store '{vector_store_id}'")
+        return results
         
     except Exception as e:
         logger.error(f"Error in vector store search: {str(e)}")
@@ -196,46 +136,8 @@ async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     results = await vector_store_search(
         query=query,
-        vector_store_id="documentation",
+        vector_store_id="vs_67ff646e0558819189933696b5b165b1",
         limit=limit
-    )
-    
-    return format_vector_search_results(results)
-
-@register_tool("search_knowledge_base")
-async def search_knowledge_base(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Search knowledge base articles and FAQs"""
-    query = arguments.get("query")
-    limit = arguments.get("limit", 5)
-    
-    if not query:
-        return {"error": "Query parameter is required"}
-    
-    results = await vector_store_search(
-        query=query,
-        vector_store_id="knowledge_base",
-        limit=limit
-    )
-    
-    return format_vector_search_results(results)
-
-@register_tool("search_code_examples")
-async def search_code_examples(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Search code snippets and programming examples"""
-    query = arguments.get("query")
-    language = arguments.get("language")
-    limit = arguments.get("limit", 5)
-    
-    if not query:
-        return {"error": "Query parameter is required"}
-    
-    additional_params = {"language": language} if language else None
-    
-    results = await vector_store_search(
-        query=query,
-        vector_store_id="code_examples",
-        limit=limit,
-        additional_params=additional_params
     )
     
     return format_vector_search_results(results)
