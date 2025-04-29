@@ -198,38 +198,18 @@ async def chat_completion(request: Request, data: Any) -> Response:
             json_data["tool_choice"] = "auto"
             logger.info("Injected tool definitions into request")
         
-        # Flag to track if RAG was successfully applied
-        rag_applied = False
-        
         # Perform RAG search if a query was found and there's no direct tool call being made
         if query and tool_choice != "required":
-            try:
-                # Perform vector search using the query
-                logger.info(f"Performing RAG search with query: {query}")
-                search_results = await perform_vector_search(query)
-                
-                if search_results:
-                    # Enrich the messages with RAG results
-                    json_data["messages"] = enrich_messages_with_rag_results(messages, search_results)
-                    logger.info("Successfully enriched request with RAG results")
-                    rag_applied = True
-                else:
-                    logger.warning("Vector search returned no results, proceeding without RAG")
-            except Exception as e:
-                # Log detailed diagnostic information for the error
-                logger.error(f"RAG search failed: {str(e)}")
-                logger.error(f"API key status: {'Configured' if settings.OPENAI_API_KEY else 'Missing'}")
-                logger.error(f"Query: {query[:50]}...")  # Log part of the query for debugging
-                
-                # If RAG fails but it's not critical, we can still proceed with the request
-                # For now, we'll continue without RAG but log a warning
-                logger.warning("Proceeding with request without RAG due to search failure")
-                
-                # Optionally, you could raise an exception here if RAG is considered critical
-                # raise HTTPException(
-                #     status_code=HTTP_502_BAD_GATEWAY,
-                #     detail=f"RAG search failed: {str(e)}"
-                # )
+            # Perform vector search using the query - let exceptions propagate
+            logger.info(f"Performing RAG search with query: {query}")
+            search_results = await perform_vector_search(query)
+            
+            if search_results:
+                # Enrich the messages with RAG results
+                json_data["messages"] = enrich_messages_with_rag_results(messages, search_results)
+                logger.info("Successfully enriched request with RAG results")
+            else:
+                logger.warning("Vector search returned no results, proceeding without RAG")
         
         # For streaming responses
         if getattr(data, 'stream', False) or json_data.get('stream', False):
@@ -258,24 +238,13 @@ async def chat_completion(request: Request, data: Any) -> Response:
                 if "message" in choice and "tool_calls" in choice["message"]:
                     tool_calls = choice["message"]["tool_calls"]
                     
-                    # Process all tool calls
+                    # Process all tool calls - let errors propagate
                     tool_results = {}
-                    try:
-                        for tool_call in tool_calls:
-                            tool_call_id = tool_call.get("id")
-                            try:
-                                # Process individual tool calls and capture any errors
-                                result = await process_tool_call(tool_call)
-                                tool_results[tool_call_id] = result
-                            except Exception as tool_error:
-                                # Log error for individual tool but continue with others
-                                logger.error(f"Tool call {tool_call_id} failed: {str(tool_error)}")
-                                # Create an error response for this specific tool
-                                tool_results[tool_call_id] = {"error": str(tool_error)}
-                    except Exception as e:
-                        # If overall tool processing fails, log and continue
-                        logger.error(f"Tool call processing failed: {str(e)}")
-                        # We'll continue without tool results rather than failing completely
+                    for tool_call in tool_calls:
+                        tool_call_id = tool_call.get("id")
+                        # Process tool call and let exceptions propagate
+                        result = await process_tool_call(tool_call)
+                        tool_results[tool_call_id] = result
                     
                     # Create a new request with tool results
                     new_messages = json_data.get("messages", []).copy()

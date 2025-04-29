@@ -49,95 +49,32 @@ async def vector_store_search(
         
     Returns:
         List of search results with content and metadata
+        
+    Raises:
+        Exception: If the vector store search fails
     """
     logger.info(f"Searching vector store '{vector_store_id}' with query: {query}")
     
+    # Check OpenAI API key
+    if not settings.OPENAI_API_KEY:
+        logger.error("OpenAI API key is not set")
+        raise ValueError("OpenAI API key is missing")
+    
     try:
-        # Check OpenAI API key
-        if not settings.OPENAI_API_KEY:
-            logger.error("OpenAI API key is not set")
-            return []
-            
-        # Try different approaches to vector search based on the OpenAI API version
-        try:
-            # Approach 1: Using the files search API (newest versions)
-            logger.info("Trying search with files API")
-            file_search_params = {
-                "query": query,
-                "max_results": limit,
-            }
-            
-            # This might be the correct approach for newer API versions
-            response = client.files.search(file_search_params)
-            logger.info("Files search successful")
-            
-        except (AttributeError, ValueError) as e1:
-            logger.warning(f"Files search failed: {str(e1)}")
-            
-            try:
-                # Approach 2: Using vector stores API
-                logger.info("Trying search with vector stores API")
-                response = client.vector_stores.search(
-                    vector_store_id=vector_store_id,
-                    query=query
-                )
-                logger.info("Vector stores search successful")
-                
-            except (AttributeError, ValueError) as e2:
-                logger.warning(f"Vector stores search failed: {str(e2)}")
-                
-                try:
-                    # Approach 3: Using beta vector stores API
-                    logger.info("Trying search with beta vector stores API")
-                    response = client.beta.vector_stores.query(
-                        vector_store_id=vector_store_id,
-                        query=query
-                    )
-                    logger.info("Beta vector stores search successful")
-                    
-                except (AttributeError, ValueError) as e3:
-                    logger.warning(f"Beta vector stores search failed: {str(e3)}")
-                    
-                    # Approach 4: Fall back to embeddings search
-                    logger.info("Trying search with embeddings API")
-                    
-                    # First, get an embedding for the query
-                    embedding_response = client.embeddings.create(
-                        model="text-embedding-ada-002",
-                        input=query
-                    )
-                    
-                    embedding = embedding_response.data[0].embedding
-                    
-                    # Simulate vector search with embeddings 
-                    # This is a placeholder - in a real implementation,
-                    # you would search your own vector index with this embedding
-                    logger.warning("Using simulated vector search with embeddings")
-                    
-                    # Return test results for demonstration
-                    return [
-                        VectorStoreResult(
-                            id="simulated-result-1",
-                            score=0.95,
-                            content="Deepgram is an AI speech recognition company specializing in accurate transcription.",
-                            metadata={"source": "simulated", "title": "About Deepgram"}
-                        ),
-                        VectorStoreResult(
-                            id="simulated-result-2", 
-                            score=0.85,
-                            content="Deepgram offers features like speaker diarization, sentiment analysis, and topic detection.",
-                            metadata={"source": "simulated", "title": "Deepgram Features"}
-                        )
-                    ][:limit]
+        # Use the direct vector_stores.search approach that works with curl
+        response = client.vector_stores.search(
+            vector_store_id=vector_store_id,
+            query=query
+        )
         
-        # Parse response and return results
+        # Process the response
         results = []
         
         # Check if response has the expected data attribute
         if not hasattr(response, "data"):
-            logger.warning("Response doesn't contain data attribute")
-            return []
-            
+            logger.error("Response doesn't contain data attribute")
+            raise ValueError("Invalid response structure from vector store search")
+        
         # Process the results
         for item in response.data:
             # Build the content text based on response structure
@@ -189,7 +126,7 @@ async def vector_store_search(
             results.append(result)
             
             # Limit results if needed
-            if len(results) >= limit:
+            if limit and len(results) >= limit:
                 break
         
         logger.info(f"Found {len(results)} results in vector store search")
@@ -197,8 +134,8 @@ async def vector_store_search(
         
     except Exception as e:
         logger.error(f"Error in vector store search: {str(e)}")
-        # Return empty results but don't fail the entire request
-        return []
+        # Re-raise the exception so caller can handle it properly
+        raise
 
 
 async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, Any]]:
@@ -211,6 +148,9 @@ async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, An
         
     Returns:
         Combined list of search results
+        
+    Raises:
+        Exception: If the vector search fails
     """
     # Dictionary of vector store IDs to search
     vector_stores = {
@@ -223,7 +163,7 @@ async def perform_vector_search(query: str, limit: int = 3) -> List[Dict[str, An
         for store_id in vector_stores.keys()
     ]
     
-    # Gather all results
+    # Gather all results - let exceptions propagate
     all_results = await asyncio.gather(*tasks)
     
     # Flatten results and sort by score
