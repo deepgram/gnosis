@@ -9,6 +9,15 @@ from colorama import Fore, Style
 # Initialize colorama for cross-platform color support
 colorama.init()
 
+# Custom JSON encoder to handle non-serializable objects
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        # Convert non-serializable objects to strings
+        try:
+            return super().default(obj)
+        except TypeError:
+            return str(obj)
+
 def main():
     parser = argparse.ArgumentParser(description="Deepgram RAG Example using Gnosis")
     parser.add_argument("--host", default="http://localhost:8080", help="Base URL of the Gnosis API")
@@ -64,10 +73,14 @@ def main():
         if response.status_code != 200:
             print(f"\n{Fore.RED}Error: Received status code {response.status_code}{Style.RESET_ALL}")
             try:
-                error_data = response.json()
-                print(f"Error details: {json.dumps(error_data, indent=2)}")
-            except json.JSONDecodeError:
-                print(f"Error response: {response.text}")
+                # Try to safely print the error response
+                try:
+                    error_data = response.json()
+                    print(f"Error details: {json.dumps(error_data, indent=2, cls=CustomEncoder)}")
+                except (json.JSONDecodeError, TypeError):
+                    print(f"Error response: {response.text}")
+            except Exception as e:
+                print(f"Error processing response: {str(e)}")
             sys.exit(1)
         
         # Process the streaming response
@@ -112,10 +125,14 @@ def main():
         if response.status_code != 200:
             print(f"\n{Fore.RED}Error: Received status code {response.status_code}{Style.RESET_ALL}")
             try:
-                error_data = response.json()
-                print(f"Error details: {json.dumps(error_data, indent=2)}")
-            except json.JSONDecodeError:
-                print(f"Error response: {response.text}")
+                # Try to safely print the error response
+                try:
+                    error_data = response.json()
+                    print(f"Error details: {json.dumps(error_data, indent=2, cls=CustomEncoder)}")
+                except (json.JSONDecodeError, TypeError):
+                    print(f"Error response: {response.text}")
+            except Exception as e:
+                print(f"Error processing response: {str(e)}")
             sys.exit(1)
         
         try:
@@ -123,7 +140,8 @@ def main():
             
             if args.verbose:
                 log("Full response:", "debug", args.verbose)
-                print(json.dumps(response_data, indent=2))
+                # Use the custom encoder for printing
+                print(json.dumps(response_data, indent=2, cls=CustomEncoder))
             
             # Extract and print the content
             if 'choices' in response_data and len(response_data['choices']) > 0:
@@ -131,12 +149,30 @@ def main():
                 print(content)
             else:
                 log("Unexpected response format", "error", args.verbose)
-                print(json.dumps(response_data, indent=2))
+                # Use the custom encoder for printing
+                print(json.dumps(response_data, indent=2, cls=CustomEncoder))
                 sys.exit(1)  # Exit with error if the response format is unexpected
         except json.JSONDecodeError:
             log(f"Error parsing response: {response.text}", "error", args.verbose)
             print(response.text)
             sys.exit(1)  # Exit with error if we can't parse the response
+        except TypeError as e:
+            # Handle case where response contains non-serializable objects
+            log(f"Error serializing response: {str(e)}", "error", True)
+            print(f"Response contains non-serializable objects: {str(e)}")
+            # Try to extract just the content using a safer approach
+            try:
+                if 'choices' in response_data and len(response_data['choices']) > 0:
+                    content = response_data['choices'][0]['message'].get('content', '')
+                    if content:
+                        print(content)
+                    else:
+                        print("No readable content found in response.")
+                else:
+                    print(f"Response structure: {str(response_data)[:500]}...")
+            except Exception:
+                print("Unable to extract content from response.")
+            sys.exit(1)
     
     print("\n")
     log("Request completed.", "important", args.verbose)
