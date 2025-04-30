@@ -64,12 +64,7 @@ async def connect_to_agent():
         async with websockets.connect(uri) as websocket:
             print(f"Connected to {uri}")
             
-            # Send the SettingsConfiguration message
-            print(f"Sending message: {json.dumps(settings_config)[:100]}...")
-            await websocket.send(json.dumps(settings_config))
-            print("Sent SettingsConfiguration message")
-            
-            print("Listening for messages (press Ctrl+C to exit)...")
+            print("Waiting for Welcome message...")
             
             # Set up signal handling for graceful exit
             loop = asyncio.get_event_loop()
@@ -78,6 +73,8 @@ async def connect_to_agent():
             
             # Continuously listen for messages until interrupted
             message_counter = 0
+            welcome_received = False
+            
             while not should_exit:
                 try:
                     # Wait for a message with a timeout to check for exit flag
@@ -90,6 +87,14 @@ async def connect_to_agent():
                         print(f"\nMessage {message_counter}:")
                         print(f"Type: {parsed.get('type', 'Unknown')}")
                         print(json.dumps(parsed, indent=2))
+                        
+                        # Check if this is a Welcome message and we haven't sent settings yet
+                        if not welcome_received and parsed.get("type") == "Welcome":
+                            welcome_received = True
+                            print("\nWelcome message received. Sending settings configuration...")
+                            await websocket.send(json.dumps(settings_config))
+                            print("Settings configuration sent")
+                        
                     except json.JSONDecodeError:
                         # Not JSON, just print as-is (might be binary data)
                         print(f"\nMessage {message_counter} (non-JSON):")
