@@ -156,8 +156,8 @@ async def agent_websocket(socket: WebSocket) -> None:
         print("Successfully connected to Deepgram agent API")
         
         # Set up tasks for bidirectional message forwarding
-        client_to_deepgram_task = asyncio.create_task(forward_client_to_deepgram(socket, deepgram_ws))
-        deepgram_to_client_task = asyncio.create_task(forward_deepgram_to_client(deepgram_ws, socket))
+        client_to_deepgram_task = asyncio.create_task(handle_client_to_deepgram(socket, deepgram_ws))
+        deepgram_to_client_task = asyncio.create_task(handle_deepgram_to_client(deepgram_ws, socket))
         
         # Wait for either task to complete (which means a connection was closed)
         done, pending = await asyncio.wait(
@@ -209,14 +209,29 @@ async def agent_websocket(socket: WebSocket) -> None:
             print(f"ERROR: Error closing client WebSocket: {e}")
 
 
-async def forward_client_to_deepgram(client_ws: WebSocket, deepgram_ws: websockets.WebSocketClientProtocol) -> None:
-    """Forward messages from client to Deepgram."""
+async def handle_client_to_deepgram(client_ws: WebSocket, deepgram_ws: websockets.WebSocketClientProtocol) -> None:
+    """Processes incoming client messages, potentially modifying them, and forwards to Deepgram. Manages disconnects by closing connections."""
     try:
         while True:
             # Receive message from client - using receive() for Litestar WebSocket
             data = await client_ws.receive()
             
             print(f"Received message from client: {data}")
+            
+            # Handle internal Litestar/Uvicorn websocket events
+            if isinstance(data, dict) and "type" in data:
+                event_type = data["type"]
+                
+                # Handle websocket.disconnect event
+                if event_type == "websocket.disconnect":
+                    print("Received websocket.disconnect, closing connection")
+                    # No need to forward this to Deepgram
+                    return
+                
+                # Handle other internal events as needed
+                if event_type.startswith("websocket."):
+                    print(f"Handling internal websocket event: {event_type}")
+                    continue  # Skip forwarding internal events
 
             # Determine if it's a known message type
             is_binary, processed_data = determine_data_type(data)
@@ -248,14 +263,23 @@ async def forward_client_to_deepgram(client_ws: WebSocket, deepgram_ws: websocke
         raise
 
 
-async def forward_deepgram_to_client(deepgram_ws: websockets.WebSocketClientProtocol, client_ws: WebSocket) -> None:
-    """Forward messages from Deepgram to client."""
+async def handle_deepgram_to_client(deepgram_ws: websockets.WebSocketClientProtocol, client_ws: WebSocket) -> None:
+    """Processes incoming Deepgram messages, potentially modifying them, responding to them or forwarding them to client"""
     try:
         while True:
             # Receive message from Deepgram (websockets library uses recv())
             data = await deepgram_ws.recv()
             
             print(f"Received message from Deepgram: {data}")
+            
+            # Handle internal control events if present
+            if isinstance(data, dict) and "type" in data:
+                event_type = data["type"]
+                
+                # Handle any internal control events
+                if event_type.startswith("websocket."):
+                    print(f"Handling internal websocket event from Deepgram: {event_type}")
+                    continue  # Skip forwarding internal events
             
             # Determine message type
             is_binary, processed_data = determine_data_type(data)
