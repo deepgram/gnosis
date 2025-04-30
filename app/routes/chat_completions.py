@@ -11,26 +11,13 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage
-from app.models.tools import ToolResponse, VectorSearchResponse
-from app.services.tools.vector_search import format_vector_search_results
-from app.services.tools.registry import get_all_tool_definitions, tools
-from app.services.openai import get_client, perform_vector_search
+from app.services.tools.vector_search import search_documentation
+from app.services.tools.registry import tools
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
-# Get OpenAI client
-client = get_client()
-
-
-# Custom JSON encoder for serializing Pydantic models
-class PydanticJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder that handles Pydantic models."""
-    def default(self, obj):
-        if isinstance(obj, BaseModel):
-            return obj.model_dump()
-        return super().default(obj)
-
+OPENAI_CHAT_COMPLETIONS_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
 def extract_query_from_messages(messages: List[Union[ChatMessage, Dict[str, Any]]]) -> str:
     """
@@ -84,7 +71,7 @@ def enrich_messages_with_rag_results(
         return messages
     
     # Format the search results as context
-    context = "I found the following relevant information that might help with your query:\n\n"
+    context = "I found the following relevant information that might help:\n\n"
     for i, result in enumerate(search_results):
         context += f"--- Result {i+1} ---\n"
         if result.get("metadata", {}).get("title"):
@@ -107,48 +94,24 @@ def enrich_messages_with_rag_results(
             last_user_index = i
             break
     
+    # Convert all messages to dictionaries for JSON serialization
+    serialized_messages = []
+    for msg in messages:
+        if isinstance(msg, ChatMessage):
+            serialized_messages.append(msg.model_dump())
+        else:
+            serialized_messages.append(msg)
+    
+    # Insert the system message as a dictionary
+    system_message_dict = system_message.model_dump()
+    
     if last_user_index is not None:
         # Insert the system message before the last user message
-        enriched_messages = messages[:last_user_index] + [system_message] + messages[last_user_index:]
+        enriched_messages = serialized_messages[:last_user_index] + [system_message_dict] + serialized_messages[last_user_index:]
         return enriched_messages
     
     # If no user message found, just append the system message
-    return messages + [system_message]
-
-
-async def process_tool_call(tool_call: Dict[str, Any]) -> ToolResponse:
-    """
-    Process a tool call from the LLM.
-    
-    Args:
-        tool_call: The tool call data from the LLM
-        
-    Returns:
-        The result of the tool call
-        
-    Raises:
-        Exception: If the tool call fails
-    """
-    tool_name = tool_call.get("function", {}).get("name")
-    arguments_str = tool_call.get("function", {}).get("arguments", "{}")
-    
-    # Parse arguments
-    try:
-        arguments = json.loads(arguments_str)
-    except json.JSONDecodeError:
-        logger.error(f"Failed to parse arguments: {arguments_str}")
-        raise ValueError(f"Invalid arguments format: {arguments_str}")
-    
-    # Check if the tool exists
-    if tool_name not in tools:
-        logger.error(f"Tool not found: {tool_name}")
-        raise ValueError(f"Tool not found: {tool_name}")
-    
-    # Call the tool handler
-    logger.info(f"Calling tool: {tool_name}")
-    result = await tools[tool_name](arguments)
-    logger.info(f"Tool {tool_name} completed successfully")
-    return result
+    return serialized_messages + [system_message_dict]
 
 
 @post("/chat/completions")
@@ -158,17 +121,15 @@ async def chat_completion(request: Request, data: Any) -> Response:
     Before sending to the LLM, performs vector search for retrieval augmented generation.
     Also injects tools and processes tool calls if needed.
     """
-    # Target URL for the proxy request
-    target_url = "https://api.openai.com/v1/chat/completions"
     
     # Log the proxy destination
-    logger.info(f"Proxying request to: {target_url}")
+    logger.info(f"Proxying request to: {OPENAI_CHAT_COMPLETIONS_ENDPOINT}")
     
     headers = {
         "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
-    
+
     # Convert data to Pydantic model if possible
     if not isinstance(data, ChatCompletionRequest) and hasattr(data, "__dict__"):
         try:
@@ -185,41 +146,72 @@ async def chat_completion(request: Request, data: Any) -> Response:
         # Extract the query from the messages
         messages = json_data.get("messages", [])
         query = extract_query_from_messages(messages)
-        
-        # Check if there are tools in the request
-        has_tools = "tools" in json_data and json_data["tools"]
-        tool_choice = json_data.get("tool_choice", None)
-        
-        # If no tools specified, inject our tools
-        if not has_tools:
-            # Add our tools to the request
-            json_data["tools"] = get_all_tool_definitions()
-            # Only use tools when required
-            json_data["tool_choice"] = "auto"
-            logger.info("Injected tool definitions into request")
-        
-        # Perform RAG search if a query was found and there's no direct tool call being made
-        if query and tool_choice != "required":
-            # Perform vector search using the query - let exceptions propagate
-            logger.info(f"Performing RAG search with query: {query}")
-            search_results = await perform_vector_search(query)
-            
-            if search_results:
-                # Enrich the messages with RAG results
-                json_data["messages"] = enrich_messages_with_rag_results(messages, search_results)
-                logger.info("Successfully enriched request with RAG results")
-            else:
-                logger.warning("Vector search returned no results, proceeding without RAG")
-        
+
+        # log the query
+        logger.info(f"Query: {query}")
+
+        # Perform vector search of documentation if we have a query
+        if query:
+            try:
+                search_results = await search_documentation({"query": query})
+
+                # Check if we have search results and prepare them for enrichment
+                search_items = []
+                
+                # Handle both data and matches fields for flexibility
+                if hasattr(search_results, 'data') and search_results.data:
+                    for item in search_results.data:
+                        item_dict = {
+                            "content": item.text if hasattr(item, 'text') else " ".join([c.text for c in item.content]),
+                            "metadata": item.attributes if hasattr(item, 'attributes') else {}
+                        }
+                        
+                        # Add filename to metadata if available
+                        if hasattr(item, 'filename') and item.filename:
+                            item_dict["metadata"]["title"] = item.filename
+                            
+                        search_items.append(item_dict)
+                elif hasattr(search_results, 'matches') and search_results.matches:
+                    for match in search_results.matches:
+                        match_dict = {}
+                        
+                        # Handle content
+                        if hasattr(match, 'text') and match.text:
+                            match_dict["content"] = match.text
+                        elif hasattr(match, 'content') and match.content:
+                            if isinstance(match.content, list):
+                                match_dict["content"] = " ".join([c.text for c in match.content])
+                            else:
+                                match_dict["content"] = match.content
+                                
+                        # Handle metadata
+                        if hasattr(match, 'metadata') and match.metadata:
+                            match_dict["metadata"] = match.metadata
+                        elif hasattr(match, 'attributes') and match.attributes:
+                            match_dict["metadata"] = match.attributes
+                            
+                        search_items.append(match_dict)
+                
+                # Enrich the messages with RAG results if we have any
+                if search_items:
+                    json_data["messages"] = enrich_messages_with_rag_results(
+                        messages, 
+                        search_items
+                    )
+                
+            except Exception as e:
+                logger.warning(f"Error during vector search: {str(e)}")
+                # Continue without RAG if search fails
+
         # For streaming responses
         if getattr(data, 'stream', False) or json_data.get('stream', False):
             logger.info("Streaming response enabled")
-            return await handle_streaming_response(target_url, headers, json_data)
+            return await handle_streaming_response(OPENAI_CHAT_COMPLETIONS_ENDPOINT, headers, json_data)
         
         # For non-streaming responses, we need to handle tool calls
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                target_url,
+                OPENAI_CHAT_COMPLETIONS_ENDPOINT,
                 headers=headers,
                 json=json_data,
                 timeout=60.0,
@@ -252,16 +244,9 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     
                     # Add tool results
                     for tool_call_id, result in tool_results.items():
-                        # Serialize the result using our custom encoder if needed
-                        try:
-                            # Make sure we serialize any Pydantic models in the result
-                            if isinstance(result, BaseModel):
-                                result_json = json.dumps(result.model_dump(), cls=PydanticJSONEncoder)
-                            else:
-                                result_json = json.dumps(result, cls=PydanticJSONEncoder)
-                        except TypeError:
-                            # Fallback to string representation if serialization fails
-                            result_json = json.dumps(str(result))
+
+                        # Serialize the result
+                        result_json = json.dumps(result)
                         
                         # Create tool result message
                         tool_message = ToolResultMessage(
@@ -280,7 +265,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     # Send the follow-up request
                     logger.info("Sending follow-up request with tool results")
                     follow_up_response = await client.post(
-                        target_url,
+                        OPENAI_CHAT_COMPLETIONS_ENDPOINT,
                         headers=headers,
                         json=new_json_data,
                         timeout=60.0,
@@ -366,6 +351,76 @@ async def stream_chat_completion_response(target_url, headers, json_data):
     except Exception as e:
         logger.error(f"Error streaming: {str(e)}")
         yield f"data: {{\"error\":{{\"message\":\"{str(e)}\"}}}}\n\n"
+
+
+async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
+    """
+    Process a tool call by extracting the function name and arguments and dispatching
+    to the appropriate tool handler.
+    
+    Args:
+        tool_call: The tool call object from the OpenAI API
+        
+    Returns:
+        The result of the tool call
+        
+    Raises:
+        HTTPException: If the tool is not found or there's an error processing the call
+    """
+    try:
+        # Extract function details
+        if not tool_call.get("function"):
+            raise HTTPException(
+                status_code=HTTP_502_BAD_GATEWAY,
+                detail="Tool call missing function details"
+            )
+            
+        function = tool_call["function"]
+        function_name = function.get("name")
+        
+        if not function_name:
+            raise HTTPException(
+                status_code=HTTP_502_BAD_GATEWAY,
+                detail="Tool call missing function name"
+            )
+            
+        # Check if the tool exists
+        if function_name not in tools:
+            raise HTTPException(
+                status_code=HTTP_502_BAD_GATEWAY,
+                detail=f"Tool '{function_name}' not found"
+            )
+            
+        # Parse arguments
+        arguments_str = function.get("arguments", "{}")
+        
+        # Ensure arguments is a string (not a dict)
+        if isinstance(arguments_str, dict):
+            arguments = arguments_str
+        else:
+            try:
+                arguments = json.loads(arguments_str)
+            except json.JSONDecodeError:
+                # If it's not valid JSON, use an empty dict
+                logger.warning(f"Invalid JSON in tool arguments: {arguments_str}")
+                arguments = {}
+        
+        # Call the tool function
+        logger.info(f"Calling tool: {function_name} with arguments: {arguments}")
+        result = await tools[function_name](arguments)
+        
+        return result
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log and wrap other exceptions
+        logger.error(f"Error processing tool call: {str(e)}")
+        raise HTTPException(
+            status_code=HTTP_502_BAD_GATEWAY,
+            detail=f"Error processing tool call: {str(e)}"
+        )
 
 
 # Create the router with the handler function

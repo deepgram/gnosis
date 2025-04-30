@@ -31,6 +31,38 @@ class ChatMessage(BaseModel):
         elif isinstance(v, list):
             return [ContentItem(**item) if isinstance(item, dict) else item for item in v]
         return v
+    
+    def model_dump(self, **kwargs):
+        """Override model_dump to ensure serializable output"""
+        result = {
+            "role": self.role
+        }
+        
+        # Handle content field properly
+        if self.content is not None:
+            if isinstance(self.content, str):
+                result["content"] = self.content
+            elif isinstance(self.content, list):
+                # Convert ContentItem objects to dicts
+                content_list = []
+                for item in self.content:
+                    if hasattr(item, 'model_dump'):
+                        content_list.append(item.model_dump())
+                    else:
+                        content_list.append(item)
+                result["content"] = content_list
+        
+        # Add optional fields if present
+        if self.name:
+            result["name"] = self.name
+        if self.tool_call_id:
+            result["tool_call_id"] = self.tool_call_id
+        if self.tool_calls:
+            result["tool_calls"] = self.tool_calls
+        if self.function_call:
+            result["function_call"] = self.function_call
+            
+        return result
 
 
 class ToolParameterProperty(BaseModel):

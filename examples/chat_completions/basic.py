@@ -14,13 +14,17 @@ def main():
     parser.add_argument("--host", default="http://localhost:8080", help="Base URL of the Gnosis API")
     parser.add_argument("--model", default="gpt-4o-mini", help="OpenAI model to use")
     parser.add_argument("--system", 
-                       default="You are a helpful AI assistant.",
+                       default="""
+You are a helpful assistant responsible for answering questions.
+
+Prioritize extremely small example code followed by a link to the correct documentation.
+
+Unless they ask for a specific code language, use a cURL example.
+                       """,
                        help="System message")
     parser.add_argument("--user", 
-                       default="Tell me a short joke about programming.",
+                       default="How do I transcribe a file from URL with Deepgram?",
                        help="User message")
-    parser.add_argument("--temperature", type=float, default=0.7, help="Temperature (0.0-1.0)")
-    parser.add_argument("--max-tokens", type=int, default=150, help="Maximum tokens in response")
     parser.add_argument("--stream", action="store_true", help="Enable streaming mode")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
@@ -42,9 +46,15 @@ def main():
             {"role": "system", "content": args.system},
             {"role": "user", "content": args.user}
         ],
-        "temperature": args.temperature,
-        "max_tokens": args.max_tokens,
-        "stream": args.stream
+        "stream": args.stream,
+        "response_format": {
+            "type": "text"
+        },
+        "temperature": 1,
+        "max_completion_tokens": 2048,
+        "top_p": 1,
+        "frequency_penalty": 0,
+        "presence_penalty": 0
     }
     
     if args.verbose:

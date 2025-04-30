@@ -178,6 +178,7 @@ cython_debug/
 .pypirc
 
 # temp files
+commit_message.txt
 commit_msg.txt
 temp/
 tmp/

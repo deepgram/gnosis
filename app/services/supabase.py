@@ -42,9 +42,9 @@ try:
     if config.url and config.key:
         supabase_client = create_client(config.url, config.key)
         config.is_initialized = True
-        logger.debug("Supabase client initialized successfully")
+        print("Supabase client initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize Supabase client: {e}")
+    print(f"Failed to initialize Supabase client: {e}")
     supabase_client = None
 
 
