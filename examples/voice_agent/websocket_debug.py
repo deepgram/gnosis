@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # websocket_debug.py
-# A debug version of the websocket_connect.py example with more error logging
+# A simple WebSocket client that connects to an agent, listens for messages, and responds based on mappings
 
 import asyncio
 import json
 import websockets
-import uuid
-import traceback
 import signal
+import traceback
 
 # Global flag to track if we should exit
 should_exit = False
@@ -18,13 +17,9 @@ def handle_interrupt():
     should_exit = True
     print("\nReceived interrupt signal. Closing connection...")
 
-async def connect_to_agent():
-    """Connect to a local WebSocket server and send a SettingsConfiguration message."""
-    
-    uri = "ws://localhost:8080/v1/agent"
-    
-    # Prepare the SettingsConfiguration message
-    settings_config = {
+# Message mapping - defines what to send when specific message types are received
+MESSAGE_MAPPINGS = {
+    "Welcome": {
         "type": "SettingsConfiguration",
         "audio": {
             "input": {
@@ -58,13 +53,17 @@ async def connect_to_agent():
             "replay": False
         }
     }
+}
+
+async def connect_to_agent():
+    """Connect to a WebSocket server, listen for messages, and respond based on mappings."""
+    
+    uri = "ws://localhost:8080/v1/agent"
     
     try:
         print(f"Attempting to connect to {uri}")
         async with websockets.connect(uri) as websocket:
             print(f"Connected to {uri}")
-            
-            print("Waiting for Welcome message...")
             
             # Set up signal handling for graceful exit
             loop = asyncio.get_event_loop()
@@ -73,7 +72,6 @@ async def connect_to_agent():
             
             # Continuously listen for messages until interrupted
             message_counter = 0
-            welcome_received = False
             
             while not should_exit:
                 try:
@@ -81,25 +79,32 @@ async def connect_to_agent():
                     response = await asyncio.wait_for(websocket.recv(), timeout=0.5)
                     message_counter += 1
                     
-                    # Try to parse JSON for prettier display
+                    # Try to parse JSON
                     try:
-                        parsed = json.loads(response)
-                        print(f"\nMessage {message_counter}:")
-                        print(f"Type: {parsed.get('type', 'Unknown')}")
-                        print(json.dumps(parsed, indent=2))
+                        message = json.loads(response)
+                        message_type = message.get("type", "Unknown")
                         
-                        # Check if this is a Welcome message and we haven't sent settings yet
-                        if not welcome_received and parsed.get("type") == "Welcome":
-                            welcome_received = True
-                            print("\nWelcome message received. Sending settings configuration...")
-                            await websocket.send(json.dumps(settings_config))
-                            print("Settings configuration sent")
+                        # Log received message
+                        print(f"\nReceived message {message_counter}:")
+                        print(f"Type: {message_type}")
+                        print(json.dumps(message, indent=2))
                         
+                        # Check if we have a mapping for this message type
+                        if message_type in MESSAGE_MAPPINGS:
+                            response_message = MESSAGE_MAPPINGS[message_type]
+                            if response_message is not None:
+                                print(f"\nSending response to {message_type}:")
+                                print(json.dumps(response_message, indent=2))
+                                await websocket.send(json.dumps(response_message))
+                            else:
+                                print(f"No response needed for {message_type}")
+                        else:
+                            print(f"No mapping defined for message type: {message_type}")
+                    
                     except json.JSONDecodeError:
-                        # Not JSON, just print as-is (might be binary data)
+                        # Not JSON, just print as-is
                         print(f"\nMessage {message_counter} (non-JSON):")
                         print(f"Length: {len(response)} bytes")
-                        # Print beginning of the message if it's text
                         if isinstance(response, str):
                             print(f"Preview: {response[:100]}...")
                         else:
