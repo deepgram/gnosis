@@ -7,6 +7,16 @@ import json
 import websockets
 import uuid
 import traceback
+import signal
+
+# Global flag to track if we should exit
+should_exit = False
+
+def handle_interrupt():
+    """Handle keyboard interrupt (Ctrl+C)"""
+    global should_exit
+    should_exit = True
+    print("\nReceived interrupt signal. Closing connection...")
 
 async def connect_to_agent():
     """Connect to a local WebSocket server and send a SettingsConfiguration message."""
@@ -59,13 +69,45 @@ async def connect_to_agent():
             await websocket.send(json.dumps(settings_config))
             print("Sent SettingsConfiguration message")
             
-            # Wait for the SettingsApplied response
-            print("Waiting for response...")
-            response = await websocket.recv()
-            print(f"Received: {response}")
+            print("Listening for messages (press Ctrl+C to exit)...")
             
-            # Keep the connection open for a short time
-            await asyncio.sleep(5)
+            # Set up signal handling for graceful exit
+            loop = asyncio.get_event_loop()
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, handle_interrupt)
+            
+            # Continuously listen for messages until interrupted
+            message_counter = 0
+            while not should_exit:
+                try:
+                    # Wait for a message with a timeout to check for exit flag
+                    response = await asyncio.wait_for(websocket.recv(), timeout=0.5)
+                    message_counter += 1
+                    
+                    # Try to parse JSON for prettier display
+                    try:
+                        parsed = json.loads(response)
+                        print(f"\nMessage {message_counter}:")
+                        print(f"Type: {parsed.get('type', 'Unknown')}")
+                        print(json.dumps(parsed, indent=2))
+                    except json.JSONDecodeError:
+                        # Not JSON, just print as-is (might be binary data)
+                        print(f"\nMessage {message_counter} (non-JSON):")
+                        print(f"Length: {len(response)} bytes")
+                        # Print beginning of the message if it's text
+                        if isinstance(response, str):
+                            print(f"Preview: {response[:100]}...")
+                        else:
+                            print(f"Binary data received")
+                
+                except asyncio.TimeoutError:
+                    # Just a timeout to check the exit flag, not an error
+                    continue
+                except websockets.exceptions.ConnectionClosed as e:
+                    print(f"WebSocket connection closed: {e.code} {e.reason}")
+                    break
+            
+            print(f"Connection closing. Received {message_counter} messages total.")
             
     except websockets.exceptions.ConnectionClosedError as e:
         print(f"WebSocket connection closed with error: {e.code} {e.reason}")
