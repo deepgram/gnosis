@@ -1,24 +1,15 @@
-Deepgram Proprietary License
+ISC License
 
-// SPDX-License-Identifier: LicenseRef-Proprietary-Deepgram
+Copyright (c) 2025 Deepgram
 
-Copyright (c) 2024 Deepgram, Inc. All rights reserved.
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-This software and associated documentation files (the "Software") are proprietary 
-and confidential to Deepgram, Inc. ("Deepgram"). The Software may not be copied, 
-reproduced, modified, distributed, transmitted, displayed, published, licensed, 
-transferred, sold, or otherwise made available to any third party without the 
-prior written consent of Deepgram.
-
-The Software is protected by copyright laws and international copyright treaties, 
-as well as other intellectual property laws and treaties. Unauthorized use, 
-reproduction, or distribution of the Software, or any portion of it, may result 
-in severe civil and criminal penalties, and will be prosecuted to the maximum 
-extent possible under law.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
-INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL DEEPGRAM BE LIABLE FOR 
-ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
-OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR 
-OTHER DEALINGS IN THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
