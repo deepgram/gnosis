@@ -1,11 +1,11 @@
-import os
+import structlog
 from typing import List
 
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-# Load environment variables
+# Load environment variables before everything else
 load_dotenv()
 
 class Settings(BaseSettings):
@@ -34,12 +34,5 @@ class Settings(BaseSettings):
 # Initialize settings
 settings = Settings()
 
-# Log settings using print
-print(f"Settings loaded: "
-      f"DEBUG={'✓' if settings.DEBUG else '✗'}, "
-      f"LOG_LEVEL={settings.LOG_LEVEL}, "
-      f"CORS_ORIGINS={settings.CORS_ORIGINS}, "
-      f"OPENAI_API_KEY={'✓' if settings.OPENAI_API_KEY else '✗'}, "
-      f"DEEPGRAM_API_KEY={'✓' if settings.DEEPGRAM_API_KEY else '✗'}, "
-      f"SUPABASE_URL={'✓' if settings.SUPABASE_URL else '✗'}, "
-      f"SUPABASE_KEY={'✓' if settings.SUPABASE_KEY else '✗'}")
+# Log settings after structlog has been configured
+# This will be imported and used by main.py after logging is set up

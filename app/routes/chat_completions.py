@@ -13,6 +13,7 @@ from app.config import settings
 from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage
 from app.services.tools.vector_search import search_documentation
 from app.services.tools.registry import tools
+from app.services.function_calling import FunctionCallingService
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -198,10 +199,13 @@ async def chat_completion(request: Request, data: Any) -> Response:
                         messages, 
                         search_items
                     )
-                
+
             except Exception as e:
                 logger.warning(f"Error during vector search: {str(e)}")
                 # Continue without RAG if search fails
+
+        # Augment the chat completion request with tool calling configuration
+        json_data = FunctionCallingService.augment_openai_request(json_data)
 
         # For streaming responses
         if getattr(data, 'stream', False) or json_data.get('stream', False):

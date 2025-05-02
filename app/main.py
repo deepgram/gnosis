@@ -1,13 +1,20 @@
 import os
 import uvicorn
+import structlog
 from litestar import Litestar
 from litestar.config.cors import CORSConfig
 from litestar.openapi import OpenAPIConfig
+from litestar.types import Scope
 from litestar.handlers import get
+from uuid import uuid4
 
 from app.config import settings
 from app.routes.chat_completions import chat_completions_router
 from app.routes.agent import agent_router
+
+def before_request_handler(scope: Scope) -> None:
+    request_id = str(uuid4())
+    structlog.contextvars.bind_contextvars(request_id=request_id)
 
 @get("/health")
 async def health_check() -> dict[str, str]:
@@ -18,6 +25,18 @@ def create_app() -> Litestar:
     """
     Create and configure the Litestar application.
     """
+    # Log settings after structured logging is set up    
+    log = structlog.get_logger()
+    
+    # Convert sensitive fields to truncated versions
+    settings_dict = {}
+    for key, value in settings.model_dump().items():
+        if isinstance(value, str) and any(x in key.lower() for x in ["key", "secret", "password", "token", "url"]) and len(value) > 10:
+            settings_dict[key] = f"{value[:10]}..."
+        else:
+            settings_dict[key] = value
+            
+    log.info("Application settings", **settings_dict)
         
     cors_config = CORSConfig(
         allow_origins=settings.CORS_ORIGINS,
@@ -40,6 +59,8 @@ def create_app() -> Litestar:
         cors_config=cors_config,
         openapi_config=openapi_config,
         debug=settings.DEBUG,
+        logging_config=None,  # Don't configure logging here
+        before_request=[before_request_handler],
     )
 
 app = create_app()
@@ -48,19 +69,12 @@ if __name__ == "__main__":
     # Get port from environment variable or use default
     port = int(os.environ.get("PORT", 8080))
     
-    print(f"Settings loaded: "
-          f"DEBUG={'✓' if settings.DEBUG else '✗'}, "
-          f"LOG_LEVEL={settings.LOG_LEVEL}, "
-          f"CORS_ORIGINS={settings.CORS_ORIGINS}, "
-          f"OPENAI_API_KEY={'✓' if settings.OPENAI_API_KEY else '✗'}, "
-          f"DEEPGRAM_API_KEY={'✓' if settings.DEEPGRAM_API_KEY else '✗'}, "
-          f"SUPABASE_URL={'✓' if settings.SUPABASE_URL else '✗'}, "
-          f"SUPABASE_KEY={'✓' if settings.SUPABASE_KEY else '✗'}")
-    
     # Run the server
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=port,
         reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower(),
+        log_config=None,  # <-- disables Uvicorn's logging override
     ) 
