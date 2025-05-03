@@ -1,8 +1,11 @@
 from typing import Dict, List, Any, Optional
 import copy
+import logging
 
-from app.services.tools.registry import get_all_tool_definitions, tools
+from app.services.tools.registry import get_all_tool_definitions, get_tool_implementation
 
+# Get a logger for this module
+logger = logging.getLogger(__name__)
 
 class FunctionCallingService:
     """Service for handling function calling with Deepgram and OpenAI."""
@@ -19,13 +22,17 @@ class FunctionCallingService:
             List of function definitions in OpenAI format with prefixed names
         """
         tool_definitions = get_all_tool_definitions()
+        logger.debug(f"Fetched {len(tool_definitions)} tool definitions for OpenAI config")
+        
         prefixed_tools = []
         
         for tool in tool_definitions:
             prefixed_tool = copy.deepcopy(tool)
             function = prefixed_tool.get("function", {})
             if "name" in function:
-                function["name"] = FunctionCallingService.FUNCTION_PREFIX + function["name"]
+                original_name = function["name"]
+                function["name"] = FunctionCallingService.FUNCTION_PREFIX + original_name
+                logger.debug(f"Prefixed tool name: {original_name} -> {function['name']}")
             prefixed_tools.append(prefixed_tool)
             
         return prefixed_tools
@@ -40,8 +47,10 @@ class FunctionCallingService:
         """
         # Extract the functions from the OpenAI-formatted tool definitions
         deepgram_functions = {}
+        tool_definitions = get_all_tool_definitions()
+        logger.debug(f"Fetched {len(tool_definitions)} tool definitions for Deepgram config")
         
-        for tool in get_all_tool_definitions():
+        for tool in tool_definitions:
             function = tool.get("function", {})
             name = function.get("name")
             
@@ -51,6 +60,7 @@ class FunctionCallingService:
                     "description": function.get("description", ""),
                     "parameters": function.get("parameters", {})
                 }
+                logger.debug(f"Added Deepgram function: {prefixed_name}")
         
         return {"functions": deepgram_functions} if deepgram_functions else {}
     
@@ -69,12 +79,19 @@ class FunctionCallingService:
         # Remove prefix if present
         if function_name.startswith(FunctionCallingService.FUNCTION_PREFIX):
             original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX):]
+            logger.debug(f"Removed prefix for function execution: {function_name} -> {original_name}")
         else:
             original_name = function_name
+            logger.debug(f"No prefix found for function execution: {function_name}")
             
-        function = tools.get(original_name)
+        function = get_tool_implementation(original_name)
         if function:
-            return await function(arguments)
+            logger.debug(f"Executing function: {original_name}")
+            result = await function(arguments)
+            logger.debug(f"Function execution completed: {original_name}")
+            return result
+        
+        logger.warning(f"Function not found for execution: {original_name}")
         return None
     
     @staticmethod
@@ -95,19 +112,26 @@ class FunctionCallingService:
         gnosis_tools = FunctionCallingService.get_openai_function_config()
         
         if not gnosis_tools:
+            logger.debug("No Gnosis tools available for request augmentation")
             return augmented_request
+        
+        logger.debug(f"Augmenting request with {len(gnosis_tools)} Gnosis tools")
             
         # Check if the request already has tools
         if "tools" in augmented_request:
+            existing_tools_count = len(augmented_request["tools"])
+            logger.debug(f"Request already has {existing_tools_count} tools, adding Gnosis tools")
             # Add our tools to the existing tools
             augmented_request["tools"].extend(gnosis_tools)
         else:
             # Set our tools as the request's tools
+            logger.debug("Request has no tools, setting Gnosis tools")
             augmented_request["tools"] = gnosis_tools
             
         # Ensure tool_choice is properly configured if not already set
         if "tool_choice" not in augmented_request:
             augmented_request["tool_choice"] = "auto"
+            logger.debug("Set tool_choice to 'auto'")
             
         return augmented_request
 

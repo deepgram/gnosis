@@ -120,6 +120,25 @@ ToolResponse = Union[VectorSearchResponse, ToolError, Dict[str, Any]]
 class ToolRegistry(BaseModel):
     """
     Registry for tools and their definitions.
+    
+    The registry is now a unified structure where each tool has both
+    an implementation and a definition, allowing for simpler registration
+    and access.
     """
-    tools: Dict[str, Any] = Field(default_factory=dict)
-    tool_definitions: Dict[str, ToolDefinition] = Field(default_factory=dict) 
+    registry: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    
+    def get_implementation(self, name: str) -> Optional[Any]:
+        """Get a tool implementation by name."""
+        return self.registry.get(name, {}).get("implementation")
+    
+    def get_definition(self, name: str) -> Optional[ToolDefinition]:
+        """Get a tool definition by name."""
+        definition_dict = self.registry.get(name, {}).get("definition")
+        if definition_dict:
+            return ToolDefinition(**definition_dict)
+        return None
+    
+    def get_all_definitions(self) -> List[Dict[str, Any]]:
+        """Get all tool definitions."""
+        return [entry["definition"] for entry in self.registry.values() 
+                if entry.get("definition") is not None] 

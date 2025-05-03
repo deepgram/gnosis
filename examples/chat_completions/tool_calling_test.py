@@ -10,20 +10,17 @@ from colorama import Fore, Style
 colorama.init()
 
 def main():
-    parser = argparse.ArgumentParser(description="Basic Chat Completion example for Gnosis")
+    parser = argparse.ArgumentParser(description="Tool Calling Test for Gnosis")
     parser.add_argument("--host", default="http://localhost:8080", help="Base URL of the Gnosis API")
-    parser.add_argument("--model", default="gpt-4o-mini", help="OpenAI model to use")
+    parser.add_argument("--model", default="gpt-4o", help="OpenAI model to use")
     parser.add_argument("--system", 
                        default="""
-You are a helpful assistant responsible for answering questions.
-
-Prioritize extremely small example code followed by a link to the correct documentation.
-
-Unless they ask for a specific code language, use a cURL example.
+You are a helpful assistant responsible for searching and retrieving information.
+When asked about technical documentation, ALWAYS use the search_documentation tool.
                        """,
                        help="System message")
     parser.add_argument("--user", 
-                       default="Search for documentation about Deepgram transcription API",
+                       default="Find information about Deepgram's Nova-2 model and its features",
                        help="User message")
     parser.add_argument("--stream", action="store_true", help="Enable streaming mode")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
@@ -32,7 +29,7 @@ Unless they ask for a specific code language, use a cURL example.
     endpoint = f"{args.host}/v1/chat/completions"
     
     # Print header
-    print(f"{Style.BRIGHT}{Fore.CYAN}Basic Chat Completion Example{Style.RESET_ALL}")
+    print(f"{Style.BRIGHT}{Fore.CYAN}Tool Calling Test Example{Style.RESET_ALL}")
     print("═════════════════════════════════════════")
     print(f"{Style.BRIGHT}Model:{Style.RESET_ALL} {args.model}")
     print(f"{Style.BRIGHT}Host:{Style.RESET_ALL} {args.host}")
@@ -47,14 +44,9 @@ Unless they ask for a specific code language, use a cURL example.
             {"role": "user", "content": args.user}
         ],
         "stream": args.stream,
-        "response_format": {
-            "type": "text"
-        },
-        "temperature": 1,
-        "max_completion_tokens": 2048,
-        "top_p": 1,
-        "frequency_penalty": 0,
-        "presence_penalty": 0
+        "temperature": 0.7,
+        "max_tokens": 2048,
+        "tool_choice": {"type": "function", "function": {"name": "gnosis_function_search_documentation"}}  # Force tool calling
     }
     
     if args.verbose:
@@ -126,6 +118,15 @@ Unless they ask for a specific code language, use a cURL example.
             if 'choices' in response_data and len(response_data['choices']) > 0:
                 content = response_data['choices'][0]['message'].get('content', '')
                 print(content)
+                
+                # Check for tool calls
+                if 'tool_calls' in response_data['choices'][0]['message']:
+                    tool_calls = response_data['choices'][0]['message']['tool_calls']
+                    log(f"Found {len(tool_calls)} tool calls in response", "important", True)
+                    
+                    for i, tool_call in enumerate(tool_calls):
+                        log(f"Tool call #{i+1}:", "important", True)
+                        print(json.dumps(tool_call, indent=2))
             else:
                 log("Unexpected response format", "error", args.verbose)
                 print(json.dumps(response_data, indent=2))

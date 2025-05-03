@@ -80,6 +80,16 @@ def setup_logging(log_level: Union[int, str] = logging.INFO):
             logging.getLogger(name).handlers = []
             logging.getLogger(name).propagate = True
             logging.getLogger(name).setLevel(log_level) # Ensure they respect level too
+    
+    # Set specific loggers to DEBUG for tool call tracing
+    # Only set these to DEBUG if overall level is INFO or higher
+    if log_level > logging.DEBUG:
+        # Set debug level for critical tool call components
+        logging.getLogger('app.routes.chat_completions').setLevel(logging.DEBUG)
+        logging.getLogger('app.services.function_calling').setLevel(logging.DEBUG)
+        logging.getLogger('app.services.tools.registry').setLevel(logging.DEBUG)
+        logger = logging.getLogger(__name__)
+        logger.debug("Enabled DEBUG logging for tool call components")
 
     return None # setup_logging doesn't return a config dict
 

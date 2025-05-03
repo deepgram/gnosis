@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from app.config import settings
 from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage
 from app.services.tools.vector_search import search_documentation
-from app.services.tools.registry import tools
+from app.services.tools.registry import get_tool_implementation, execute_tool
 from app.services.function_calling import FunctionCallingService
 
 # Get a logger for this module
@@ -206,6 +206,15 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
         # Augment the chat completion request with tool calling configuration
         json_data = FunctionCallingService.augment_openai_request(json_data)
+        
+        # Debug log the tools being requested
+        if "tools" in json_data:
+            logger.debug(f"Request contains {len(json_data['tools'])} tools")
+            for tool in json_data['tools']:
+                if tool.get("type") == "function" and tool.get("function", {}).get("name"):
+                    function_name = tool["function"]["name"]
+                    is_internal = function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
+                    logger.debug(f"Tool: {function_name} (Internal: {is_internal})")
 
         # For streaming responses
         if getattr(data, 'stream', False) or json_data.get('stream', False):
@@ -233,14 +242,20 @@ async def chat_completion(request: Request, data: Any) -> Response:
                 
                 if "message" in choice and "tool_calls" in choice["message"]:
                     tool_calls = choice["message"]["tool_calls"]
+                    logger.debug(f"Received {len(tool_calls)} tool calls from LLM")
                     
                     # Process all tool calls - let errors propagate
                     tool_results = {}
                     for tool_call in tool_calls:
                         tool_call_id = tool_call.get("id")
+                        function_name = tool_call.get("function", {}).get("name", "unknown")
+                        is_internal = function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
+                        logger.debug(f"Processing tool call: {function_name} (ID: {tool_call_id}, Internal: {is_internal})")
+                        
                         # Process tool call and let exceptions propagate
                         result = await process_tool_call(tool_call)
                         tool_results[tool_call_id] = result
+                        logger.debug(f"Completed tool call {tool_call_id} with result type: {type(result).__name__}")
                     
                     # Create a new request with tool results
                     new_messages = json_data.get("messages", []).copy()
@@ -374,6 +389,7 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
     try:
         # Extract function details
         if not tool_call.get("function"):
+            logger.debug("Tool call missing function details")
             raise HTTPException(
                 status_code=HTTP_502_BAD_GATEWAY,
                 detail="Tool call missing function details"
@@ -383,16 +399,28 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
         function_name = function.get("name")
         
         if not function_name:
+            logger.debug("Tool call missing function name")
             raise HTTPException(
                 status_code=HTTP_502_BAD_GATEWAY,
                 detail="Tool call missing function name"
             )
             
+        # Check if the function name has the internal prefix and remove it if it does
+        is_internal = function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
+        original_name = function_name
+        
+        if is_internal:
+            original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX):]
+            logger.debug(f"Internal tool call detected: {function_name}, using registry name: {original_name}")
+        else:
+            logger.debug(f"External tool call detected: {function_name}")
+            
         # Check if the tool exists
-        if function_name not in tools:
+        if not get_tool_implementation(original_name):
+            logger.debug(f"Tool '{original_name}' not found in registry")
             raise HTTPException(
                 status_code=HTTP_502_BAD_GATEWAY,
-                detail=f"Tool '{function_name}' not found"
+                detail=f"Tool '{original_name}' not found"
             )
             
         # Parse arguments
@@ -401,17 +429,20 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
         # Ensure arguments is a string (not a dict)
         if isinstance(arguments_str, dict):
             arguments = arguments_str
+            logger.debug(f"Tool arguments already in dict format: {len(str(arguments))} chars")
         else:
             try:
                 arguments = json.loads(arguments_str)
+                logger.debug(f"Parsed tool arguments from JSON: {len(arguments_str)} chars")
             except json.JSONDecodeError:
                 # If it's not valid JSON, use an empty dict
                 logger.warning(f"Invalid JSON in tool arguments: {arguments_str}")
                 arguments = {}
         
-        # Call the tool function
-        logger.info(f"Calling tool: {function_name} with arguments: {arguments}")
-        result = await tools[function_name](arguments)
+        # Call the tool function using execute_tool helper
+        logger.info(f"Calling tool: {original_name} with arguments: {arguments}")
+        result = await execute_tool(original_name, arguments)
+        logger.debug(f"Tool call completed: {original_name}, result type: {type(result).__name__}")
         
         return result
         

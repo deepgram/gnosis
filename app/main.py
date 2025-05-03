@@ -60,7 +60,7 @@ def create_app() -> Litestar:
         openapi_config=openapi_config,
         debug=settings.DEBUG,
         logging_config=None,  # Don't configure logging here
-        before_request=[before_request_handler],
+        before_request=before_request_handler,
     )
 
 app = create_app()
