@@ -1,7 +1,7 @@
 from typing import Any, Callable, Dict, Awaitable, List, Optional
 import logging
 
-from app.models.tools import ToolDefinition, ToolRegistry, ToolResponse
+from app.models.tools import ToolRegistry
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class ToolsDict(dict):
 # Create the tools compatibility object
 tools = ToolsDict()
 
-def register_tool(name: str, description: str = None, parameters: Dict[str, Any] = None):
+def register_tool(name: str, description: str = None, parameters: Dict[str, Any] = None, scope: str = "public"):
     """
     Enhanced decorator to register both a function and its schema definition.
     
@@ -35,14 +35,14 @@ def register_tool(name: str, description: str = None, parameters: Dict[str, Any]
         name: The name of the tool
         description: A description of what the tool does
         parameters: The JSON Schema for the tool's parameters
-    
+        scope: The scope of the tool (public, private, or internal)
     Returns:
         Decorator function that registers the decorated function
     """
     def decorator(func: Callable[[Dict[str, Any]], Awaitable[Any]]) -> Callable[[Dict[str, Any]], Awaitable[Any]]:
         # Create or update the tool entry in the registry
         if name not in tool_registry:
-            tool_registry[name] = {"implementation": None, "definition": None}
+            tool_registry[name] = {"implementation": None, "definition": None, "scope": scope}
         
         # Register the implementation
         tool_registry[name]["implementation"] = func

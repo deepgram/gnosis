@@ -17,6 +17,10 @@ Gnosis is an intelligence API service, and an API proxy for OpenAI Chat Completi
 
 Gnosis works as a proxy to the OpenAI Chat Completion's API and the Deepgram Voice Agent API. It provides enhanced context about Deepgram features to these services.
 
+## TODOs
+
+Check out the [to-do](TODO.md) list for outstanding tasks that have been ideated.
+
 ## Features
 
 - **OpenAI API Proxy**: Forwards requests to OpenAI's Chat Completions API
@@ -81,3 +85,54 @@ The application will use hot reloading in development mode.
 ## License
 
 For license details, see the [LICENSE](LICENSE) file.
+
+## Development Setup
+
+### Linting and Code Quality
+
+This project uses pre-commit hooks to automatically check and fix code issues:
+
+1. Install development dependencies:
+   ```
+   pip install -r requirements-dev.txt
+   ```
+
+2. Set up pre-commit hooks:
+   ```
+   pre-commit install
+   ```
+
+The pre-commit hooks will automatically:
+- Remove unused imports
+- Remove unused variables
+- Check code style with flake8
+
+You can also run the checks manually:
+```
+pre-commit run --all-files
+```
+
+Or run autoflake directly:
+```
+autoflake --remove-all-unused-imports --remove-unused-variables --in-place --recursive app/
+```
+
+3. VS Code will now show linting errors and organize imports on save
+
+For other editors/IDEs, configure their Python linting tools to use flake8 and autoflake.
+
+### File Watcher for Automatic Cleanup
+
+For a more universal solution that works with any editor, we've included a file watcher script that automatically runs autoflake whenever a Python file is saved:
+
+1. Install the watchdog package:
+   ```
+   pip install watchdog
+   ```
+
+2. Run the file watcher script in a separate terminal:
+   ```
+   python scripts/watch.py
+   ```
+
+This will continuously monitor the `app` directory for changes and automatically clean up unused imports and variables in any Python file when it's saved.

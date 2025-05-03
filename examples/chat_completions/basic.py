@@ -2,7 +2,6 @@
 import json
 import requests
 import argparse
-import sys
 import colorama
 from colorama import Fore, Style
 

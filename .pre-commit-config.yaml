@@ -1,0 +1,17 @@
+repos:
+-   repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+    -   id: flake8
+        args: [--max-line-length=120]
+
+-   repo: https://github.com/PyCQA/autoflake
+    rev: v2.2.1
+    hooks:
+    -   id: autoflake
+        args: [
+            --remove-all-unused-imports,
+            --remove-unused-variables,
+            --in-place,
+            --recursive
+        ] 

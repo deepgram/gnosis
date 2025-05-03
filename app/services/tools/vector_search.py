@@ -1,46 +1,36 @@
-import json
 import logging
 import httpx
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, Any
 
 from app.config import settings
 from app.services.tools.registry import register_tool
-from app.models.tools import VectorSearchResponse, VectorSearchDataItem, ContentItem, ToolError
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
-# Dictionary of vector store IDs to their configurations
-VECTOR_STORES = {
-    "documentation": {
-        "name": "Documentation",
-        "description": "Technical documentation from the Deepgram docs site"
-    }
-}
+@register_tool(
+    name="search_documentation",
+    description="""
+Search technical documentation from the Deepgram docs site.
 
-# Tool information registry with descriptions
-TOOL_DESCRIPTIONS = {
-    "search_documentation": {
-        "name": "search_documentation",
-        "description": "Search technical documentation from the Deepgram docs site",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The search query"
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return (1-50)"
-                }
+This tool is also called for retrieval-augmented generation (RAG) on chat completion requests. So use it if we need to enrich context further.
+    """,
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "The search query"
             },
-            "required": ["query"]
-        }
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of results to return (1-50)"
+            }
+        },
+        "required": ["query"]
     },
-}
-
-@register_tool("search_documentation")
+    scope="public"
+)
 async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Search technical documentation and API references"""
 

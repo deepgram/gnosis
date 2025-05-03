@@ -2,9 +2,8 @@
 Pydantic models for tool definitions and tool responses.
 """
 
-from typing import Any, Dict, List, Literal, Optional, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
-import json
 
 
 class ToolParameter(BaseModel):

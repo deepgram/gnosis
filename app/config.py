@@ -1,4 +1,3 @@
-import structlog
 from typing import List
 
 from dotenv import load_dotenv

@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Dict, Any, Optional, Tuple, Union, Type
+from typing import Dict, Any, Tuple, Union, Type
 from urllib.parse import urlencode
 
 from litestar import Router, WebSocket, websocket

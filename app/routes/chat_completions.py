@@ -7,7 +7,6 @@ from litestar import Router, Request, post
 from litestar.exceptions import HTTPException
 from litestar.response import Stream, Response
 from litestar.status_codes import HTTP_502_BAD_GATEWAY
-from pydantic import BaseModel
 
 from app.config import settings
 from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage

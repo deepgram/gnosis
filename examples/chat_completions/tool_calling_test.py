@@ -2,7 +2,6 @@
 import json
 import requests
 import argparse
-import sys
 import colorama
 from colorama import Fore, Style
 
@@ -46,7 +45,7 @@ When asked about technical documentation, ALWAYS use the search_documentation to
         "stream": args.stream,
         "temperature": 0.7,
         "max_tokens": 2048,
-        "tool_choice": {"type": "function", "function": {"name": "gnosis_function_search_documentation"}}  # Force tool calling
+        "tool_choice": "auto"  # Enable automatic tool calling
     }
     
     if args.verbose:

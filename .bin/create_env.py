@@ -4,7 +4,6 @@ Script to create a .env file with default values.
 Run this script to create a default .env file.
 """
 
-import os
 import sys
 from pathlib import Path
 

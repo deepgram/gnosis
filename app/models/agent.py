@@ -4,8 +4,8 @@ Pydantic models for agent-related functionality.
 This module contains models for working with the Deepgram Voice Agent API.
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Union, Literal
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any, Literal
 
 # Message types
 class BaseAgentMessage(BaseModel):
