@@ -1,7 +1,8 @@
 import json
 import logging
 import time
-from typing import Any, Dict, List, Union
+import asyncio
+from typing import Any, Dict, List, Union, Tuple
 
 import httpx
 from litestar import Router, Request, post
@@ -53,6 +54,40 @@ def extract_query_from_messages(messages: List[Union[ChatMessage, Dict[str, Any]
     
     return ""
 
+def is_conversation_continuation(messages: List[Union[ChatMessage, Dict[str, Any]]]) -> bool:
+    """
+    Check if the conversation is a continuation of a previous thread by looking for
+    assistant or tool responses in the messages.
+    
+    Args:
+        messages: List of chat messages
+        
+    Returns:
+        True if this is a continuation, False if it's a new conversation
+    """
+    if not messages:
+        return False
+    
+    # Count user and non-user messages
+    user_messages = 0
+    non_user_messages = 0
+    
+    for message in messages:
+        # Convert dict to ChatMessage if needed
+        if isinstance(message, dict):
+            role = message.get("role", "")
+        else:
+            role = message.role
+            
+        if role == "user":
+            user_messages += 1
+        elif role in ["assistant", "tool"]:
+            non_user_messages += 1
+    
+    # A conversation is a continuation if it has non-user messages
+    # AND more than one user message
+    return non_user_messages > 0 or user_messages > 1
+
 
 @post("/chat/completions")
 async def chat_completion(request: Request, data: Any) -> Response:
@@ -94,8 +129,11 @@ async def chat_completion(request: Request, data: Any) -> Response:
         # log the query
         logger.info(f"Query: {query}")
 
-        # Perform vector search of documentation if we have a query
-        if query:
+        # Check if this is a continuation of an existing conversation
+        is_continuation = is_conversation_continuation(messages)
+        
+        # Perform vector search of documentation if we have a query and it's not a continuation
+        if query and not is_continuation:
             try:
                 # 📋 RAG PROCESSING START - Explicit log marker for RAG operations
                 logger.info("📋 RAG PROCESSING START - Retrieving augmented context for query")
@@ -109,7 +147,8 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     "limit": 2,
                     "ranking_options": {
                         "score_threshold": 0.9  # Only include highly relevant results
-                    }
+                    },
+                    "rewrite_query": True
                 })
                 
                 # Calculate RAG operation duration
@@ -118,7 +157,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
                 # Log RAG details without modifying the search_documentation function
                 logger.info(f"📋 RAG results received: {len(search_results.get('data', []))} items found for query: '{query}'")
                 
-                # Create metadata entry for RAG operation
+                # Create metadata entry for RAG operation - simplified to exclude result details
                 rag_metadata = GnosisMetadataItem(
                     operation_type="rag",
                     name="search_documentation",
@@ -192,11 +231,13 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     latency_ms=(time.time() - rag_start_time) * 1000 if 'rag_start_time' in locals() else None,
                     details={"error": str(e), "query": query}
                 ))
+        elif is_continuation:
+            logger.info("📋 RAG PROCESSING SKIPPED - Conversation is a continuation of a previous thread")
 
         # Augment the chat completion request with tool calling configuration
         json_data = FunctionCallingService.augment_openai_request(json_data)
 
-        logger.info(f"Augmented request: {json_data}")
+        logger.debug(f"Augmented request:\n{json.dumps(json_data, indent=2)}")
 
         # Augment the chat completion request with additional metadata
         # json_data['messages'].append(ChatMessage(
@@ -241,134 +282,204 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     tool_calls = choice["message"]["tool_calls"]
                     logger.debug(f"Received {len(tool_calls)} tool calls from LLM")
                     
-                    # Process all tool calls - let errors propagate
-                    tool_results = {}
+                    # Separate built-in and user-defined tool calls
+                    built_in_calls = []
+                    user_calls = []
+                    
                     for tool_call in tool_calls:
-                        tool_call_id = tool_call.get("id")
                         function_name = tool_call.get("function", {}).get("name", "unknown")
                         is_internal = function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
-                        logger.debug(f"Processing tool call: {function_name} (ID: {tool_call_id}, Internal: {is_internal})")
                         
-                        # Track tool call execution time
+                        if is_internal:
+                            built_in_calls.append(tool_call)
+                            logger.debug(f"Identified built-in tool call: {function_name}")
+                        else:
+                            user_calls.append(tool_call)
+                            logger.debug(f"Identified user-defined tool call: {function_name}")
+                    
+                    # Log debug information about the parallel tool calls
+                    if len(built_in_calls) > 0 and len(user_calls) > 0:
+                        logger.info(f"🔄 PARALLEL TOOL CALLS - Processing {len(built_in_calls)} built-in calls first, then will return {len(user_calls)} user-defined calls")
+                    elif len(built_in_calls) > 1:
+                        logger.info(f"🔄 PARALLEL TOOL CALLS - Processing {len(built_in_calls)} built-in calls in parallel")
+                    else:
+                        logger.info(f"Separated tool calls: {len(built_in_calls)} built-in, {len(user_calls)} user-defined")
+                    
+                    # If we have built-in calls, process them first
+                    if built_in_calls:
+                        # Create tasks for all built-in tool calls
+                        tasks = []
+                        for tool_call in built_in_calls:
+                            tasks.append(process_tool_call(tool_call))
+                        
+                        # Log the parallel execution
+                        if len(tasks) > 1:
+                            logger.info(f"🔄 Executing {len(tasks)} built-in tool calls in parallel")
+                        
+                        # Execute all tasks in parallel
                         tool_start_time = time.time()
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        tool_duration_ms = (time.time() - tool_start_time) * 1000
                         
-                        try:
-                            # Process tool call and let exceptions propagate
-                            result = await process_tool_call(tool_call)
-                            tool_results[tool_call_id] = result
-                            
-                            # Calculate tool call duration
-                            tool_duration_ms = (time.time() - tool_start_time) * 1000
-                            
-                            # Record tool call metadata
-                            original_name = function_name
-                            if is_internal:
-                                original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX):]
-                                
-                            tool_metadata = GnosisMetadataItem(
-                                operation_type="tool_call",
-                                name=original_name,
-                                latency_ms=tool_duration_ms,
-                                details={
-                                    "tool_call_id": tool_call_id,
-                                    "is_internal": is_internal,
-                                    "arguments": tool_call.get("function", {}).get("arguments", "{}"),
-                                    "result_type": type(result).__name__
-                                }
-                            )
-                            
-                            # Add to operations list
-                            gnosis_operations.append(tool_metadata)
-                            
-                            logger.debug(f"Completed tool call {tool_call_id} with result type: {type(result).__name__}")
-                        except Exception as e:
-                            # Track failed tool call
-                            gnosis_operations.append(GnosisMetadataItem(
-                                operation_type="tool_call",
-                                name=original_name if 'original_name' in locals() else function_name,
-                                latency_ms=(time.time() - tool_start_time) * 1000,
-                                details={
-                                    "tool_call_id": tool_call_id,
-                                    "is_internal": is_internal,
-                                    "error": str(e)
-                                }
-                            ))
-                            # Re-raise the exception
-                            raise
-                    
-                    # Create a new request with tool results
-                    new_messages = json_data.get("messages", []).copy()
-                    new_messages.append(choice["message"])
-                    
-                    # Add tool results
-                    for tool_call_id, result in tool_results.items():
-
-                        # Serialize the result
-                        result_json = json.dumps(result)
+                        # Log the completion of parallel execution
+                        if len(tasks) > 1:
+                            logger.info(f"🔄 Completed {len(tasks)} parallel tool calls in {tool_duration_ms:.2f}ms")
                         
-                        # Create tool result message
-                        tool_message = ToolResultMessage(
-                            role="tool",
-                            tool_call_id=tool_call_id,
-                            content=result_json
+                        # Process results and add tool call metadata
+                        built_in_results = {}
+                        
+                        for i, result in enumerate(results):
+                            tool_call = built_in_calls[i]
+                            tool_call_id = tool_call.get("id")
+                            function_name = tool_call.get("function", {}).get("name", "unknown")
+                            original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX):]
+                            
+                            # Parse arguments for metadata
+                            arguments_str = tool_call.get("function", {}).get("arguments", "{}")
+                            try:
+                                arguments = json.loads(arguments_str)
+                            except json.JSONDecodeError:
+                                arguments = {"error": "Invalid arguments format"}
+                            
+                            # Record metadata, but with simplified details (no results)
+                            if isinstance(result, Exception):
+                                gnosis_operations.append(GnosisMetadataItem(
+                                    operation_type="tool_call",
+                                    name=original_name,
+                                    latency_ms=tool_duration_ms,
+                                    details={
+                                        "arguments": arguments,
+                                        "status": "error"
+                                    }
+                                ))
+                                built_in_results[tool_call_id] = {"error": str(result)}
+                            else:
+                                gnosis_operations.append(GnosisMetadataItem(
+                                    operation_type="tool_call",
+                                    name=original_name,
+                                    latency_ms=tool_duration_ms,
+                                    details={
+                                        "arguments": arguments,
+                                        "status": "success"
+                                    }
+                                ))
+                                built_in_results[tool_call_id] = result
+                    
+                    # Create messages array with original messages
+                    next_messages = json_data.get("messages", []).copy()
+                    
+                    # If we're returning user-defined tool calls to the client
+                    if user_calls:
+                        # Create a modified response that only includes user tool calls
+                        modified_response = response_data.copy()
+                        
+                        # Replace the tool_calls with only the user-defined ones
+                        user_message = choice["message"].copy()
+                        user_message["tool_calls"] = user_calls
+                        
+                        # Update the choice with the modified message
+                        modified_choice = choice.copy()
+                        modified_choice["message"] = user_message
+                        
+                        # Replace the first choice with our modified choice
+                        modified_response["choices"] = [modified_choice]
+                        
+                        # Add metadata showing we processed built-in tools
+                        total_duration_ms = (time.time() - start_time_total) * 1000
+                        if "usage" in response_data:
+                            total_tokens = response_data["usage"].get("total_tokens", 0)
+                        else:
+                            total_tokens = None
+                        
+                        # Create the metadata
+                        metadata = GnosisMetadata(
+                            operations=gnosis_operations,
+                            total_tokens=total_tokens,
+                            total_latency_ms=total_duration_ms,
+                            summary=f"Processed {len(gnosis_operations)} built-in operations in {total_duration_ms:.2f}ms"
                         )
                         
-                        # Add tool result message as dict for serialization
-                        new_messages.append(tool_message.model_dump())
-                    
-                    # Create new request to send back to LLM
-                    new_json_data = json_data.copy()
-                    new_json_data["messages"] = new_messages
-                    
-                    # Send the follow-up request
-                    logger.info("Sending follow-up request with tool results")
-                    follow_up_response = await client.post(
-                        OPENAI_CHAT_COMPLETIONS_ENDPOINT,
-                        headers=headers,
-                        json=new_json_data,
-                        timeout=60.0,
-                    )
-                    
-                    # Calculate total operation duration
-                    total_duration_ms = (time.time() - start_time_total) * 1000
-                    
-                    # Get the response data
-                    follow_up_response_data = follow_up_response.json()
-                    
-                    # Add Gnosis metadata to the response
-                    if "usage" in follow_up_response_data:
-                        total_tokens = follow_up_response_data["usage"].get("total_tokens", 0)
+                        # Add metadata to response data
+                        modified_response["gnosis_metadata"] = metadata.model_dump(exclude_none=True)
+                        
+                        # If there were only user-defined tool calls, we're done
+                        logger.info(f"Returning response with {len(user_calls)} user-defined tool calls")
+                        return Response(
+                            content=json.dumps(modified_response),
+                            status_code=response.status_code,
+                            headers={"Content-Type": "application/json"},
+                        )
                     else:
-                        total_tokens = None
-                    
-                    # Create the metadata
-                    metadata = GnosisMetadata(
-                        operations=gnosis_operations,
-                        total_tokens=total_tokens,
-                        total_latency_ms=total_duration_ms,
-                        summary=f"Processed {len(gnosis_operations)} operations in {total_duration_ms:.2f}ms"
-                    )
-                    
-                    # Add metadata to response data
-                    follow_up_response_data["gnosis_metadata"] = metadata.model_dump(exclude_none=True)
-                    
-                    # Return the final response with metadata
-                    return Response(
-                        content=json.dumps(follow_up_response_data),
-                        status_code=follow_up_response.status_code,
-                        headers={"Content-Type": follow_up_response.headers.get("Content-Type", "application/json")},
-                    )
+                        # If there were ONLY built-in tool calls, we need to:
+                        # 1. Add the assistant's message with tool calls
+                        next_messages.append(choice["message"])
+                        
+                        # 2. Add all built-in tool results
+                        for tool_call_id, result in built_in_results.items():
+                            # Serialize the result
+                            result_json = json.dumps(result)
+                            
+                            # Create tool result message
+                            tool_message = ToolResultMessage(
+                                role="tool",
+                                tool_call_id=tool_call_id,
+                                content=result_json
+                            )
+                            
+                            # Add tool result message as dict for serialization
+                            next_messages.append(tool_message.model_dump())
+                        
+                        # 3. Create new request to send back to LLM with all tool results
+                        new_json_data = json_data.copy()
+                        new_json_data["messages"] = next_messages
+                        
+                        # 4. Send the follow-up request
+                        logger.info("Sending follow-up request with built-in tool results")
+                        follow_up_response = await client.post(
+                            OPENAI_CHAT_COMPLETIONS_ENDPOINT,
+                            headers=headers,
+                            json=new_json_data,
+                            timeout=60.0,
+                        )
+                        
+                        # 5. Calculate total operation duration
+                        total_duration_ms = (time.time() - start_time_total) * 1000
+                        
+                        # 6. Get the response data
+                        follow_up_response_data = follow_up_response.json()
+                        
+                        # 7. Add Gnosis metadata to the response
+                        if "usage" in follow_up_response_data:
+                            total_tokens = follow_up_response_data["usage"].get("total_tokens", 0)
+                        else:
+                            total_tokens = None
+                        
+                        # Create the metadata
+                        metadata = GnosisMetadata(
+                            operations=gnosis_operations,
+                            total_tokens=total_tokens,
+                            total_latency_ms=total_duration_ms,
+                            summary=f"Processed {len(gnosis_operations)} operations in {total_duration_ms:.2f}ms"
+                        )
+                        
+                        # Add metadata to response data
+                        follow_up_response_data["gnosis_metadata"] = metadata.model_dump(exclude_none=True)
+                        
+                        # Return the final response with metadata
+                        return Response(
+                            content=json.dumps(follow_up_response_data),
+                            status_code=follow_up_response.status_code,
+                            headers={"Content-Type": follow_up_response.headers.get("Content-Type", "application/json")},
+                        )
             
-            # Calculate total operation duration
+            # Regular response (no tool calls) - add metadata and return
             total_duration_ms = (time.time() - start_time_total) * 1000
             
-            # Add Gnosis metadata to the original response
             if "usage" in response_data:
                 total_tokens = response_data["usage"].get("total_tokens", 0)
             else:
                 total_tokens = None
                 
-            # Create the metadata
             metadata = GnosisMetadata(
                 operations=gnosis_operations,
                 total_tokens=total_tokens,
@@ -376,10 +487,8 @@ async def chat_completion(request: Request, data: Any) -> Response:
                 summary=f"Processed {len(gnosis_operations)} operations in {total_duration_ms:.2f}ms"
             )
             
-            # Add metadata to response data
             response_data["gnosis_metadata"] = metadata.model_dump(exclude_none=True)
             
-            # Return the original response with metadata
             return Response(
                 content=json.dumps(response_data),
                 status_code=response.status_code,
@@ -474,7 +583,7 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
         The result of the tool call
         
     Raises:
-        HTTPException: If the tool is not found or there's an error processing the call
+        Exception: If there's an error processing the call
     """
     start_time = time.time()
     
@@ -482,20 +591,14 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
         # Extract function details
         if not tool_call.get("function"):
             logger.debug("Tool call missing function details")
-            raise HTTPException(
-                status_code=HTTP_502_BAD_GATEWAY,
-                detail="Tool call missing function details"
-            )
+            raise ValueError("Tool call missing function details")
             
         function = tool_call["function"]
         function_name = function.get("name")
         
         if not function_name:
             logger.debug("Tool call missing function name")
-            raise HTTPException(
-                status_code=HTTP_502_BAD_GATEWAY,
-                detail="Tool call missing function name"
-            )
+            raise ValueError("Tool call missing function name")
             
         # Check if the function name has the internal prefix and remove it if it does
         is_internal = function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
@@ -526,10 +629,7 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
         # Check if the tool exists
         if not get_tool_implementation(original_name):
             logger.debug(f"Tool '{original_name}' not found in registry")
-            raise HTTPException(
-                status_code=HTTP_502_BAD_GATEWAY,
-                detail=f"Tool '{original_name}' not found"
-            )
+            raise ValueError(f"Tool '{original_name}' not found")
         
         # 🔧 FUNCTION CALL START - Explicit log marker for function calls
         tool_call_id = tool_call.get("id", "unknown")
@@ -547,19 +647,11 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
         
         return result
         
-    except HTTPException as e:
-        # Log with the function call marker
-        logger.error(f"🔧 FUNCTION CALL ERROR - {str(e)}")
-        # Re-raise HTTP exceptions
-        raise
     except Exception as e:
         # Log with the function call marker
-        logger.error(f"🔧 FUNCTION CALL ERROR - Error processing tool call: {str(e)}")
-        # Log and wrap other exceptions
-        raise HTTPException(
-            status_code=HTTP_502_BAD_GATEWAY,
-            detail=f"Error processing tool call: {str(e)}"
-        )
+        logger.error(f"🔧 FUNCTION CALL ERROR - {str(e)}")
+        # Re-raise the exception to be handled by the caller
+        raise
     finally:
         # Log total processing time
         total_duration_ms = (time.time() - start_time) * 1000

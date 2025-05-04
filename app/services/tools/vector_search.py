@@ -24,7 +24,7 @@ Only search if the context is not enough to answer the question.
             },
             "limit": {
                 "type": "integer",
-                "description": "Maximum number of results to return (1-50)"
+                "description": "Maximum number of results to return (1-2)"
             }
         },
         "required": ["query"]
@@ -71,9 +71,8 @@ async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "query": query,
         "max_num_results": limit,
         "ranking_options": {
-            "score_threshold": 0.85  # ✅ This is the correct key
-        },
-        "rewrite_query": True
+            "score_threshold": 0.9,
+        }
     }
 
     try:
