@@ -15,11 +15,15 @@ from app.models.agent import (
     SettingsApplied,
     ConversationText,
     FunctionCallResponse,
+    FunctionCall,
     KeepAlive,
     SettingsConfiguration,
     Warning,
     Error
 )
+
+# Import the function calling service
+from app.services.function_calling import FunctionCallingService
 
 # Initialize logger
 log = structlog.get_logger()
@@ -36,6 +40,7 @@ MESSAGE_TYPE_MAP: Dict[str, Type[BaseAgentMessage]] = {
     "Welcome": WelcomeMessage,
     "SettingsApplied": SettingsApplied,
     "ConversationText": ConversationText,
+    "FunctionCall": FunctionCall,
     "FunctionCallResponse": FunctionCallResponse,
     "KeepAlive": KeepAlive,
     "SettingsConfiguration": SettingsConfiguration,
@@ -242,6 +247,27 @@ async def handle_client_to_deepgram(client_ws: WebSocket, deepgram_ws: websocket
                 print("Forwarded binary data from client to Deepgram")
             elif isinstance(processed_data, BaseAgentMessage):
                 # Known message type
+                
+                # Special handling for SettingsConfiguration to add function definitions
+                if isinstance(processed_data, SettingsConfiguration):
+                    log.info("Received SettingsConfiguration message from client, augmenting with function definitions")
+                    
+                    # Convert to dict for augmentation
+                    config_dict = processed_data.model_dump()
+                    
+                    # Augment with our function definitions
+                    augmented_config = FunctionCallingService.augment_deepgram_agent_config(config_dict)
+                    
+                    # Create a new SettingsConfiguration object from the augmented dict
+                    try:
+                        processed_data = SettingsConfiguration.model_validate(augmented_config)
+                        log.info("Successfully augmented SettingsConfiguration with function definitions")
+                    except Exception as e:
+                        log.error("Failed to create SettingsConfiguration from augmented config", error=str(e))
+                        # Continue with the original if validation fails
+                        log.warning("Using original SettingsConfiguration without augmentation")
+                
+                # Serialize and send the message
                 json_str = processed_data.model_dump_json()
                 await deepgram_ws.send(json_str)
                 print(f"Forwarded {processed_data.__class__.__name__} from client to Deepgram")
@@ -286,6 +312,68 @@ async def handle_deepgram_to_client(deepgram_ws: websockets.WebSocketClientProto
                 print("Forwarded binary data from Deepgram to client")
             elif isinstance(processed_data, BaseAgentMessage):
                 # Known message type
+                
+                # Handle FunctionCall messages - these need special handling
+                if hasattr(processed_data, 'type') and processed_data.type == "FunctionCall":
+                    log.info("Received FunctionCall message from Deepgram")
+                    
+                    # Check if it's one of our internal functions
+                    function_name = getattr(processed_data, 'function_name', None)
+                    is_internal = function_name and function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
+                    
+                    if is_internal:
+                        log.info(f"Processing internal function call: {function_name}")
+                        
+                        try:
+                            # Extract arguments and function call ID
+                            arguments = getattr(processed_data, 'arguments', {})
+                            function_call_id = getattr(processed_data, 'function_call_id', None)
+                            
+                            if not function_call_id:
+                                log.error("Function call ID missing, cannot execute function")
+                                continue
+                            
+                            # Parse arguments if they're provided as a string
+                            if isinstance(arguments, str):
+                                try:
+                                    arguments = json.loads(arguments)
+                                except json.JSONDecodeError:
+                                    log.error(f"Failed to parse function call arguments: {arguments}")
+                                    arguments = {}
+                            
+                            # Execute the function
+                            result = await FunctionCallingService.execute_function(
+                                function_name=function_name,
+                                arguments=arguments
+                            )
+                            
+                            # Convert result to string if needed
+                            if not isinstance(result, str):
+                                result = json.dumps(result)
+                            
+                            # Create and send the function call response
+                            response = FunctionCallResponse(
+                                type="FunctionCallResponse",
+                                function_call_id=function_call_id,
+                                output=result
+                            )
+                            
+                            response_json = response.model_dump_json()
+                            await deepgram_ws.send(response_json)
+                            log.info(f"Sent function call response for {function_name}")
+                            
+                            # Forward the function call message to the client for visibility
+                            await client_ws.send_text(json.dumps(processed_data.model_dump()))
+                            
+                            # Don't continue with normal forwarding for this message
+                            continue
+                        except Exception as e:
+                            log.error(f"Error executing function {function_name}: {str(e)}")
+                            # Forward the original message to the client in case of error
+                    else:
+                        log.info(f"Received external function call: {function_name}, forwarding to client")
+                
+                # For regular messages, forward them normally
                 json_str = processed_data.model_dump_json()
                 await client_ws.send_text(json_str)
 
