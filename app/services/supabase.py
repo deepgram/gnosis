@@ -30,7 +30,7 @@ try:
     if config.url and config.key:
         supabase_client = create_client(config.url, config.key)
         config.is_initialized = True
-        log.warning("Supabase client initialized successfully")
+        log.info("Supabase client initialized successfully")
 except Exception as e:
     log.error("Failed to initialize Supabase client", error=e)
     supabase_client = None

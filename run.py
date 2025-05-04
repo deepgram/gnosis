@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Wrapper script for running the Litestar app with Rich and Structlog."""
 import os
 import sys
