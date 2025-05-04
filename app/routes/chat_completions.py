@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import Any, Dict, List, Union
 
 import httpx
@@ -9,8 +10,8 @@ from litestar.response import Stream, Response
 from litestar.status_codes import HTTP_502_BAD_GATEWAY
 
 from app.config import settings
-from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage
-from app.services.tools.vector_search import search_documentation
+from app.models.chat import ChatMessage, ChatCompletionRequest, ToolResultMessage, GnosisMetadataItem, GnosisMetadata
+from app.services.tools.vector_search import search_documentation, format_search_result
 from app.services.tools.registry import get_tool_implementation, execute_tool
 from app.services.function_calling import FunctionCallingService
 
@@ -53,67 +54,6 @@ def extract_query_from_messages(messages: List[Union[ChatMessage, Dict[str, Any]
     return ""
 
 
-def enrich_messages_with_rag_results(
-    messages: List[Union[ChatMessage, Dict[str, Any]]], 
-    search_results: List[Dict[str, Any]]
-) -> List[Union[ChatMessage, Dict[str, Any]]]:
-    """
-    Add a system message with RAG results before the user's query.
-    
-    Args:
-        messages: The original message list
-        search_results: The results from the vector search
-        
-    Returns:
-        The enriched message list
-    """
-    if not search_results:
-        return messages
-    
-    # Format the search results as context
-    context = "I found the following relevant information that might help:\n\n"
-    for i, result in enumerate(search_results):
-        context += f"--- Result {i+1} ---\n"
-        if result.get("metadata", {}).get("title"):
-            context += f"Title: {result['metadata']['title']}\n"
-        context += f"{result['content']}\n\n"
-    
-    # Create a new system message with the context
-    system_message = ChatMessage(
-        role="system",
-        content=context
-    )
-    
-    # Find the position to insert the system message
-    # We want to insert it just before the last user message
-    last_user_index = None
-    for i in range(len(messages) - 1, -1, -1):
-        msg = messages[i]
-        role = msg.get("role") if isinstance(msg, dict) else msg.role
-        if role == "user":
-            last_user_index = i
-            break
-    
-    # Convert all messages to dictionaries for JSON serialization
-    serialized_messages = []
-    for msg in messages:
-        if isinstance(msg, ChatMessage):
-            serialized_messages.append(msg.model_dump())
-        else:
-            serialized_messages.append(msg)
-    
-    # Insert the system message as a dictionary
-    system_message_dict = system_message.model_dump()
-    
-    if last_user_index is not None:
-        # Insert the system message before the last user message
-        enriched_messages = serialized_messages[:last_user_index] + [system_message_dict] + serialized_messages[last_user_index:]
-        return enriched_messages
-    
-    # If no user message found, just append the system message
-    return serialized_messages + [system_message_dict]
-
-
 @post("/chat/completions")
 async def chat_completion(request: Request, data: Any) -> Response:
     """
@@ -121,6 +61,10 @@ async def chat_completion(request: Request, data: Any) -> Response:
     Before sending to the LLM, performs vector search for retrieval augmented generation.
     Also injects tools and processes tool calls if needed.
     """
+    
+    # Initialize metadata collection
+    gnosis_operations = []
+    start_time_total = time.time()
     
     # Log the proxy destination
     logger.info(f"Proxying request to: {OPENAI_CHAT_COMPLETIONS_ENDPOINT}")
@@ -153,58 +97,112 @@ async def chat_completion(request: Request, data: Any) -> Response:
         # Perform vector search of documentation if we have a query
         if query:
             try:
-                search_results = await search_documentation({"query": query})
-
-                # Check if we have search results and prepare them for enrichment
-                search_items = []
+                # 📋 RAG PROCESSING START - Explicit log marker for RAG operations
+                logger.info("📋 RAG PROCESSING START - Retrieving augmented context for query")
                 
-                # Handle both data and matches fields for flexibility
-                if hasattr(search_results, 'data') and search_results.data:
-                    for item in search_results.data:
-                        item_dict = {
-                            "content": item.text if hasattr(item, 'text') else " ".join([c.text for c in item.content]),
-                            "metadata": item.attributes if hasattr(item, 'attributes') else {}
+                # Track RAG operation start time
+                rag_start_time = time.time()
+                
+                # Get the search results
+                search_results = await search_documentation({
+                    "query": query,
+                    "limit": 2,
+                    "ranking_options": {
+                        "score_threshold": 0.9  # Only include highly relevant results
+                    }
+                })
+                
+                # Calculate RAG operation duration
+                rag_duration_ms = (time.time() - rag_start_time) * 1000
+                
+                # Log RAG details without modifying the search_documentation function
+                logger.info(f"📋 RAG results received: {len(search_results.get('data', []))} items found for query: '{query}'")
+                
+                # Create metadata entry for RAG operation
+                rag_metadata = GnosisMetadataItem(
+                    operation_type="rag",
+                    name="search_documentation",
+                    latency_ms=rag_duration_ms,
+                    details={
+                        "query": query,
+                        "result_count": len(search_results.get("data", []))
+                    }
+                )
+                
+                # Add to operations list
+                gnosis_operations.append(rag_metadata)
+
+                # Process data items from the search results and add as separate system messages
+                data_items = search_results.get("data", [])
+                
+                if data_items:
+                    # Get the original messages to work with
+                    original_messages = json_data.get("messages", []).copy()
+                    
+                    # Find the position of the last user message
+                    last_user_index = -1
+                    for i in range(len(original_messages) - 1, -1, -1):
+                        if original_messages[i].get("role") == "user":
+                            last_user_index = i
+                            break
+                    
+                    # Insert position is after the last user message
+                    insert_pos = last_user_index + 1 if last_user_index != -1 else len(original_messages)
+                    enhanced_messages = original_messages[:insert_pos]
+                    
+                    # Add each search result as a separate system message in order of relevance
+                    for item in data_items:
+                        # Extract text from content array and convert to markdown
+                        content_text = " ".join([
+                            c.get("text", "") 
+                            for c in item.get("content", []) 
+                            if c.get("type") == "text"
+                        ])
+                        
+                        # Format as markdown with metadata
+                        markdown_content = format_search_result(item)
+
+                        
+                        # Create system message with this content
+                        system_message = {
+                            "role": "system",
+                            "content": markdown_content
                         }
                         
-                        # Add filename to metadata if available
-                        if hasattr(item, 'filename') and item.filename:
-                            item_dict["metadata"]["title"] = item.filename
-                            
-                        search_items.append(item_dict)
-                elif hasattr(search_results, 'matches') and search_results.matches:
-                    for match in search_results.matches:
-                        match_dict = {}
-                        
-                        # Handle content
-                        if hasattr(match, 'text') and match.text:
-                            match_dict["content"] = match.text
-                        elif hasattr(match, 'content') and match.content:
-                            if isinstance(match.content, list):
-                                match_dict["content"] = " ".join([c.text for c in match.content])
-                            else:
-                                match_dict["content"] = match.content
-                                
-                        # Handle metadata
-                        if hasattr(match, 'metadata') and match.metadata:
-                            match_dict["metadata"] = match.metadata
-                        elif hasattr(match, 'attributes') and match.attributes:
-                            match_dict["metadata"] = match.attributes
-                            
-                        search_items.append(match_dict)
-                
-                # Enrich the messages with RAG results if we have any
-                if search_items:
-                    json_data["messages"] = enrich_messages_with_rag_results(
-                        messages, 
-                        search_items
-                    )
+                        # Add to messages
+                        enhanced_messages.append(system_message)
+                    
+                    # Add remaining messages after the last user message
+                    if last_user_index != -1 and last_user_index + 1 < len(original_messages):
+                        enhanced_messages.extend(original_messages[last_user_index + 1:])
+                    
+                    # Update messages in the request
+                    json_data["messages"] = enhanced_messages
+                    logger.info(f"📋 RAG PROCESSING COMPLETE - Added {len(data_items)} context items as system messages")
+                else:
+                    logger.info("📋 RAG PROCESSING COMPLETE - No relevant results found")
 
             except Exception as e:
-                logger.warning(f"Error during vector search: {str(e)}")
+                logger.warning(f"📋 RAG PROCESSING ERROR - {str(e)}")
                 # Continue without RAG if search fails
+                # Record the failed operation
+                gnosis_operations.append(GnosisMetadataItem(
+                    operation_type="rag",
+                    name="search_documentation",
+                    latency_ms=(time.time() - rag_start_time) * 1000 if 'rag_start_time' in locals() else None,
+                    details={"error": str(e), "query": query}
+                ))
 
         # Augment the chat completion request with tool calling configuration
         json_data = FunctionCallingService.augment_openai_request(json_data)
+
+        logger.info(f"Augmented request: {json_data}")
+
+        # Augment the chat completion request with additional metadata
+        # json_data['messages'].append(ChatMessage(
+        #     role="system",
+        #     content=context
+        # ))
         
         # Debug log the tools being requested
         if "tools" in json_data:
@@ -251,10 +249,52 @@ async def chat_completion(request: Request, data: Any) -> Response:
                         is_internal = function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
                         logger.debug(f"Processing tool call: {function_name} (ID: {tool_call_id}, Internal: {is_internal})")
                         
-                        # Process tool call and let exceptions propagate
-                        result = await process_tool_call(tool_call)
-                        tool_results[tool_call_id] = result
-                        logger.debug(f"Completed tool call {tool_call_id} with result type: {type(result).__name__}")
+                        # Track tool call execution time
+                        tool_start_time = time.time()
+                        
+                        try:
+                            # Process tool call and let exceptions propagate
+                            result = await process_tool_call(tool_call)
+                            tool_results[tool_call_id] = result
+                            
+                            # Calculate tool call duration
+                            tool_duration_ms = (time.time() - tool_start_time) * 1000
+                            
+                            # Record tool call metadata
+                            original_name = function_name
+                            if is_internal:
+                                original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX):]
+                                
+                            tool_metadata = GnosisMetadataItem(
+                                operation_type="tool_call",
+                                name=original_name,
+                                latency_ms=tool_duration_ms,
+                                details={
+                                    "tool_call_id": tool_call_id,
+                                    "is_internal": is_internal,
+                                    "arguments": tool_call.get("function", {}).get("arguments", "{}"),
+                                    "result_type": type(result).__name__
+                                }
+                            )
+                            
+                            # Add to operations list
+                            gnosis_operations.append(tool_metadata)
+                            
+                            logger.debug(f"Completed tool call {tool_call_id} with result type: {type(result).__name__}")
+                        except Exception as e:
+                            # Track failed tool call
+                            gnosis_operations.append(GnosisMetadataItem(
+                                operation_type="tool_call",
+                                name=original_name if 'original_name' in locals() else function_name,
+                                latency_ms=(time.time() - tool_start_time) * 1000,
+                                details={
+                                    "tool_call_id": tool_call_id,
+                                    "is_internal": is_internal,
+                                    "error": str(e)
+                                }
+                            ))
+                            # Re-raise the exception
+                            raise
                     
                     # Create a new request with tool results
                     new_messages = json_data.get("messages", []).copy()
@@ -289,16 +329,59 @@ async def chat_completion(request: Request, data: Any) -> Response:
                         timeout=60.0,
                     )
                     
-                    # Return the final response
+                    # Calculate total operation duration
+                    total_duration_ms = (time.time() - start_time_total) * 1000
+                    
+                    # Get the response data
+                    follow_up_response_data = follow_up_response.json()
+                    
+                    # Add Gnosis metadata to the response
+                    if "usage" in follow_up_response_data:
+                        total_tokens = follow_up_response_data["usage"].get("total_tokens", 0)
+                    else:
+                        total_tokens = None
+                    
+                    # Create the metadata
+                    metadata = GnosisMetadata(
+                        operations=gnosis_operations,
+                        total_tokens=total_tokens,
+                        total_latency_ms=total_duration_ms,
+                        summary=f"Processed {len(gnosis_operations)} operations in {total_duration_ms:.2f}ms"
+                    )
+                    
+                    # Add metadata to response data
+                    follow_up_response_data["gnosis_metadata"] = metadata.model_dump(exclude_none=True)
+                    
+                    # Return the final response with metadata
                     return Response(
-                        content=follow_up_response.content,
+                        content=json.dumps(follow_up_response_data),
                         status_code=follow_up_response.status_code,
                         headers={"Content-Type": follow_up_response.headers.get("Content-Type", "application/json")},
                     )
             
-            # Return the original response if no tool calls
+            # Calculate total operation duration
+            total_duration_ms = (time.time() - start_time_total) * 1000
+            
+            # Add Gnosis metadata to the original response
+            if "usage" in response_data:
+                total_tokens = response_data["usage"].get("total_tokens", 0)
+            else:
+                total_tokens = None
+                
+            # Create the metadata
+            metadata = GnosisMetadata(
+                operations=gnosis_operations,
+                total_tokens=total_tokens,
+                total_latency_ms=total_duration_ms,
+                summary=f"Processed {len(gnosis_operations)} operations in {total_duration_ms:.2f}ms"
+            )
+            
+            # Add metadata to response data
+            response_data["gnosis_metadata"] = metadata.model_dump(exclude_none=True)
+            
+            # Return the original response with metadata
             return Response(
-                content=response.content,
+                content=json.dumps(response_data),
                 status_code=response.status_code,
                 headers={"Content-Type": response.headers.get("Content-Type", "application/json")},
             )
@@ -334,19 +417,27 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
 async def handle_streaming_response(target_url, headers, json_data):
     """
-    Handle streaming responses with tool call support.
+    Handle streaming responses from the chat completion API.
+    
+    For streaming responses, we don't have a way to modify the chunks in-stream
+    since they are handled one at a time. So we'll collect all operations in 
+    metadata but won't be able to include it in the response.
     """
-    # Streaming with tool calls is more complex and would need a specialized implementation
-    # For this example, we'll just support basic streaming without tool calls
+    # Create a stream response
     return Stream(
         stream_chat_completion_response(target_url, headers, json_data),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
     )
 
 
 async def stream_chat_completion_response(target_url, headers, json_data):
     """
     Stream response from chat completion API.
+    
+    Note: For streaming responses, we can't inject the gnosis_metadata field into the
+    stream since we return chunks as they arrive. In a future implementation, we could
+    consider collecting the chunks and returning a modified final response with the
+    metadata at the end.
     """
     try:
         async with httpx.AsyncClient() as http_client:
@@ -385,6 +476,8 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
     Raises:
         HTTPException: If the tool is not found or there's an error processing the call
     """
+    start_time = time.time()
+    
     try:
         # Extract function details
         if not tool_call.get("function"):
@@ -413,15 +506,7 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
             logger.debug(f"Internal tool call detected: {function_name}, using registry name: {original_name}")
         else:
             logger.debug(f"External tool call detected: {function_name}")
-            
-        # Check if the tool exists
-        if not get_tool_implementation(original_name):
-            logger.debug(f"Tool '{original_name}' not found in registry")
-            raise HTTPException(
-                status_code=HTTP_502_BAD_GATEWAY,
-                detail=f"Tool '{original_name}' not found"
-            )
-            
+        
         # Parse arguments
         arguments_str = function.get("arguments", "{}")
         
@@ -437,24 +522,48 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
                 # If it's not valid JSON, use an empty dict
                 logger.warning(f"Invalid JSON in tool arguments: {arguments_str}")
                 arguments = {}
+            
+        # Check if the tool exists
+        if not get_tool_implementation(original_name):
+            logger.debug(f"Tool '{original_name}' not found in registry")
+            raise HTTPException(
+                status_code=HTTP_502_BAD_GATEWAY,
+                detail=f"Tool '{original_name}' not found"
+            )
+        
+        # 🔧 FUNCTION CALL START - Explicit log marker for function calls
+        tool_call_id = tool_call.get("id", "unknown")
+        logger.info(f"🔧 FUNCTION CALL START - Executing {original_name} with ID {tool_call_id}")
         
         # Call the tool function using execute_tool helper
+        execution_start_time = time.time()
         logger.info(f"Calling tool: {original_name} with arguments: {arguments}")
         result = await execute_tool(original_name, arguments)
-        logger.debug(f"Tool call completed: {original_name}, result type: {type(result).__name__}")
+        execution_duration_ms = (time.time() - execution_start_time) * 1000
+        
+        # 🔧 FUNCTION CALL COMPLETE - Explicit log marker for function calls
+        logger.info(f"🔧 FUNCTION CALL COMPLETE - {original_name} executed in {execution_duration_ms:.2f}ms")
+        logger.debug(f"Tool call completed: {original_name}, result type: {type(result).__name__}, duration: {execution_duration_ms:.2f}ms")
         
         return result
         
-    except HTTPException:
+    except HTTPException as e:
+        # Log with the function call marker
+        logger.error(f"🔧 FUNCTION CALL ERROR - {str(e)}")
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
+        # Log with the function call marker
+        logger.error(f"🔧 FUNCTION CALL ERROR - Error processing tool call: {str(e)}")
         # Log and wrap other exceptions
-        logger.error(f"Error processing tool call: {str(e)}")
         raise HTTPException(
             status_code=HTTP_502_BAD_GATEWAY,
             detail=f"Error processing tool call: {str(e)}"
         )
+    finally:
+        # Log total processing time
+        total_duration_ms = (time.time() - start_time) * 1000
+        logger.debug(f"Total tool call processing time: {total_duration_ms:.2f}ms")
 
 
 # Create the router with the handler function

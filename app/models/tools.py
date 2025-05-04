@@ -44,65 +44,61 @@ class ContentItem(BaseModel):
 class VectorSearchDataItem(BaseModel):
     """
     An item in the data array of a vector search response.
+    Matches the OpenAI vector store API response format exactly.
     """
-    file_id: Optional[str] = None
-    filename: Optional[str] = None
-    score: Optional[float] = None
+    file_id: str
+    filename: str
+    score: float
     attributes: Dict[str, Any] = Field(default_factory=dict)
-    content: List[ContentItem] = Field(default_factory=list)
-    
-    # For backward compatibility with original API responses
-    metadata: Optional[Dict[str, Any]] = None
-    vector_distance: Optional[float] = None
+    content: List[ContentItem]
     
     @property
     def text(self) -> str:
         """Get all text content concatenated."""
         return " ".join([item.text for item in self.content if item.type == "text"])
+    
+    def model_dump(self, **kwargs):
+        """Override model_dump to ensure serializable output"""
+        return {
+            "file_id": self.file_id,
+            "filename": self.filename,
+            "score": self.score,
+            "attributes": self.attributes,
+            "content": [
+                {"type": item.type, "text": item.text}
+                for item in self.content
+            ]
+        }
 
 
 class VectorSearchResponse(BaseModel):
     """
     Response from a vector search tool.
+    Follows the exact format of OpenAI's vector store API.
     """
-    object: Optional[str] = None
-    search_query: Optional[str] = None
-    data: List[VectorSearchDataItem] = Field(default_factory=list)
-    has_more: Optional[bool] = None
+    object: str = "vector_store.search_results.page"
+    search_query: str
+    data: List[VectorSearchDataItem]
+    has_more: bool = False
     next_page: Optional[str] = None
-    
-    # For backward compatibility with original API
-    matches: Optional[List[VectorSearchDataItem]] = None
-    model: Optional[str] = None
-    usage: Optional[Dict[str, Any]] = None
     
     def model_dump(self):
         """Override model_dump to ensure serializable output"""
-        result = {}
-        if self.object:
-            result["object"] = self.object
-        if self.search_query:
-            result["search_query"] = self.search_query
-        if self.data:
-            result["data"] = [item.model_dump() for item in self.data]
-        if self.has_more is not None:
-            result["has_more"] = self.has_more
+        result = {
+            "object": self.object,
+            "search_query": self.search_query,
+            "data": [item.model_dump() for item in self.data],
+            "has_more": self.has_more
+        }
+        
         if self.next_page:
             result["next_page"] = self.next_page
             
-        # Include backward compatibility fields if present
-        if self.matches:
-            result["matches"] = [match.model_dump() for match in self.matches]
-        if self.model:
-            result["model"] = self.model
-        if self.usage:
-            result["usage"] = self.usage
         return result
     
     def __str__(self):
         """String representation for fallback serialization"""
-        count = len(self.data) if self.data else len(self.matches) if self.matches else 0
-        return f"VectorSearchResponse(count={count} items)"
+        return f"VectorSearchResponse(query='{self.search_query}', items={len(self.data)})"
 
 
 class ToolError(BaseModel):

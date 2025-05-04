@@ -3,7 +3,7 @@ Pydantic models for OpenAI Chat Completions API.
 """
 
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator, Field
 
 
 class ContentItem(BaseModel):
@@ -143,6 +143,23 @@ class ChatCompletionUsage(BaseModel):
     total_tokens: int
 
 
+class GnosisMetadataItem(BaseModel):
+    """A metadata item for internal function or operation tracking."""
+    operation_type: str  # "tool_call", "rag", etc.
+    name: str  # Function name or operation identifier
+    tokens: Optional[int] = None
+    latency_ms: Optional[float] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+class GnosisMetadata(BaseModel):
+    """Metadata for Gnosis operations during request processing."""
+    operations: List[GnosisMetadataItem] = Field(default_factory=list)
+    total_tokens: Optional[int] = None
+    total_latency_ms: Optional[float] = None
+    summary: Optional[str] = None
+
+
 class ChatCompletionResponse(BaseModel):
     """Response from chat completions API."""
     id: str
@@ -151,6 +168,7 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionChoice]
     usage: Optional[ChatCompletionUsage] = None
+    gnosis_metadata: Optional[GnosisMetadata] = None
 
 
 class ToolResultMessage(BaseModel):
