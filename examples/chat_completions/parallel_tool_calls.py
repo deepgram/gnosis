@@ -4,7 +4,6 @@ import requests
 import argparse
 import colorama
 import time
-import asyncio
 from colorama import Fore, Style
 from concurrent.futures import ThreadPoolExecutor
 

@@ -2,7 +2,7 @@ import json
 import logging
 import time
 import asyncio
-from typing import Any, Dict, List, Union, Tuple
+from typing import Any, Dict, List, Union
 
 import httpx
 from litestar import Router, Request, post
