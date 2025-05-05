@@ -12,32 +12,41 @@ from app.config import settings
 from app.routes.chat_completions import chat_completions_router
 from app.routes.agent import agent_router
 
+
 def before_request_handler(scope: Scope) -> None:
     request_id = str(uuid4())
     structlog.contextvars.bind_contextvars(request_id=request_id)
+
 
 @get("/health")
 async def health_check() -> dict[str, str]:
     """Health check endpoint for the server."""
     return {"status": "ok"}
 
+
 def create_app() -> Litestar:
     """
     Create and configure the Litestar application.
     """
-    # Log settings after structured logging is set up    
+    # Log settings after structured logging is set up
     log = structlog.get_logger()
-    
+
     # Convert sensitive fields to truncated versions
     settings_dict = {}
     for key, value in settings.model_dump().items():
-        if isinstance(value, str) and any(x in key.lower() for x in ["key", "secret", "password", "token", "url"]) and len(value) > 10:
+        if (
+            isinstance(value, str)
+            and any(
+                x in key.lower() for x in ["key", "secret", "password", "token", "url"]
+            )
+            and len(value) > 10
+        ):
             settings_dict[key] = f"{value[:10]}..."
         else:
             settings_dict[key] = value
-            
+
     log.info("Application settings", **settings_dict)
-        
+
     cors_config = CORSConfig(
         allow_origins=settings.CORS_ORIGINS,
         allow_methods=["*"],
@@ -63,12 +72,13 @@ def create_app() -> Litestar:
         before_request=before_request_handler,
     )
 
+
 app = create_app()
 
 if __name__ == "__main__":
     # Get port from environment variable or use default
     port = int(os.environ.get("PORT", 8080))
-    
+
     # Run the server
     uvicorn.run(
         "app.main:app",
@@ -77,4 +87,4 @@ if __name__ == "__main__":
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower(),
         log_config=None,  # <-- disables Uvicorn's logging override
-    ) 
+    )

@@ -8,6 +8,7 @@ from pydantic import BaseModel, field_validator, model_validator, Field
 
 class ContentItem(BaseModel):
     """Content item in a chat message."""
+
     type: Literal["text", "image_url"] = "text"
     text: Optional[str] = None
     image_url: Optional[Dict[str, str]] = None
@@ -15,6 +16,7 @@ class ContentItem(BaseModel):
 
 class ChatMessage(BaseModel):
     """A chat message in a conversation."""
+
     role: Literal["system", "user", "assistant", "tool", "function"] = "user"
     content: Union[str, List[ContentItem], None] = None
     name: Optional[str] = None
@@ -22,22 +24,22 @@ class ChatMessage(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
     function_call: Optional[Dict[str, Any]] = None
 
-    @field_validator('content', mode='before')
+    @field_validator("content", mode="before")
     @classmethod
     def validate_content(cls, v):
         """Convert string content to ContentItem if role is user."""
         if isinstance(v, str):
             return v
         elif isinstance(v, list):
-            return [ContentItem(**item) if isinstance(item, dict) else item for item in v]
+            return [
+                ContentItem(**item) if isinstance(item, dict) else item for item in v
+            ]
         return v
-    
+
     def model_dump(self, **kwargs):
         """Override model_dump to ensure serializable output"""
-        result = {
-            "role": self.role
-        }
-        
+        result = {"role": self.role}
+
         # Handle content field properly
         if self.content is not None:
             if isinstance(self.content, str):
@@ -46,12 +48,12 @@ class ChatMessage(BaseModel):
                 # Convert ContentItem objects to dicts
                 content_list = []
                 for item in self.content:
-                    if hasattr(item, 'model_dump'):
+                    if hasattr(item, "model_dump"):
                         content_list.append(item.model_dump())
                     else:
                         content_list.append(item)
                 result["content"] = content_list
-        
+
         # Add optional fields if present
         if self.name:
             result["name"] = self.name
@@ -61,18 +63,20 @@ class ChatMessage(BaseModel):
             result["tool_calls"] = self.tool_calls
         if self.function_call:
             result["function_call"] = self.function_call
-            
+
         return result
 
 
 class ToolParameterProperty(BaseModel):
     """Properties for tool parameters."""
+
     type: str
     description: Optional[str] = None
 
 
 class ToolParameters(BaseModel):
     """Parameters for a tool."""
+
     type: Literal["object"] = "object"
     properties: Dict[str, ToolParameterProperty]
     required: Optional[List[str]] = None
@@ -80,6 +84,7 @@ class ToolParameters(BaseModel):
 
 class ToolFunction(BaseModel):
     """Function definition for a tool."""
+
     name: str
     description: str
     parameters: ToolParameters
@@ -87,12 +92,14 @@ class ToolFunction(BaseModel):
 
 class Tool(BaseModel):
     """Tool definition for the OpenAI API."""
+
     type: Literal["function"] = "function"
     function: ToolFunction
 
 
 class ChatCompletionRequest(BaseModel):
     """Request body for chat completions API."""
+
     model: str
     messages: List[ChatMessage]
     tools: Optional[List[Tool]] = None
@@ -106,24 +113,32 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: Optional[float] = 0
     logit_bias: Optional[Dict[str, float]] = None
     user: Optional[str] = None
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def validate_tools(self):
         """Validate that tool_choice is valid given tools."""
-        if self.tool_choice and self.tool_choice != "auto" and self.tool_choice != "none":
+        if (
+            self.tool_choice
+            and self.tool_choice != "auto"
+            and self.tool_choice != "none"
+        ):
             if not self.tools:
-                raise ValueError("tool_choice can only be specified when tools is provided")
+                raise ValueError(
+                    "tool_choice can only be specified when tools is provided"
+                )
         return self
 
 
 class ToolCallFunction(BaseModel):
     """Function details in a tool call."""
+
     name: str
     arguments: str
 
 
 class ToolCall(BaseModel):
     """Tool call in a completion response."""
+
     id: str
     type: Literal["function"] = "function"
     function: ToolCallFunction
@@ -131,6 +146,7 @@ class ToolCall(BaseModel):
 
 class ChatCompletionChoice(BaseModel):
     """A choice in a chat completion response."""
+
     index: int
     message: ChatMessage
     finish_reason: Optional[str] = None
@@ -138,6 +154,7 @@ class ChatCompletionChoice(BaseModel):
 
 class ChatCompletionUsage(BaseModel):
     """Token usage information."""
+
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
@@ -145,6 +162,7 @@ class ChatCompletionUsage(BaseModel):
 
 class GnosisMetadataItem(BaseModel):
     """A metadata item for internal function or operation tracking."""
+
     operation_type: str  # "tool_call", "rag", etc.
     name: str  # Function name or operation identifier
     tokens: Optional[int] = None
@@ -154,6 +172,7 @@ class GnosisMetadataItem(BaseModel):
 
 class GnosisMetadata(BaseModel):
     """Metadata for Gnosis operations during request processing."""
+
     operations: List[GnosisMetadataItem] = Field(default_factory=list)
     total_tokens: Optional[int] = None
     total_latency_ms: Optional[float] = None
@@ -162,6 +181,7 @@ class GnosisMetadata(BaseModel):
 
 class ChatCompletionResponse(BaseModel):
     """Response from chat completions API."""
+
     id: str
     object: Literal["chat.completion"] = "chat.completion"
     created: int
@@ -173,6 +193,7 @@ class ChatCompletionResponse(BaseModel):
 
 class ToolResultMessage(BaseModel):
     """Message with tool results."""
+
     role: Literal["tool"] = "tool"
     tool_call_id: str
-    content: str 
+    content: str

@@ -2,4 +2,4 @@
 
 __version__ = "0.1.0"
 
-# Gnosis application 
+# Gnosis application

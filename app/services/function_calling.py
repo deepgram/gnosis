@@ -2,7 +2,10 @@ from typing import Dict, List, Any, Optional
 import copy
 import logging
 
-from app.services.tools.registry import get_all_tool_definitions, get_tool_implementation
+from app.services.tools.registry import (
+    get_all_tool_definitions,
+    get_tool_implementation,
+)
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -23,7 +26,9 @@ class FunctionCallingService:
             List of function definitions in OpenAI format with prefixed names
         """
         tool_definitions = get_all_tool_definitions()
-        logger.debug(f"Fetched {len(tool_definitions)} tool definitions for OpenAI config")
+        logger.debug(
+            f"Fetched {len(tool_definitions)} tool definitions for OpenAI config"
+        )
 
         prefixed_tools = []
 
@@ -32,8 +37,12 @@ class FunctionCallingService:
             function = prefixed_tool.get("function", {})
             if "name" in function:
                 original_name = function["name"]
-                function["name"] = FunctionCallingService.FUNCTION_PREFIX + original_name
-                logger.debug(f"Prefixed tool name: {original_name} -> {function['name']}")
+                function["name"] = (
+                    FunctionCallingService.FUNCTION_PREFIX + original_name
+                )
+                logger.debug(
+                    f"Prefixed tool name: {original_name} -> {function['name']}"
+                )
             prefixed_tools.append(prefixed_tool)
 
         return prefixed_tools
@@ -49,7 +58,9 @@ class FunctionCallingService:
         # Extract the functions from the OpenAI-formatted tool definitions
         deepgram_functions = {}
         tool_definitions = get_all_tool_definitions()
-        logger.debug(f"Fetched {len(tool_definitions)} tool definitions for Deepgram config")
+        logger.debug(
+            f"Fetched {len(tool_definitions)} tool definitions for Deepgram config"
+        )
 
         for tool in tool_definitions:
             function = tool.get("function", {})
@@ -59,14 +70,16 @@ class FunctionCallingService:
                 prefixed_name = FunctionCallingService.FUNCTION_PREFIX + name
                 deepgram_functions[prefixed_name] = {
                     "description": function.get("description", ""),
-                    "parameters": function.get("parameters", {})
+                    "parameters": function.get("parameters", {}),
                 }
                 logger.debug(f"Added Deepgram function: {prefixed_name}")
 
         return {"functions": deepgram_functions} if deepgram_functions else {}
 
     @staticmethod
-    async def execute_function(function_name: str, arguments: Dict[str, Any]) -> Optional[Any]:
+    async def execute_function(
+        function_name: str, arguments: Dict[str, Any]
+    ) -> Optional[Any]:
         """
         Execute a registered function with the given arguments.
 
@@ -79,8 +92,10 @@ class FunctionCallingService:
         """
         # Remove prefix if present
         if function_name.startswith(FunctionCallingService.FUNCTION_PREFIX):
-            original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX):]
-            logger.debug(f"Removed prefix for function execution: {function_name} -> {original_name}")
+            original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX) :]
+            logger.debug(
+                f"Removed prefix for function execution: {function_name} -> {original_name}"
+            )
         else:
             original_name = function_name
             logger.debug(f"No prefix found for function execution: {function_name}")
@@ -121,7 +136,9 @@ class FunctionCallingService:
         # Check if the request already has tools
         if "tools" in augmented_request:
             existing_tools_count = len(augmented_request["tools"])
-            logger.debug(f"Request already has {existing_tools_count} tools, adding Gnosis tools")
+            logger.debug(
+                f"Request already has {existing_tools_count} tools, adding Gnosis tools"
+            )
             # Add our tools to the existing tools
             augmented_request["tools"].extend(gnosis_tools)
         else:
@@ -154,12 +171,16 @@ class FunctionCallingService:
         gnosis_functions = FunctionCallingService.get_deepgram_function_config()
 
         if not gnosis_functions:
-            logger.debug("No Gnosis functions available for Deepgram agent configuration augmentation")
+            logger.debug(
+                "No Gnosis functions available for Deepgram agent configuration augmentation"
+            )
             return augmented_config
 
         # Make sure the agent config exists
         if "agent" not in augmented_config:
-            logger.warning("No 'agent' key found in Deepgram agent configuration, cannot augment")
+            logger.warning(
+                "No 'agent' key found in Deepgram agent configuration, cannot augment"
+            )
             return augmented_config
 
         # Make sure the think config exists
@@ -171,12 +192,16 @@ class FunctionCallingService:
         existing_functions = {}
         if "functions" in augmented_config["agent"]["think"]:
             existing_functions = augmented_config["agent"]["think"]["functions"]
-            logger.debug(f"Found {len(existing_functions)} existing functions in agent config")
+            logger.debug(
+                f"Found {len(existing_functions)} existing functions in agent config"
+            )
 
         # Merge our functions with existing ones
         if "functions" in gnosis_functions:
             gnosis_functions_dict = gnosis_functions["functions"]
-            logger.debug(f"Adding {len(gnosis_functions_dict)} Gnosis functions to agent configuration")
+            logger.debug(
+                f"Adding {len(gnosis_functions_dict)} Gnosis functions to agent configuration"
+            )
 
             # Create or update the functions field
             if not existing_functions:
@@ -185,9 +210,11 @@ class FunctionCallingService:
                 # Merge with existing functions
                 merged_functions = {**existing_functions, **gnosis_functions_dict}
                 augmented_config["agent"]["think"]["functions"] = merged_functions
-                logger.debug(f"Merged functions, now have {len(merged_functions)} total functions")
+                logger.debug(
+                    f"Merged functions, now have {len(merged_functions)} total functions"
+                )
 
         return augmented_config
 
 
-function_calling = FunctionCallingService() 
+function_calling = FunctionCallingService()

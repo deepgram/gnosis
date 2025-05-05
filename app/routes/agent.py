@@ -19,21 +19,15 @@ from app.models.agent import (
     KeepAlive,
     SettingsConfiguration,
     Warning,
-    Error
+    Error,
+    GnosisMetadataMessage,
 )
-
-# Import the function calling service
-from app.services.function_calling import FunctionCallingService
 
 # Initialize logger
 log = structlog.get_logger()
 
 # Deepgram Agent API endpoint base
 DEEPGRAM_AGENT_ENDPOINT = "wss://agent.deepgram.com/agent"
-
-# Note: Deepgram is planning to sunset this API endpoint
-# They recommend migrating to v1/agent/converse before May 31st
-# See: https://github.com/deepgram/VA-API-Spec-v1
 
 # Map message types to their Pydantic models
 MESSAGE_TYPE_MAP: Dict[str, Type[BaseAgentMessage]] = {
@@ -45,30 +39,33 @@ MESSAGE_TYPE_MAP: Dict[str, Type[BaseAgentMessage]] = {
     "KeepAlive": KeepAlive,
     "SettingsConfiguration": SettingsConfiguration,
     "Warning": Warning,
-    "Error": Error
+    "Error": Error,
+    "GnosisMetadata": GnosisMetadataMessage,
 }
 
 
-def determine_data_type(data: Union[str, bytes]) -> Tuple[bool, Union[BaseAgentMessage, Dict[str, Any], Union[str, bytes]]]:
+def determine_data_type(
+    data: Union[str, bytes],
+) -> Tuple[bool, Union[BaseAgentMessage, Dict[str, Any], Union[str, bytes]]]:
     """
     Determine if data is binary or text (JSON).
     If it's JSON with a valid "type" field, parse it into the appropriate Pydantic model.
-    
+
     Args:
         data: Input data, either bytes or string
-        
+
     Returns:
         Tuple[bool, Union[BaseAgentMessage, Dict, Union[str, bytes]]]: A tuple containing:
             - is_binary: Boolean indicating if the data is binary
             - data: Either the parsed Pydantic model, JSON dict, or the original data
     """
-    
+
     # Handle dictionary data (like from Litestar WebSocket events)
     if isinstance(data, dict):
         # If it's a unicorn event with a "text" key, extract the text
         if "type" in data and data["type"] == "websocket.receive" and "text" in data:
             data = data["text"]
-        
+
         # If it's a unicorn event with a "bytes" key, extract the bytes
         elif "type" in data and data["type"] == "websocket.receive" and "bytes" in data:
             data = data["bytes"]
@@ -76,7 +73,7 @@ def determine_data_type(data: Union[str, bytes]) -> Tuple[bool, Union[BaseAgentM
     # If it's already bytes, it's binary
     if isinstance(data, bytes):
         return True, data
-    
+
     # If it's a string, it's text data (not binary)
     if isinstance(data, str):
         # Try to parse as JSON
@@ -85,34 +82,36 @@ def determine_data_type(data: Union[str, bytes]) -> Tuple[bool, Union[BaseAgentM
             # Check if it's a valid message with a "type" property
             if isinstance(parsed_data, dict) and "type" in parsed_data:
                 message_type = parsed_data["type"]
-                
+
                 # Check if we have a model for this message type
                 if message_type in MESSAGE_TYPE_MAP:
                     try:
                         # Try to parse into the correct Pydantic model
                         model_class = MESSAGE_TYPE_MAP[message_type]
                         model_instance = model_class.model_validate(parsed_data)
-                        log.debug("Parsed message", type=model_class.__name__, data=model_instance)
+                        log.debug("Parsed message", type=model_class.__name__)
                         return False, model_instance
                     except Exception as e:
-                        log.error("Failed to parse message", type=message_type, error=e)
+                        log.debug(
+                            "Failed to parse message", type=message_type, error=str(e)
+                        )
                         # Fall back to returning the dict
                         return False, parsed_data
                 else:
                     # Unknown message type
-                    log.error("Unknown message type", type=message_type)
+                    log.debug("Unknown message type", type=message_type)
                     return False, parsed_data
             else:
                 # It's JSON but not a valid message with type
-                log.error("JSON data without 'type' property", data=data[:100])
+                log.debug("JSON data without 'type' property")
                 # Still return as non-binary but keep as parsed dict
                 return False, parsed_data
         except json.JSONDecodeError:
             # Not valid JSON, but still text
             return False, data
-    
+
     # Fallback (shouldn't reach here)
-    log.error("Unhandled data type", type=type(data))
+    log.debug("Unhandled data type", type=str(type(data)))
     return False, None
 
 
@@ -123,273 +122,221 @@ async def agent_websocket(socket: WebSocket) -> None:
     Proxies to Deepgram's agent API.
     """
     await socket.accept()
-    log.info("WebSocket connection accepted")
-    
+    log.info("WebSocket connection accepted from client")
+
     # Get query parameters from client request and forward them to Deepgram
     query_params = dict(socket.query_params)
     deepgram_url = DEEPGRAM_AGENT_ENDPOINT
     if query_params:
         deepgram_url = f"{DEEPGRAM_AGENT_ENDPOINT}?{urlencode(query_params)}"
-    
+        log.debug(f"Query parameters provided")
+
     # Extract headers that should be forwarded (like authorization)
     headers = {}
     for key, value in socket.headers.items():
-        if key.lower() in ['authorization', 'user-agent', 'content-type']:
+        if key.lower() in ["authorization", "user-agent", "content-type"]:
             headers[key] = value
-    
+
     # Add Deepgram API key header if it's not provided
-    if 'authorization' not in [k.lower() for k in headers]:
+    if "authorization" not in [k.lower() for k in headers]:
         from app.config import settings
+
         if settings.DEEPGRAM_API_KEY:
-            headers['Authorization'] = f"Token {settings.DEEPGRAM_API_KEY}"
-            log.debug("Writing auth token to headers", headers=list(headers.keys()))
+            headers["Authorization"] = f"Token {settings.DEEPGRAM_API_KEY}"
+            log.debug("Using Deepgram API key from environment")
         else:
-            log.warning("No authorization header provided and DEEPGRAM_API_KEY not set in settings")
-    
+            log.warning(
+                "No authorization header provided and DEEPGRAM_API_KEY not set in settings"
+            )
+
     # Log the proxy destination
-    log.info("Attempting to connect to Deepgram", url=deepgram_url)
-    
+    log.info(f"Connecting to Deepgram: {deepgram_url}")
+
     deepgram_ws = None
     # Connect to Deepgram's agent API
     try:
         deepgram_ws = await websockets.connect(deepgram_url, additional_headers=headers)
-        
+
         log.info("Successfully connected to Deepgram agent API")
-        
+
         # Set up tasks for bidirectional message forwarding
-        client_to_deepgram_task = asyncio.create_task(handle_client_to_deepgram(socket, deepgram_ws))
-        deepgram_to_client_task = asyncio.create_task(handle_deepgram_to_client(deepgram_ws, socket))
-        
+        client_to_deepgram_task = asyncio.create_task(
+            handle_client_to_deepgram(socket, deepgram_ws)
+        )
+        deepgram_to_client_task = asyncio.create_task(
+            handle_deepgram_to_client(deepgram_ws, socket)
+        )
+
         # Wait for either task to complete (which means a connection was closed)
         done, pending = await asyncio.wait(
             [client_to_deepgram_task, deepgram_to_client_task],
-            return_when=asyncio.FIRST_COMPLETED
+            return_when=asyncio.FIRST_COMPLETED,
         )
-        
+
         # Check for exceptions in completed tasks
         for task in done:
             try:
                 # This will re-raise any exception that occurred in the task
                 task.result()
             except ConnectionClosed as e:
-                print(f"WebSocket connection closed: {e.code} {e.reason}")
+                log.error(f"WebSocket connection closed: {e.code} {e.reason}")
             except Exception as e:
-                print(f"ERROR: Error in forwarding task: {e}")
-        
+                log.error(f"Error in forwarding task: {e}")
+
         # Cancel the remaining task
         for task in pending:
             task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                log.debug("Task was cancelled successfully")
             except Exception as e:
-                print(f"ERROR: Error while canceling task: {e}")
-        
-        print("WebSocket proxy connection closed")
-    
+                log.error(f"Error while canceling task: {e}")
+
+        log.info("WebSocket proxy connection closed")
+
     except Exception as e:
-        print(f"ERROR: Error in WebSocket proxy: {e}")
-        # More detailed exception info
-        import traceback
-        print(f"ERROR: Exception details: {traceback.format_exc()}")
+        log.error(f"Error in WebSocket proxy: {e}")
     finally:
         # Ensure both connections are closed
         if deepgram_ws:
             try:
-                # Use close() instead of checking closed attribute
                 await deepgram_ws.close()
-                print("Deepgram WebSocket connection closed")
+                log.info("Deepgram WebSocket connection closed")
             except Exception as e:
-                print(f"Closing Deepgram WebSocket: {e}")
-        
+                log.error(f"Error closing Deepgram WebSocket: {e}")
+
         try:
             await socket.close()
-            print("Client WebSocket connection closed")
+            log.info("Client WebSocket connection closed")
         except Exception as e:
-            print(f"Closing client WebSocket: {e}")
+            log.error(f"Error closing client WebSocket: {e}")
 
 
-async def handle_client_to_deepgram(client_ws: WebSocket, deepgram_ws: websockets.WebSocketClientProtocol) -> None:
-    """Processes incoming client messages, potentially modifying them, and forwards to Deepgram. Manages disconnects by closing connections."""
+async def handle_client_to_deepgram(
+    client_ws: WebSocket, deepgram_ws: websockets.WebSocketClientProtocol
+) -> None:
+    """Processes incoming client messages and forwards to Deepgram. Manages disconnects by closing connections."""
     try:
         while True:
             # Receive message from client - using receive() for Litestar WebSocket
             data = await client_ws.receive()
-            
-            print(f"Received message from client: {data}")
-            
-            # Handle internal Litestar/Uvicorn websocket events
-            if isinstance(data, dict) and "type" in data:
+
+            # Extract binary data or JSON text from websocket.receive events
+            binary_data = None
+            json_text = None
+
+            if (
+                isinstance(data, dict)
+                and "type" in data
+                and data["type"] == "websocket.receive"
+            ):
+                if "bytes" in data:
+                    binary_data = data["bytes"]
+                    log.debug(
+                        f"CLIENT → PROXY: [Binary data: {len(binary_data)} bytes]"
+                    )
+                elif "text" in data:
+                    json_text = data["text"]
+                    truncated = json_text[:50] + ("..." if len(json_text) > 50 else "")
+                    log.debug(f"CLIENT → PROXY: {truncated}")
+
+            # Handle websocket events
+            if binary_data is not None:
+                # If we extracted binary data, forward it directly to Deepgram
+                await deepgram_ws.send(binary_data)
+                log.debug(f"PROXY → DEEPGRAM: [Binary data: {len(binary_data)} bytes]")
+                continue
+            elif json_text is not None:
+                # If we extracted JSON text, forward it as is
+                await deepgram_ws.send(json_text)
+                truncated = json_text[:50] + ("..." if len(json_text) > 50 else "")
+                log.debug(f"PROXY → DEEPGRAM: {truncated}")
+                continue
+            elif isinstance(data, dict) and "type" in data:
                 event_type = data["type"]
-                
+
                 # Handle websocket.disconnect event
                 if event_type == "websocket.disconnect":
-                    print("Received websocket.disconnect, closing connection")
+                    log.info("Received websocket.disconnect, closing connection")
                     # No need to forward this to Deepgram
                     return
-                
-                # Handle other internal events as needed
-                if event_type.startswith("websocket."):
-                    print(f"Handling internal websocket event: {event_type}")
-                    continue  # Skip forwarding internal events
 
-            # Determine if it's a known message type
+            # Process other types of data (fallback for non-websocket.receive events)
+            # Determine if it's binary or text
             is_binary, processed_data = determine_data_type(data)
-            
+
             if processed_data is None:
-                print(f"ERROR: Could not process data from client: {str(data)[:100]}...")
+                log.debug(f"Could not process data from client")
                 continue
-                
+
             if is_binary:
                 # Binary data (audio)
                 await deepgram_ws.send(processed_data)
-                print("Forwarded binary data from client to Deepgram")
-            elif isinstance(processed_data, BaseAgentMessage):
-                # Known message type
-                
-                # Special handling for SettingsConfiguration to add function definitions
-                if isinstance(processed_data, SettingsConfiguration):
-                    log.info("Received SettingsConfiguration message from client, augmenting with function definitions")
-                    
-                    # Convert to dict for augmentation
-                    config_dict = processed_data.model_dump()
-                    
-                    # Augment with our function definitions
-                    augmented_config = FunctionCallingService.augment_deepgram_agent_config(config_dict)
-                    
-                    # Create a new SettingsConfiguration object from the augmented dict
-                    try:
-                        processed_data = SettingsConfiguration.model_validate(augmented_config)
-                        log.info("Successfully augmented SettingsConfiguration with function definitions")
-                    except Exception as e:
-                        log.error("Failed to create SettingsConfiguration from augmented config", error=str(e))
-                        # Continue with the original if validation fails
-                        log.warning("Using original SettingsConfiguration without augmentation")
-                
-                # Serialize and send the message
-                json_str = processed_data.model_dump_json()
-                await deepgram_ws.send(json_str)
-                print(f"Forwarded {processed_data.__class__.__name__} from client to Deepgram")
+                log.debug(
+                    f"PROXY → DEEPGRAM: [Binary data: {len(processed_data) if isinstance(processed_data, bytes) else 'unknown'} bytes]"
+                )
             else:
-                # Unknown text data, don't forward
-                print(f"ERROR: Received unknown data from client: {str(data)[:100]}...")
-    
+                # Text data - serialize if it's a model, otherwise convert to string
+                if isinstance(processed_data, BaseAgentMessage):
+                    json_str = processed_data.model_dump_json()
+                else:
+                    json_str = (
+                        json.dumps(processed_data)
+                        if isinstance(processed_data, dict)
+                        else str(processed_data)
+                    )
+
+                truncated = json_str[:50] + ("..." if len(json_str) > 50 else "")
+                log.debug(f"PROXY → DEEPGRAM: {truncated}")
+                await deepgram_ws.send(json_str)
+
     except ConnectionClosed as e:
-        print(f"Client connection closed: {e.code} {e.reason}")
+        log.warning(f"Client connection closed: {e.code} {e.reason}")
     except Exception as e:
-        print(f"ERROR: Couldn't forward client to Deepgram: {e}")
+        log.error(f"Couldn't forward client to Deepgram: {e}")
 
 
-async def handle_deepgram_to_client(deepgram_ws: websockets.WebSocketClientProtocol, client_ws: WebSocket) -> None:
-    """Processes incoming Deepgram messages, potentially modifying them, responding to them or forwarding them to client"""
+async def handle_deepgram_to_client(
+    deepgram_ws: websockets.WebSocketClientProtocol, client_ws: WebSocket
+) -> None:
+    """Processes incoming Deepgram messages and forwards them to client"""
     try:
         while True:
             # Receive message from Deepgram (websockets library uses recv())
             data = await deepgram_ws.recv()
-            
-            print(f"Received message from Deepgram: {data}")
-            
-            # Handle internal control events if present
-            if isinstance(data, dict) and "type" in data:
-                event_type = data["type"]
-                
-                # Handle any internal control events
-                if event_type.startswith("websocket."):
-                    print(f"Handling internal websocket event from Deepgram: {event_type}")
-                    continue  # Skip forwarding internal events
-            
-            # Determine message type
-            is_binary, processed_data = determine_data_type(data)
-            
-            if processed_data is None:
-                print(f"ERROR: Could not process data from Deepgram: {str(data)[:100]}...")
-                continue
-                
-            if is_binary:
-                # Binary data (audio)
-                await client_ws.send_bytes(data if isinstance(data, bytes) else data.encode('utf-8'))
-                print("Forwarded binary data from Deepgram to client")
-            elif isinstance(processed_data, BaseAgentMessage):
-                # Known message type
-                
-                # Handle FunctionCall messages - these need special handling
-                if hasattr(processed_data, 'type') and processed_data.type == "FunctionCall":
-                    log.info("Received FunctionCall message from Deepgram")
-                    
-                    # Check if it's one of our internal functions
-                    function_name = getattr(processed_data, 'function_name', None)
-                    is_internal = function_name and function_name.startswith(FunctionCallingService.FUNCTION_PREFIX)
-                    
-                    if is_internal:
-                        log.info(f"Processing internal function call: {function_name}")
-                        
-                        try:
-                            # Extract arguments and function call ID
-                            arguments = getattr(processed_data, 'arguments', {})
-                            function_call_id = getattr(processed_data, 'function_call_id', None)
-                            
-                            if not function_call_id:
-                                log.error("Function call ID missing, cannot execute function")
-                                continue
-                            
-                            # Parse arguments if they're provided as a string
-                            if isinstance(arguments, str):
-                                try:
-                                    arguments = json.loads(arguments)
-                                except json.JSONDecodeError:
-                                    log.error(f"Failed to parse function call arguments: {arguments}")
-                                    arguments = {}
-                            
-                            # Execute the function
-                            result = await FunctionCallingService.execute_function(
-                                function_name=function_name,
-                                arguments=arguments
-                            )
-                            
-                            # Convert result to string if needed
-                            if not isinstance(result, str):
-                                result = json.dumps(result)
-                            
-                            # Create and send the function call response
-                            response = FunctionCallResponse(
-                                type="FunctionCallResponse",
-                                function_call_id=function_call_id,
-                                output=result
-                            )
-                            
-                            response_json = response.model_dump_json()
-                            await deepgram_ws.send(response_json)
-                            log.info(f"Sent function call response for {function_name}")
-                            
-                            # Forward the function call message to the client for visibility
-                            await client_ws.send_text(json.dumps(processed_data.model_dump()))
-                            
-                            # Don't continue with normal forwarding for this message
-                            continue
-                        except Exception as e:
-                            log.error(f"Error executing function {function_name}: {str(e)}")
-                            # Forward the original message to the client in case of error
-                    else:
-                        log.info(f"Received external function call: {function_name}, forwarding to client")
-                
-                # For regular messages, forward them normally
-                json_str = processed_data.model_dump_json()
-                await client_ws.send_text(json_str)
 
-                if processed_data.type == "Error":
-                    print(f"Received error from client: {processed_data.message}")
-                    await client_ws.close(code=1000, reason=processed_data.message)
+            # Log the message received from Deepgram
+            if isinstance(data, bytes):
+                log.debug(f"DEEPGRAM → PROXY: [Binary data: {len(data)} bytes]")
 
-                print(f"Forwarded {processed_data.__class__.__name__} from Deepgram to client")
+                # Forward binary data directly
+                await client_ws.send_bytes(data)
+                log.debug(f"PROXY → CLIENT: [Binary data: {len(data)} bytes]")
             else:
-                # Unknown text data, don't forward
-                print(f"ERROR: Received unknown data from Deepgram: {str(data)[:100]}...")
-    
+                # For text data, try to parse it for better logging
+                truncated = str(data)[:50] + ("..." if len(str(data)) > 50 else "")
+                log.debug(f"DEEPGRAM → PROXY: {truncated}")
+
+                # Forward text data
+                await client_ws.send_text(data)
+                log.debug(f"PROXY → CLIENT: {truncated}")
+
+                # Check for error message and log it at error level
+                try:
+                    parsed = json.loads(data)
+                    if isinstance(parsed, dict) and parsed.get("type") == "Error":
+                        error_msg = parsed.get(
+                            "message", parsed.get("description", "Unknown error")
+                        )
+                        log.error(f"Received error from Deepgram: {error_msg}")
+                except:
+                    pass
+
     except ConnectionClosed as e:
-        print(f"WARNING: Deepgram connection closed: {e.code} {e.reason}")
+        log.warning(f"Deepgram connection closed: {e.code} {e.reason}")
     except Exception as e:
-        print(f"ERROR: Error forwarding Deepgram to client: {e}")
+        log.error(f"Error forwarding Deepgram to client: {e}")
 
 
 # Create the router with the handler function
@@ -397,4 +344,4 @@ agent_router = Router(
     path="/v1",
     route_handlers=[agent_websocket],
     tags=["Voice Agent API"],
-) 
+)
