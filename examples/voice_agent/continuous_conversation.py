@@ -6,15 +6,12 @@
 import os
 import asyncio
 import json
-import tempfile
 import websockets
 import time
 import argparse
-import shutil
 import datetime
 import re
 from pathlib import Path
-from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 from tts_helper import DeepgramTTS
 from completion_helper import OpenAICompletionHelper

@@ -145,31 +145,31 @@ async def basic_voice_interaction(
             server_url, additional_headers=headers
         ) as websocket:
             print("✅ Connected successfully")
-
+            
             # Receive welcome message
-            welcome = await websocket.recv()
-
+            await websocket.recv()
+            
             # Settings configuration
             print("🔄 Sending settings configuration...")
             settings = {
                 "type": "SettingsConfiguration",
                 "audio": {
                     "input": {"encoding": "linear16", "sample_rate": 16000},
-                    "output": {"encoding": "mp3", "sample_rate": 24000},
+                    "output": {"encoding": "mp3", "sample_rate": 24000}
                 },
                 "agent": {
                     "listen": {"model": "nova-3"},
                     "think": {
                         "provider": {"type": "open_ai"},
                         "model": "gpt-4o-mini",
-                        "instructions": "You are a helpful AI assistant. Keep responses concise.",
+                        "instructions": "You are a helpful AI assistant. Keep responses concise."
                     },
-                    "speak": {"model": model},
-                },
+                    "speak": {"model": model}
+                }
             }
-
+            
             await websocket.send(json.dumps(settings))
-
+            
             # Wait for settings to be applied
             settings_applied = False
             while not settings_applied:
@@ -184,7 +184,7 @@ async def basic_voice_interaction(
                             error_msg = data.get("message", "Unknown error")
                             print(f"❌ Error: {error_msg}")
                             return
-                    except:
+                    except Exception:
                         pass
 
             # Set up conversation tracking
@@ -298,22 +298,18 @@ async def basic_voice_interaction(
                                     print("✓ Agent has processed request")
 
                                 elif msg_type in ["AgentAudioDone", "SpeechFinished"]:
-                                    print(f"🎵 Agent audio response complete")
-
+                                    print("🎵 Agent audio response complete")
+                                    
                                     # Save the accumulated audio data
                                     if len(agent_audio_data) > 0:
-                                        agent_audio_path = (
-                                            conversation_dir / "2-agent.mp3"
-                                        )
+                                        agent_audio_path = conversation_dir / "2-agent.mp3"
                                         with open(agent_audio_path, "wb") as f:
                                             f.write(agent_audio_data)
-                                        print(
-                                            f"✅ Saved agent audio to {agent_audio_path} ({len(agent_audio_data)} bytes)"
-                                        )
-
+                                        print(f"✅ Saved agent audio to {agent_audio_path} ({len(agent_audio_data)} bytes)")
+                                    
                                     # We're done with basic interaction after getting one response
                                     return
-
+                                
                                 elif msg_type == "Error":
                                     error = data.get("message", "Unknown error")
                                     print(f"❌ Error: {error}")
@@ -417,7 +413,7 @@ async def basic_voice_interaction(
     finally:
         # Display playback instructions
         print(f"🧹 Conversation saved in {conversation_dir}")
-
+        
         # Display instructions for playing back files
         print("\n=== How to Play Back the Conversation ===")
         print(f"cd {conversation_dir}")

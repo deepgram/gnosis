@@ -30,25 +30,29 @@ DEEPGRAM_BASE_URL=https://api.deepgram.com
 MCP_ENABLED=true
 """
 
+
 def create_env_file():
     """Create a .env file with default values."""
     env_path = project_root / ".env"
-    
+
     # Check if .env file already exists
     if env_path.exists():
         if len(sys.argv) > 1 and sys.argv[1] == "--force":
             pass  # Skip confirmation if --force flag is provided
         else:
-            overwrite = input(f".env file already exists at {env_path}. Overwrite? (y/n): ")
+            overwrite = input(
+                f".env file already exists at {env_path}. Overwrite? (y/n): "
+            )
             if overwrite.lower() != "y":
                 print("Operation cancelled.")
                 return
-    
+
     # Write the .env file
     with open(env_path, "w") as f:
         f.write(env_content)
-    
+
     print(f".env file created successfully at {env_path}.")
 
+
 if __name__ == "__main__":
-    create_env_file() 
+    create_env_file()

@@ -4,9 +4,8 @@
 
 import os
 import requests
-import json
 import time
-from typing import List, Dict, Any, Optional
+from typing import Optional
 from dotenv import load_dotenv
 
 
