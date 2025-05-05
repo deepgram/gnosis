@@ -181,4 +181,5 @@ cython_debug/
 commit_message.txt
 commit_msg.txt
 temp/
-tmp/
+tmp/conversations/
+examples/voice_agent/conversations/
