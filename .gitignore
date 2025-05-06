@@ -183,3 +183,4 @@ commit_msg.txt
 temp/
 tmp/conversations/
 examples/voice_agent/conversations/
+conversations/

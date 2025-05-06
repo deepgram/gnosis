@@ -56,7 +56,7 @@ class FunctionCallingService:
             Dictionary containing function definitions in Deepgram format with prefixed names
         """
         # Extract the functions from the OpenAI-formatted tool definitions
-        deepgram_functions = {}
+        deepgram_functions = []
         tool_definitions = get_all_tool_definitions()
         logger.debug(
             f"Fetched {len(tool_definitions)} tool definitions for Deepgram config"
@@ -68,10 +68,12 @@ class FunctionCallingService:
 
             if name:
                 prefixed_name = FunctionCallingService.FUNCTION_PREFIX + name
-                deepgram_functions[prefixed_name] = {
+                deepgram_function = {
+                    "name": prefixed_name,
                     "description": function.get("description", ""),
                     "parameters": function.get("parameters", {}),
                 }
+                deepgram_functions.append(deepgram_function)
                 logger.debug(f"Added Deepgram function: {prefixed_name}")
 
         return {"functions": deepgram_functions} if deepgram_functions else {}
@@ -189,26 +191,30 @@ class FunctionCallingService:
             augmented_config["agent"]["think"] = {}
 
         # Get existing functions if any
-        existing_functions = {}
+        existing_functions = []
         if "functions" in augmented_config["agent"]["think"]:
             existing_functions = augmented_config["agent"]["think"]["functions"]
+            if not isinstance(existing_functions, list):
+                logger.warning("'functions' in agent.think is not a list, converting to empty list")
+                existing_functions = []
             logger.debug(
                 f"Found {len(existing_functions)} existing functions in agent config"
             )
 
         # Merge our functions with existing ones
         if "functions" in gnosis_functions:
-            gnosis_functions_dict = gnosis_functions["functions"]
+            gnosis_functions_array = gnosis_functions["functions"]
             logger.debug(
-                f"Adding {len(gnosis_functions_dict)} Gnosis functions to agent configuration"
+                f"Adding {len(gnosis_functions_array)} Gnosis functions to agent configuration"
             )
 
             # Create or update the functions field
             if not existing_functions:
-                augmented_config["agent"]["think"]["functions"] = gnosis_functions_dict
+                augmented_config["agent"]["think"]["functions"] = gnosis_functions_array
             else:
                 # Merge with existing functions
-                merged_functions = {**existing_functions, **gnosis_functions_dict}
+                # For arrays, we simply append
+                merged_functions = existing_functions + gnosis_functions_array
                 augmented_config["agent"]["think"]["functions"] = merged_functions
                 logger.debug(
                     f"Merged functions, now have {len(merged_functions)} total functions"

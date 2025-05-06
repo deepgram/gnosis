@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Dict, Any, Tuple, Union, Type
+from typing import Dict, Tuple, Type
 from urllib.parse import urlencode
 
 from litestar import Router, WebSocket, websocket
@@ -45,74 +45,55 @@ MESSAGE_TYPE_MAP: Dict[str, Type[BaseAgentMessage]] = {
 
 
 def determine_data_type(
-    data: Union[str, bytes],
-) -> Tuple[bool, Union[BaseAgentMessage, Dict[str, Any], Union[str, bytes]]]:
+    data: str,
+) -> Tuple[str, BaseAgentMessage]:
     """
-    Determine if data is binary or text (JSON).
-    If it's JSON with a valid "type" field, parse it into the appropriate Pydantic model.
+    Determine if data is a valid JSON string and validate it against known message types in MESSAGE_TYPE_MAP.
 
     Args:
-        data: Input data, either bytes or string
+        data: Input data as a string
 
     Returns:
-        Tuple[bool, Union[BaseAgentMessage, Dict, Union[str, bytes]]]: A tuple containing:
-            - is_binary: Boolean indicating if the data is binary
-            - data: Either the parsed Pydantic model, JSON dict, or the original data
+        Tuple[str, BaseAgentMessage]: A tuple containing:
+            - message_type: The type of the validated message
+            - model_instance: A validated BaseAgentMessage object
+            
+    Raises:
+        ValueError: If the data cannot be parsed as a valid message type
     """
-
-    # Handle dictionary data (like from Litestar WebSocket events)
-    if isinstance(data, dict):
-        # If it's a unicorn event with a "text" key, extract the text
-        if "type" in data and data["type"] == "websocket.receive" and "text" in data:
-            data = data["text"]
-
-        # If it's a unicorn event with a "bytes" key, extract the bytes
-        elif "type" in data and data["type"] == "websocket.receive" and "bytes" in data:
-            data = data["bytes"]
-
-    # If it's already bytes, it's binary
-    if isinstance(data, bytes):
-        return True, data
-
-    # If it's a string, it's text data (not binary)
+    # If it's a string, try to parse it as JSON
     if isinstance(data, str):
-        # Try to parse as JSON
         try:
             parsed_data = json.loads(data)
+            
             # Check if it's a valid message with a "type" property
             if isinstance(parsed_data, dict) and "type" in parsed_data:
                 message_type = parsed_data["type"]
 
-                # Check if we have a model for this message type
+                # Validate against known message types
                 if message_type in MESSAGE_TYPE_MAP:
                     try:
-                        # Try to parse into the correct Pydantic model
+                        # Parse into the correct Pydantic model
                         model_class = MESSAGE_TYPE_MAP[message_type]
                         model_instance = model_class.model_validate(parsed_data)
-                        log.debug("Parsed message", type=model_class.__name__)
-                        return False, model_instance
+                        log.debug(f"Parsed message as {model_class.__name__}")
+                        return message_type, model_instance
                     except Exception as e:
-                        log.debug(
-                            "Failed to parse message", type=message_type, error=str(e)
-                        )
-                        # Fall back to returning the dict
-                        return False, parsed_data
+                        # Failed to validate with the model
+                        log.error(f"Failed to validate message as {message_type}: {str(e)}")
+                        raise ValueError(f"Message validation failed for type {message_type}: {str(e)}")
                 else:
                     # Unknown message type
-                    log.debug("Unknown message type", type=message_type)
-                    return False, parsed_data
+                    log.error(f"Unknown message type: {message_type}")
+                    raise ValueError(f"Unknown message type: {message_type}")
             else:
-                # It's JSON but not a valid message with type
-                log.debug("JSON data without 'type' property")
-                # Still return as non-binary but keep as parsed dict
-                return False, parsed_data
-        except json.JSONDecodeError:
-            # Not valid JSON, but still text
-            return False, data
-
-    # Fallback (shouldn't reach here)
-    log.debug("Unhandled data type", type=str(type(data)))
-    return False, None
+                # Missing 'type' field
+                log.error("JSON message missing 'type' field")
+                raise ValueError("JSON message missing required 'type' field")
+        except json.JSONDecodeError as e:
+            # Invalid JSON
+            log.error(f"Invalid JSON: {str(e)}")
+            raise ValueError(f"Cannot parse as JSON: {str(e)}")
 
 
 @websocket("/agent")
@@ -129,7 +110,7 @@ async def agent_websocket(socket: WebSocket) -> None:
     deepgram_url = DEEPGRAM_AGENT_ENDPOINT
     if query_params:
         deepgram_url = f"{DEEPGRAM_AGENT_ENDPOINT}?{urlencode(query_params)}"
-        log.debug(f"Query parameters provided")
+        log.debug("Query parameters provided")
 
     # Extract headers that should be forwarded (like authorization)
     headers = {}
@@ -220,77 +201,89 @@ async def handle_client_to_deepgram(
     try:
         while True:
             # Receive message from client - using receive() for Litestar WebSocket
-            data = await client_ws.receive()
-
-            # Extract binary data or JSON text from websocket.receive events
+            message = await client_ws.receive()
+            
+            # Handle websocket.disconnect event
+            if isinstance(message, dict) and message.get("type") == "websocket.disconnect":
+                log.info("Received websocket.disconnect, closing connection")
+                return
+                
+            # Extract data from Litestar WebSocket message format
             binary_data = None
-            json_text = None
-
-            if (
-                isinstance(data, dict)
-                and "type" in data
-                and data["type"] == "websocket.receive"
-            ):
-                if "bytes" in data:
-                    binary_data = data["bytes"]
-                    log.debug(
-                        f"CLIENT → PROXY: [Binary data: {len(binary_data)} bytes]"
-                    )
-                elif "text" in data:
-                    json_text = data["text"]
-                    truncated = json_text[:50] + ("..." if len(json_text) > 50 else "")
-                    log.debug(f"CLIENT → PROXY: {truncated}")
-
-            # Handle websocket events
+            text_data = None
+            
+            if isinstance(message, dict) and message.get("type") == "websocket.receive":
+                # Extract binary or text data from the message
+                if "bytes" in message:
+                    binary_data = message["bytes"]
+                elif "text" in message:
+                    text_data = message["text"]
+            
+            # Handle binary data (audio)
             if binary_data is not None:
-                # If we extracted binary data, forward it directly to Deepgram
+                log.debug(f"CLIENT → PROXY: [Binary data: {len(binary_data)} bytes]")
                 await deepgram_ws.send(binary_data)
                 log.debug(f"PROXY → DEEPGRAM: [Binary data: {len(binary_data)} bytes]")
                 continue
-            elif json_text is not None:
-                # If we extracted JSON text, forward it as is
-                await deepgram_ws.send(json_text)
-                truncated = json_text[:50] + ("..." if len(json_text) > 50 else "")
-                log.debug(f"PROXY → DEEPGRAM: {truncated}")
+                
+            # Handle text data (JSON messages)
+            if text_data is not None:
+                # Try to use determine_data_type to parse the message
+                try:
+                    message_type, model_instance = determine_data_type(text_data)
+                    
+                    # Check if it's a SettingsConfiguration message
+                    if isinstance(model_instance, SettingsConfiguration):
+                        log.debug("Intercepted SettingsConfiguration message")
+                        
+                        # Augment with our function definitions
+                        from app.services.function_calling import FunctionCallingService
+                        
+                        # Log the original settings
+                        original_config = model_instance.model_dump(exclude_none=True)
+                        log.debug(f"Original settings: {json.dumps(original_config, indent=2)}")
+                        
+                        augmented_config = FunctionCallingService.augment_deepgram_agent_config(
+                            original_config
+                        )
+                        
+                        # Log the augmented settings
+                        log.debug(f"Augmented settings: {json.dumps(augmented_config, indent=2)}")
+                        
+                        # Log the functions specifically to debug the format
+                        if ("agent" in augmented_config and "think" in augmented_config["agent"] and 
+                                "functions" in augmented_config["agent"]["think"]):
+                            functions = augmented_config["agent"]["think"]["functions"]
+                            log.debug(f"Functions format: {type(functions).__name__}")
+                            log.debug(f"Functions: {json.dumps(functions, indent=2)}")
+                        
+                        # Convert back to JSON string
+                        text_data = json.dumps(augmented_config)
+                        log.debug("Augmented SettingsConfiguration with function definitions")
+                    else:
+                        # It's a validated message but not SettingsConfiguration
+                        # Just convert it to JSON and forward
+                        text_data = model_instance.model_dump_json()
+                        
+                    truncated = text_data[:50] + ("..." if len(text_data) > 50 else "")
+                    log.debug(f"CLIENT → PROXY: {truncated}")
+                    
+                    # Forward the message to Deepgram
+                    await deepgram_ws.send(text_data)
+                    log.debug(f"PROXY → DEEPGRAM: {truncated}")
+                    
+                except ValueError as e:
+                    # determine_data_type couldn't validate the message
+                    log.warning(f"Message validation failed: {str(e)}")
+                    # Forward as raw text anyway, as it might be a valid but unknown message type
+                    await deepgram_ws.send(text_data)
+                    log.debug("Forwarded unvalidated message to Deepgram")
+                    
                 continue
-            elif isinstance(data, dict) and "type" in data:
-                event_type = data["type"]
-
-                # Handle websocket.disconnect event
-                if event_type == "websocket.disconnect":
-                    log.info("Received websocket.disconnect, closing connection")
-                    # No need to forward this to Deepgram
-                    return
-
-            # Process other types of data (fallback for non-websocket.receive events)
-            # Determine if it's binary or text
-            is_binary, processed_data = determine_data_type(data)
-
-            if processed_data is None:
-                log.debug(f"Could not process data from client")
-                continue
-
-            if is_binary:
-                # Binary data (audio)
-                await deepgram_ws.send(processed_data)
-                log.debug(
-                    f"PROXY → DEEPGRAM: [Binary data: {len(processed_data) if isinstance(processed_data, bytes) else 'unknown'} bytes]"
-                )
-            else:
-                # Text data - serialize if it's a model, otherwise convert to string
-                if isinstance(processed_data, BaseAgentMessage):
-                    json_str = processed_data.model_dump_json()
-                else:
-                    json_str = (
-                        json.dumps(processed_data)
-                        if isinstance(processed_data, dict)
-                        else str(processed_data)
-                    )
-
-                truncated = json_str[:50] + ("..." if len(json_str) > 50 else "")
-                log.debug(f"PROXY → DEEPGRAM: {truncated}")
-                await deepgram_ws.send(json_str)
-
+                
+            # If we get here, it means we couldn't handle the message format
+            log.warning(f"Unrecognized message format: {message}")
+            
     except ConnectionClosed as e:
         log.warning(f"Client connection closed: {e.code} {e.reason}")
     except Exception as e:
@@ -298,45 +291,35 @@ async def handle_client_to_deepgram(
 
 
 async def handle_deepgram_to_client(
-    deepgram_ws: websockets.WebSocketClientProtocol, client_ws: WebSocket
+    deepgram_ws: websockets.WebSocketClientProtocol, 
+    client_ws: WebSocket
 ) -> None:
-    """Processes incoming Deepgram messages and forwards them to client"""
+    """Processes incoming Deepgram messages and forwards them to client."""
     try:
         while True:
-            # Receive message from Deepgram (websockets library uses recv())
+            # Receive message from Deepgram
             data = await deepgram_ws.recv()
-
-            # Log the message received from Deepgram
+            
+            # Handle binary data (audio)
             if isinstance(data, bytes):
                 log.debug(f"DEEPGRAM → PROXY: [Binary data: {len(data)} bytes]")
-
-                # Forward binary data directly
                 await client_ws.send_bytes(data)
                 log.debug(f"PROXY → CLIENT: [Binary data: {len(data)} bytes]")
-            else:
-                # For text data, try to parse it for better logging
-                truncated = str(data)[:50] + ("..." if len(str(data)) > 50 else "")
-                log.debug(f"DEEPGRAM → PROXY: {truncated}")
+                continue
+                
+            # Handle text data (messages)
+            # For text data, try to parse it for better logging
+            truncated = str(data)[:50] + ("..." if len(str(data)) > 50 else "")
+            log.debug(f"DEEPGRAM → PROXY: {truncated}")
 
-                # Forward text data
-                await client_ws.send_text(data)
-                log.debug(f"PROXY → CLIENT: {truncated}")
-
-                # Check for error message and log it at error level
-                try:
-                    parsed = json.loads(data)
-                    if isinstance(parsed, dict) and parsed.get("type") == "Error":
-                        error_msg = parsed.get(
-                            "message", parsed.get("description", "Unknown error")
-                        )
-                        log.error(f"Received error from Deepgram: {error_msg}")
-                except:
-                    pass
-
+            # Forward text data
+            await client_ws.send_text(data)
+            log.debug(f"PROXY → CLIENT: {truncated}")
+                
     except ConnectionClosed as e:
         log.warning(f"Deepgram connection closed: {e.code} {e.reason}")
     except Exception as e:
-        log.error(f"Error forwarding Deepgram to client: {e}")
+        log.error(f"Error in deepgram_to_client: {e}")
 
 
 # Create the router with the handler function
