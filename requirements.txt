@@ -8,11 +8,13 @@ anyio==4.9.0
 asyncio==3.4.3
 attrs==25.3.0
 autoflake==2.3.1
+autopep8==2.3.2
 certifi==2025.4.26
 cfgv==3.4.0
 charset-normalizer==3.4.1
 click==8.1.8
 colorama==0.4.6
+coloredlogs==15.0.1
 dataclasses-json==0.6.7
 deepgram-sdk==3.11.0
 deprecation==2.1.0
@@ -28,6 +30,7 @@ h2==4.2.0
 hpack==4.1.0
 httpcore==1.0.9
 httpx==0.28.1
+humanfriendly==10.0
 hyperframe==6.1.0
 identify==2.6.10
 idna==3.10
