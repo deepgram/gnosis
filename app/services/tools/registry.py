@@ -32,8 +32,8 @@ tools = ToolsDict()
 
 def register_tool(
     name: str,
-    description: str = None,
-    parameters: Dict[str, Any] = None,
+    description: str | None = None,
+    parameters: Dict[str, Any] | None = None,
     scope: str = "public",
 ):
     """

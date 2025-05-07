@@ -38,7 +38,7 @@ class ChatMessage(BaseModel):
 
     def model_dump(self, **kwargs):
         """Override model_dump to ensure serializable output"""
-        result = {"role": self.role}
+        result: Dict[str, Any] = {"role": self.role}
 
         # Handle content field properly
         if self.content is not None:

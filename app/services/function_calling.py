@@ -195,7 +195,9 @@ class FunctionCallingService:
         if "functions" in augmented_config["agent"]["think"]:
             existing_functions = augmented_config["agent"]["think"]["functions"]
             if not isinstance(existing_functions, list):
-                logger.warning("'functions' in agent.think is not a list, converting to empty list")
+                logger.warning(
+                    "'functions' in agent.think is not a list, converting to empty list"
+                )
                 existing_functions = []
             logger.debug(
                 f"Found {len(existing_functions)} existing functions in agent config"
