@@ -2,10 +2,14 @@ import os
 import uvicorn
 import structlog
 from litestar import Litestar
+from litestar.contrib.structlog.middleware import StructlogMiddleware
+from litestar.datastructures.state import State
+from litestar.middleware import AbstractMiddleware
+from litestar.config.compression import CompressionConfig
 from litestar.config.cors import CORSConfig
 from litestar.openapi import OpenAPIConfig
-from litestar.types import Scope
 from litestar.handlers import get
+from litestar.connection import Request
 from uuid import uuid4
 
 from app.config import settings
@@ -13,7 +17,7 @@ from app.routes.chat_completions import chat_completions_router
 from app.routes.agent import agent_router
 
 
-def before_request_handler(scope: Scope) -> None:
+async def before_request_handler(request: Request) -> None:
     request_id = str(uuid4())
     structlog.contextvars.bind_contextvars(request_id=request_id)
 

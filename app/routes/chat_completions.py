@@ -137,6 +137,10 @@ async def chat_completion(request: Request, data: Any) -> Response:
         data.model_dump(exclude_none=True) if hasattr(data, "model_dump") else data
     )
 
+    # Ensure json_data is always a dictionary
+    if isinstance(json_data, ChatCompletionRequest):
+        json_data = json_data.model_dump(exclude_none=True)
+
     try:
         # Extract the query from the messages
         messages = json_data.get("messages", [])
