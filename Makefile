@@ -26,9 +26,6 @@ help:
 	@echo "  make test       - Run tests"
 	@echo "  make lint       - Run linters (flake8, mypy)"
 	@echo "  make format     - Format code with black and isort"
-	@echo "  make examples   - List available example scripts"
-	@echo "  make run-example EXAMPLE=path/to/example.py - Run a specific example"
-	@echo "  make run-conversation - Run continuous conversation example with voice agent"
 	@echo "  make version    - Display application version"
 	@echo "  make clean      - Remove __pycache__ directories and .pyc files"
 	@echo ""
@@ -81,11 +78,6 @@ format:
 	black .
 	isort .
 
-# List and run examples
-examples:
-	@echo "Available examples:"
-	@find examples -name "*.py" | sort
-
 # Display version
 version:
 	@echo "Gnosis version: $(VERSION)"
@@ -96,20 +88,3 @@ clean:
 	find . -name "*.pyc" -delete
 	find . -name ".pytest_cache" -exec rm -rf {} +
 	find . -name ".coverage" -delete
-
-# Run a specific example (usage: make run-example EXAMPLE=voice_agent/basic.py)
-run-example:
-	@if [ -z "$(EXAMPLE)" ]; then \
-		echo "Please specify an example: make run-example EXAMPLE=voice_agent/basic.py"; \
-		exit 1; \
-	fi
-	cd examples && $(PYTHON) $(EXAMPLE)
-
-# Run continuous conversation example with custom message
-run-conversation:
-	@echo "Running continuous conversation with Deepgram Voice Agent..."
-	@read -p "Enter your message (default: Hello, how can I help you today?): " message; \
-	if [ -z "$$message" ]; then \
-		message="Hello, how can I help you today?"; \
-	fi; \
-	cd examples/voice_agent && $(PYTHON) continuous_conversation.py --message "$$message" --turns 2 

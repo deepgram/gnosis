@@ -1,15 +1,12 @@
 {
   "python.REPL.enableREPLSmartSend": false,
   "editor.formatOnSave": true,
-  "python.linting.enabled": true,
-  "python.linting.flake8Enabled": true,
-  "python.linting.flake8Args": ["--max-line-length=120"],
+  "python.analysis.typeCheckingMode": "basic",
   "[python]": {
     "editor.codeActionsOnSave": {
       "source.organizeImports": "explicit"
-    }
+    },
+    "editor.defaultFormatter": "ms-python.black-formatter"
   },
-  "python.formatting.provider": "none",
-  "editor.defaultFormatter": null,
-  "editor.formatOnSaveMode": "file"
+  "editor.formatOnSaveMode": "file",
 }

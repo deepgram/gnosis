@@ -84,7 +84,7 @@ def setup_logging(log_level: Union[int, str] = logging.INFO):
 
     # Set specific loggers to DEBUG for tool call tracing
     # Only set these to DEBUG if overall level is INFO or higher
-    if log_level > logging.DEBUG:
+    if isinstance(log_level, int) and log_level > logging.DEBUG:
         # Set debug level for critical tool call components
         logging.getLogger("app.routes.chat_completions").setLevel(logging.DEBUG)
         logging.getLogger("app.services.function_calling").setLevel(logging.DEBUG)
