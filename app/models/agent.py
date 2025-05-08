@@ -1,7 +1,8 @@
 """
 Pydantic models for agent-related functionality.
 
-This module contains models for working with the Deepgram Voice Agent API.
+This module contains models for working with the Deepgram Voice Agent API V1.
+No backward compatibility with early access API is provided.
 """
 
 from pydantic import BaseModel
@@ -28,10 +29,10 @@ class AudioInputConfig(BaseModel):
 class AudioOutputConfig(BaseModel):
     """Audio output configuration settings."""
 
-    encoding: str = "mp3"
+    encoding: str = "linear16"
     sample_rate: int = 24000
+    container: str = "none"
     bitrate: Optional[int] = None
-    container: Optional[str] = None
 
     class Config:
         extra = "allow"
@@ -47,19 +48,33 @@ class AudioConfig(BaseModel):
         extra = "allow"
 
 
-class ListenConfig(BaseModel):
-    """Configuration for agent listening."""
+class ListenProviderConfig(BaseModel):
+    """Provider configuration for listen capability."""
 
+    type: str = "deepgram"
     model: str = "nova-3"
+    keyterms: Optional[List[str]] = None
 
     class Config:
         extra = "allow"
 
 
-class ProviderConfig(BaseModel):
+class ListenConfig(BaseModel):
+    """Configuration for agent listening."""
+
+    provider: ListenProviderConfig = ListenProviderConfig()
+
+    class Config:
+        extra = "allow"
+
+
+class ThinkProviderConfig(BaseModel):
     """Provider configuration for think capability."""
 
-    type: str = "openai"
+    type: str = "open_ai"
+    model: Optional[str] = None
+    temperature: float = 0.7
+    endpoint: Optional[str] = None
 
     class Config:
         extra = "allow"
@@ -68,10 +83,24 @@ class ProviderConfig(BaseModel):
 class ThinkConfig(BaseModel):
     """Configuration for agent thinking."""
 
-    provider: Optional[ProviderConfig] = None
-    model: Optional[str] = None
-    instructions: Optional[str] = None
+    provider: ThinkProviderConfig = ThinkProviderConfig()
+    prompt: Optional[str] = None
     functions: Optional[Dict[str, Dict[str, Any]]] = None
+    endpoint: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+
+
+class SpeakProviderConfig(BaseModel):
+    """Provider configuration for speak capability."""
+
+    type: str = "deepgram"
+    model: str = "aura-2-andromeda-en"
+    voice: Optional[Union[str, Dict[str, Any]]] = None
+    model_id: Optional[str] = None
+    language: Optional[str] = None
+    language_code: Optional[str] = None
 
     class Config:
         extra = "allow"
@@ -80,7 +109,8 @@ class ThinkConfig(BaseModel):
 class SpeakConfig(BaseModel):
     """Configuration for agent speech."""
 
-    model: str = "aura-asteria-en"
+    provider: SpeakProviderConfig = SpeakProviderConfig()
+    endpoint: Optional[str] = None
 
     class Config:
         extra = "allow"
@@ -89,9 +119,11 @@ class SpeakConfig(BaseModel):
 class AgentConfig(BaseModel):
     """Configuration for a voice agent."""
 
+    language: str = "en"
     listen: Optional[ListenConfig] = None
     think: Optional[ThinkConfig] = None
     speak: Optional[SpeakConfig] = None
+    greeting: Optional[str] = None
 
     class Config:
         extra = "allow"
@@ -107,10 +139,12 @@ class ContextConfig(BaseModel):
         extra = "allow"
 
 
-class SettingsConfiguration(BaseAgentMessage):
+class Settings(BaseAgentMessage):
     """Configure the voice agent and sets the input and output audio formats."""
 
-    type: Literal["SettingsConfiguration"] = "SettingsConfiguration"
+    type: Literal["Settings"] = "Settings"
+    mip_opt_out: bool = False
+    experimental: bool = False
     audio: AudioConfig
     agent: AgentConfig
     context: Optional[ContextConfig] = None
@@ -119,7 +153,36 @@ class SettingsConfiguration(BaseAgentMessage):
         extra = "allow"
 
 
-# Function call message
+class UpdateSpeak(BaseAgentMessage):
+    """Update the agent's speaking configuration."""
+
+    type: Literal["UpdateSpeak"] = "UpdateSpeak"
+    speak: SpeakConfig
+
+    class Config:
+        extra = "allow"
+
+
+class InjectAgentMessage(BaseAgentMessage):
+    """Inject a message into the agent's conversation."""
+
+    type: Literal["InjectAgentMessage"] = "InjectAgentMessage"
+    content: str
+    role: str = "user"
+
+    class Config:
+        extra = "allow"
+
+
+class AgentKeepAlive(BaseAgentMessage):
+    """Keep-alive message sent by the client."""
+
+    type: Literal["AgentKeepAlive"] = "AgentKeepAlive"
+
+    class Config:
+        extra = "allow"
+
+
 class FunctionCall(BaseAgentMessage):
     """Function call request from Deepgram."""
 
@@ -132,12 +195,45 @@ class FunctionCall(BaseAgentMessage):
         extra = "allow"
 
 
-# Response messages
+class FunctionCallFunction(BaseModel):
+    """Individual function in a FunctionCallRequest"""
+
+    id: str
+    name: str
+    arguments: str
+    client_side: bool
+
+    class Config:
+        extra = "allow"
+
+
+class FunctionCallRequest(BaseAgentMessage):
+    """Function call request in new format with client_side flag."""
+
+    type: Literal["FunctionCallRequest"] = "FunctionCallRequest"
+    functions: List[FunctionCallFunction]
+
+    class Config:
+        extra = "allow"
+
+
+class FunctionCallResponse(BaseAgentMessage):
+    """Function call response message."""
+
+    type: Literal["FunctionCallResponse"] = "FunctionCallResponse"
+    id: str
+    name: str
+    content: str
+
+    class Config:
+        extra = "allow"
+
+
 class WelcomeMessage(BaseAgentMessage):
     """Welcome message from the server."""
 
     type: Literal["Welcome"] = "Welcome"
-    session_id: str
+    request_id: str
 
     class Config:
         extra = "allow"
@@ -147,6 +243,15 @@ class SettingsApplied(BaseAgentMessage):
     """Confirmation that settings were applied."""
 
     type: Literal["SettingsApplied"] = "SettingsApplied"
+
+    class Config:
+        extra = "allow"
+
+
+class UserStartedSpeaking(BaseAgentMessage):
+    """Notification that the user has started speaking."""
+
+    type: Literal["UserStartedSpeaking"] = "UserStartedSpeaking"
 
     class Config:
         extra = "allow"
@@ -163,32 +268,44 @@ class ConversationText(BaseAgentMessage):
         extra = "allow"
 
 
-class FunctionCallResponse(BaseAgentMessage):
-    """Function call response message."""
+class AgentThinking(BaseAgentMessage):
+    """Notification that the agent is thinking."""
 
-    type: Literal["FunctionCallResponse"] = "FunctionCallResponse"
-    function_call_id: str
-    output: str
+    type: Literal["AgentThinking"] = "AgentThinking"
 
     class Config:
         extra = "allow"
 
 
-class GnosisMetadataMessage(BaseAgentMessage):
-    """Metadata about Gnosis operations during request processing."""
+class PromptUpdated(BaseAgentMessage):
+    """Notification that the prompt has been updated."""
 
-    type: Literal["GnosisMetadata"] = "GnosisMetadata"
-    operations: List[GnosisMetadataItem] = []
-    total_tokens: Optional[int] = None
-    total_latency_ms: Optional[float] = None
-    summary: Optional[str] = None
+    type: Literal["PromptUpdated"] = "PromptUpdated"
+
+    class Config:
+        extra = "allow"
+
+
+class SpeakUpdated(BaseAgentMessage):
+    """Notification that the speak configuration has been updated."""
+
+    type: Literal["SpeakUpdated"] = "SpeakUpdated"
+
+    class Config:
+        extra = "allow"
+
+
+class AgentAudioDone(BaseAgentMessage):
+    """Agent audio done message."""
+
+    type: Literal["AgentAudioDone"] = "AgentAudioDone"
 
     class Config:
         extra = "allow"
 
 
 class KeepAlive(BaseAgentMessage):
-    """Keep-alive message."""
+    """Keep-alive message from the server."""
 
     type: Literal["KeepAlive"] = "KeepAlive"
 
@@ -211,9 +328,22 @@ class Error(BaseAgentMessage):
     """Error message from Deepgram."""
 
     type: Literal["Error"] = "Error"
-    description: Optional[str] = None  # For v1 API
-    message: Optional[str] = None  # For legacy API
+    description: Optional[str] = None
+    message: Optional[str] = None  # For backward compatibility with existing code
     code: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+
+
+class GnosisMetadataMessage(BaseAgentMessage):
+    """Metadata about Gnosis operations during request processing."""
+
+    type: Literal["GnosisMetadata"] = "GnosisMetadata"
+    operations: List[GnosisMetadataItem] = []
+    total_tokens: Optional[int] = None
+    total_latency_ms: Optional[float] = None
+    summary: Optional[str] = None
 
     class Config:
         extra = "allow"
