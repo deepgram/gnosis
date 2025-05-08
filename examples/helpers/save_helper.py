@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # save_helper.py
 # Helper module for creating conversation folders and saving conversation data
+# Handles adding WAV headers to raw PCM audio data from Voice Agent API for proper playback
 
 import os
 import re
 import datetime
 import inspect
 import sys
+import struct
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -164,11 +166,58 @@ def save_conversation_log(
                 "timestamp", datetime.datetime.now().strftime("%H:%M:%S")
             )
             role = msg.get("role", "unknown")
-            text = msg.get("text", "")
-            f.write(f"[{timestamp}] {role.upper()}: {text}\n\n")
+            # Try to get content first (new format), fall back to text (old format)
+            content = msg.get("content", msg.get("text", ""))
+            f.write(f"[{timestamp}] {role.upper()}: {content}\n\n")
 
     print(f"📝 Saved conversation log to {log_path}")
     return log_path
+
+
+def create_wav_header(
+    sample_rate: int = 24000,
+    num_channels: int = 1,
+    bits_per_sample: int = 16,
+    data_length: int = 0,
+) -> bytes:
+    """
+    Create a WAV header for PCM audio data
+
+    Args:
+        sample_rate: Sample rate in Hz (default: 24000)
+        num_channels: Number of audio channels (default: 1 for mono)
+        bits_per_sample: Bits per sample (default: 16 for linear16)
+        data_length: Length of audio data in bytes
+
+    Returns:
+        WAV header as bytes
+    """
+    # RIFF header
+    header = bytearray()
+    header.extend(b"RIFF")
+    header.extend(struct.pack("<I", 36 + data_length))  # File size - 8
+    header.extend(b"WAVE")
+
+    # FMT subchunk
+    header.extend(b"fmt ")
+    header.extend(struct.pack("<I", 16))  # Subchunk1Size (16 for PCM)
+    header.extend(struct.pack("<H", 1))  # AudioFormat (1 for PCM)
+    header.extend(struct.pack("<H", num_channels))  # NumChannels
+    header.extend(struct.pack("<I", sample_rate))  # SampleRate
+
+    bytes_per_sample = bits_per_sample // 8
+    byte_rate = sample_rate * num_channels * bytes_per_sample
+    block_align = num_channels * bytes_per_sample
+
+    header.extend(struct.pack("<I", byte_rate))  # ByteRate
+    header.extend(struct.pack("<H", block_align))  # BlockAlign
+    header.extend(struct.pack("<H", bits_per_sample))  # BitsPerSample
+
+    # Data subchunk
+    header.extend(b"data")
+    header.extend(struct.pack("<I", data_length))  # Subchunk2Size
+
+    return bytes(header)
 
 
 def save_audio_file(
@@ -177,9 +226,11 @@ def save_audio_file(
     file_index: int,
     role: str,
     extension: str = "wav",
+    sample_rate: int = 24000,
 ) -> Path:
     """
-    Save audio data to a file in the conversation directory
+    Save audio data to a file in the conversation directory.
+    For WAV files, automatically adds proper WAV headers to raw PCM data.
 
     Args:
         conversation_dir: Directory to save the audio file
@@ -187,15 +238,34 @@ def save_audio_file(
         file_index: The index/order of the audio file
         role: The role of the speaker ("user" or "agent")
         extension: The file extension to use
+        sample_rate: Sample rate in Hz (for WAV header if needed)
 
     Returns:
         Path to the saved audio file
     """
     audio_path = conversation_dir / f"{file_index}-{role}.{extension}"
-    with open(audio_path, "wb") as f:
-        f.write(audio_data)
 
-    print(f"✅ Saved {role} audio to {audio_path} ({len(audio_data)} bytes)")
+    # If it's a WAV file, prepend WAV header for raw PCM data
+    if extension.lower() == "wav" and not audio_data.startswith(b"RIFF"):
+        # Add WAV header to raw PCM data
+        wav_header = create_wav_header(
+            sample_rate=sample_rate,
+            num_channels=1,  # Mono audio
+            bits_per_sample=16,  # 16-bit PCM
+            data_length=len(audio_data),
+        )
+        with open(audio_path, "wb") as f:
+            f.write(wav_header)
+            f.write(audio_data)
+        print(
+            f"✅ Saved {role} audio to {audio_path} ({len(audio_data)} bytes + {len(wav_header)} byte header)"
+        )
+    else:
+        # Save raw audio data as is
+        with open(audio_path, "wb") as f:
+            f.write(audio_data)
+        print(f"✅ Saved {role} audio to {audio_path} ({len(audio_data)} bytes)")
+
     return audio_path
 
 
@@ -213,6 +283,6 @@ def print_playback_instructions(conversation_dir: Path) -> None:
 
     print("# To play user WAV files:")
     print("play *-user.wav")
-    print("\n# To play agent MP3 files:")
-    print("play *-agent.mp3")
+    print("\n# To play agent WAV files:")
+    print("play *-agent.wav")
     print("=======================================\n")

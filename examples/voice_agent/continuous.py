@@ -33,9 +33,9 @@ load_dotenv()
 # Configuration
 DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-GNOSIS_URL = "ws://localhost:8080/v1/agent"  # Local Gnosis server
+GNOSIS_URL = "ws://localhost:8080/v1/agent/converse"  # Local Gnosis server
 USER_TTS_MODEL = "aura-2-thalia-en"  # Voice model for generating user audio
-AGENT_TTS_MODEL = "aura-2-asteria-en"  # Voice model for agent responses
+AGENT_TTS_MODEL = "aura-2-andromeda-en"  # Voice model for agent responses
 LLM_MODEL = "gpt-4o-mini"  # Model for generating conversation continuations
 CHUNK_SIZE = 4096  # Size of audio chunks to send
 SILENCE_TIMEOUT = 5  # Number of seconds to wait before stopping continuous silence
@@ -104,25 +104,34 @@ async def main(
             welcome = await websocket.recv()
             print(f"👋 Received welcome message")
 
-            # Settings configuration
+            # Settings configuration for V1 API
             print("🔄 Sending settings configuration...")
             settings = {
-                "type": "SettingsConfiguration",
+                "type": "Settings",
+                "mip_opt_out": False,
+                "experimental": False,
                 "audio": {
                     "input": {"encoding": "linear16", "sample_rate": 16000},
                     "output": {
-                        "encoding": "mp3",
+                        "encoding": "linear16",
                         "sample_rate": 24000,
-                    },  # Request MP3 output
+                        "container": "none",
+                    },
                 },
                 "agent": {
-                    "listen": {"model": "nova-3"},
+                    "language": "en",
+                    "listen": {"provider": {"type": "deepgram", "model": "nova-3"}},
                     "think": {
-                        "provider": {"type": "open_ai"},
-                        "model": "gpt-4o-mini",
-                        "instructions": system_prompt,
+                        "provider": {
+                            "type": "open_ai",
+                            "model": "gpt-4o-mini",
+                            "temperature": 0.7,
+                        },
+                        "prompt": system_prompt,
                     },
-                    "speak": {"model": AGENT_TTS_MODEL},
+                    "speak": {
+                        "provider": {"type": "deepgram", "model": AGENT_TTS_MODEL}
+                    },
                 },
             }
 
@@ -201,7 +210,6 @@ async def main(
             # Function to handle incoming messages and maintain conversation
             async def process_messages():
                 nonlocal conversation_turn, audio_turn_counter, last_event_time
-                received_end_of_thought = False
                 received_agent_response = False
                 agent_response_text = ""
                 agent_audio_data = bytearray()  # Accumulate agent audio
@@ -230,18 +238,15 @@ async def main(
                                 print(f"📨 Received message: {msg_type}")
 
                                 if msg_type == "ConversationText":
-                                    received_text = data.get("text", "") or data.get(
-                                        "content", ""
-                                    )
+                                    received_text = data.get("content", "")
+                                    role = data.get("role", "")
 
-                                    # Determine role
-                                    if received_end_of_thought:
-                                        role = "assistant"
+                                    # Print based on role
+                                    if role == "assistant":
                                         print(f'🤖 Agent: "{received_text}"')
                                         agent_response_text = received_text
                                         received_agent_response = True
                                     else:
-                                        role = "user"
                                         print(f'👤 Recognized: "{received_text}"')
 
                                     # Always add the message to conversation history
@@ -252,7 +257,7 @@ async def main(
                                     conversation.append(
                                         {
                                             "role": role,
-                                            "text": received_text,
+                                            "content": received_text,
                                             "timestamp": timestamp,
                                         }
                                     )
@@ -262,11 +267,7 @@ async def main(
                                         conversation_dir, conversation
                                     )
 
-                                elif msg_type == "EndOfThought":
-                                    received_end_of_thought = True
-                                    print("✓ Agent has processed request")
-
-                                elif msg_type in ["AgentAudioDone", "SpeechFinished"]:
+                                elif msg_type == "AgentAudioDone":
                                     print(f"🎵 Agent audio response complete")
 
                                     # Save the accumulated audio data
@@ -277,7 +278,8 @@ async def main(
                                             audio_data=agent_audio_data,
                                             file_index=audio_turn_counter,
                                             role="agent",
-                                            extension="mp3",
+                                            extension="wav",
+                                            sample_rate=24000,  # Match the output sample rate in settings
                                         )
                                         print(
                                             f"✅ Saved agent audio to {agent_audio_path} ({len(agent_audio_data)} bytes)"
@@ -295,7 +297,6 @@ async def main(
                                             f"\n🤔 [USER CONTINUATION]: {user_response}"
                                         )
 
-                                        # We no longer add this message to the conversation log here
                                         # We'll let the ConversationText event handle it when it comes back
                                         # This ensures we only log what was actually recognized
 
@@ -326,7 +327,6 @@ async def main(
 
                                         # Reset for next turn
                                         conversation_turn += 1
-                                        received_end_of_thought = False
                                         received_agent_response = False
                                         agent_response_text = ""
                                         agent_audio_data = bytearray()
@@ -336,8 +336,27 @@ async def main(
                                         )
 
                                 elif msg_type == "Error":
-                                    error = data.get("message", "Unknown error")
-                                    print(f"❌ Error: {error}")
+                                    error_description = data.get("description", "")
+                                    error_message = data.get(
+                                        "message", ""
+                                    )  # For legacy API
+                                    error_code = data.get("code", "")
+
+                                    error_details = (
+                                        error_description
+                                        or error_message
+                                        or "Unknown error"
+                                    )
+                                    error_display = (
+                                        f"{error_code}: {error_details}"
+                                        if error_code
+                                        else error_details
+                                    )
+
+                                    print(f"❌ Error: {error_display}")
+                                    print(
+                                        f"Full error details: {json.dumps(data, indent=2)}"
+                                    )
                                     return
 
                             except json.JSONDecodeError:
@@ -350,7 +369,7 @@ async def main(
                 # Print conversation summary
                 print("\n=== Conversation Summary ===")
                 for i, msg in enumerate(conversation):
-                    print(f"{msg['role']}: \"{msg['text']}\"")
+                    print(f"{msg['role']}: \"{msg['content']}\"")
                 print("============================\n")
 
                 print("✅ Continuous conversation complete")

@@ -66,7 +66,7 @@ class DeepgramTTS:
     def generate_speech(
         self,
         text: str,
-        model: str = "aura-asteria-en",
+        model: str = "aura-2-andromeda-en",
         encoding: str = "linear16",
         sample_rate: int = 16000,
         container: Optional[str] = None,
@@ -77,7 +77,7 @@ class DeepgramTTS:
 
         Args:
             text: The text to convert to speech
-            model: TTS model to use (default: aura-asteria-en)
+            model: TTS model to use (default: aura-2-andromeda-en)
             encoding: Audio encoding (default: linear16 - for voice agent compatibility)
             sample_rate: Sample rate in Hz (default: 16000 - for voice agent compatibility)
             container: Optional container format (default: None for raw PCM)

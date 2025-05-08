@@ -9,6 +9,7 @@ import argparse
 import os
 import time
 import datetime
+import random  # For simulating weather data
 
 from examples.helpers.tts_helper import DeepgramTTS
 from examples.helpers.save_helper import (
@@ -40,9 +41,29 @@ SILENCE_TIMEOUT = 5  # Number of seconds to wait before stopping continuous sile
 MAX_TURNS = 3  # Default number of turns in the conversation
 
 
+# Define our function tool for weather
+def get_weather(location):
+    """
+    Simulate getting weather information for a location
+    """
+    print(f"🌤️ Function called: get_weather({location})")
+
+    # Simulate weather data (hardcoded response)
+    weather_data = {
+        "location": location,
+        "temperature_c": random.randint(15, 30),
+        "condition": random.choice(["Sunny", "Partly Cloudy", "Cloudy", "Rainy"]),
+        "humidity": random.randint(30, 90),
+        "wind_kph": random.randint(0, 30),
+    }
+
+    print(f"🌤️ Weather response: {json.dumps(weather_data)}")
+    return json.dumps(weather_data)
+
+
 async def main(
     text: str,
-    system_prompt: str = "You are a helpful AI assistant. Keep responses concise.",
+    system_prompt: str = "You are a helpful AI assistant. You can provide weather information when asked. Keep responses concise.",
 ):
     """
     Basic interaction with the Voice Agent:
@@ -98,28 +119,50 @@ async def main(
             welcome = await websocket.recv()
             print(f"👋 Received welcome message")
 
-            # Settings configuration with minimal required properties
+            # Settings configuration for V1 API
             print("🔄 Sending settings configuration...")
             settings = {
                 "type": "Settings",
-                # Audio configuration - required for both input and output
+                "mip_opt_out": False,
+                "experimental": False,
                 "audio": {
                     "input": {"encoding": "linear16", "sample_rate": 16000},
-                    "output": {"encoding": "linear16", "sample_rate": 24000},
+                    "output": {
+                        "encoding": "linear16",
+                        "sample_rate": 24000,
+                        "container": "none",
+                    },
                 },
-                # Agent capabilities configuration
                 "agent": {
-                    # Listen capability (STT) - required
-                    "listen": {"provider": {"model": "nova-3"}},
-                    # Think capability (LLM) - required
+                    "language": "en",
+                    "listen": {"provider": {"type": "deepgram", "model": "nova-3"}},
                     "think": {
                         "provider": {
-                            "model": LLM_MODEL,
+                            "type": "open_ai",
+                            "model": "gpt-4o-mini",
+                            "temperature": 0.7,
                         },
                         "prompt": system_prompt,
+                        "functions": [
+                            {
+                                "name": "get_weather",
+                                "description": "Get the current weather in a given location",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "location": {
+                                            "type": "string",
+                                            "description": "The city and state, e.g., San Francisco, CA",
+                                        }
+                                    },
+                                    "required": ["location"],
+                                },
+                            }
+                        ],
                     },
-                    # Speak capability (TTS) - required
-                    "speak": {"provider": {"model": AGENT_TTS_MODEL}},
+                    "speak": {
+                        "provider": {"type": "deepgram", "model": AGENT_TTS_MODEL}
+                    },
                 },
             }
 
@@ -248,17 +291,65 @@ async def main(
                                         conversation_dir, conversation
                                     )
 
-                                elif msg_type == "UserStartedSpeaking":
-                                    print("🎤 User started speaking")
+                                elif msg_type == "FunctionCallRequest":
+                                    function_calls = data.get("functions", [])
 
-                                elif msg_type == "AgentThinking":
-                                    print("🤔 Agent is thinking...")
+                                    for function_call in function_calls:
+                                        function_id = function_call.get("id")
+                                        function_name = function_call.get("name")
+                                        arguments_str = function_call.get(
+                                            "arguments", "{}"
+                                        )
+                                        client_side = function_call.get(
+                                            "client_side", False
+                                        )
 
-                                elif msg_type == "PromptUpdated":
-                                    print("📝 Prompt was updated")
+                                        print(
+                                            f"🔧 Function call request: {function_name} (ID: {function_id})"
+                                        )
+                                        print(f"📝 Arguments: {arguments_str}")
 
-                                elif msg_type == "SpeakUpdated":
-                                    print("🔊 Speak configuration was updated")
+                                        # Parse arguments
+                                        try:
+                                            args = json.loads(arguments_str)
+                                        except json.JSONDecodeError:
+                                            args = {}
+
+                                        # Handle function calls
+                                        result = None
+                                        if function_name == "get_weather":
+                                            location = args.get(
+                                                "location", "San Francisco, CA"
+                                            )
+                                            result = get_weather(location)
+
+                                        # Log the function call in conversation
+                                        timestamp = datetime.datetime.now().strftime(
+                                            "%H:%M:%S"
+                                        )
+                                        conversation.append(
+                                            {
+                                                "role": "function",
+                                                "name": function_name,
+                                                "content": result,
+                                                "timestamp": timestamp,
+                                            }
+                                        )
+
+                                        # Send function call response back to the agent
+                                        if result:
+                                            function_response = {
+                                                "type": "FunctionCallResponse",
+                                                "id": function_id,
+                                                "name": function_name,
+                                                "content": result,
+                                            }
+                                            await websocket.send(
+                                                json.dumps(function_response)
+                                            )
+                                            print(
+                                                f"✅ Sent function response for {function_name}"
+                                            )
 
                                 elif msg_type == "AgentAudioDone":
                                     print("🎵 Agent audio response complete")
@@ -303,16 +394,6 @@ async def main(
                                         f"Full error details: {json.dumps(data, indent=2)}"
                                     )
                                     return
-
-                                elif msg_type == "Warning":
-                                    warning_description = data.get("description", "")
-                                    warning_code = data.get("code", "")
-                                    warning_display = (
-                                        f"{warning_code}: {warning_description}"
-                                        if warning_code
-                                        else warning_description
-                                    )
-                                    print(f"⚠️ Warning: {warning_display}")
 
                             except json.JSONDecodeError:
                                 print(f"⚠️ Received non-JSON string: {response[:100]}")
@@ -413,7 +494,7 @@ if __name__ == "__main__":
     parser.add_argument("--user", required=True, help="Text to send to the agent")
     parser.add_argument(
         "--system",
-        default="You are a helpful AI assistant. Keep responses concise.",
+        default="You are a helpful AI assistant. You can provide weather information when asked. Keep responses concise.",
         help="System prompt for the agent",
     )
 

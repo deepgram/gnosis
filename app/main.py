@@ -2,10 +2,6 @@ import os
 import uvicorn
 import structlog
 from litestar import Litestar
-from litestar.contrib.structlog.middleware import StructlogMiddleware
-from litestar.datastructures.state import State
-from litestar.middleware import AbstractMiddleware
-from litestar.config.compression import CompressionConfig
 from litestar.config.cors import CORSConfig
 from litestar.openapi import OpenAPIConfig
 from litestar.handlers import get
