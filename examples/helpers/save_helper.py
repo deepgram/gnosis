@@ -3,7 +3,6 @@
 # Helper module for creating conversation folders and saving conversation data
 # Handles adding WAV headers to raw PCM audio data from Voice Agent API for proper playback
 
-import os
 import re
 import datetime
 import inspect

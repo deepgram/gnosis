@@ -16,7 +16,6 @@ from examples.helpers.save_helper import (
     save_conversation_log,
     save_audio_file,
     print_playback_instructions,
-    normalize_text,
 )
 from examples.helpers.silence_helper import (
     send_continuous_silence,
