@@ -161,7 +161,7 @@ class FunctionCallingService:
         Augment a Deepgram agent configuration with our function definitions.
 
         Args:
-            config: The original Deepgram SettingsConfiguration object as a dictionary
+            config: The original Deepgram Settings object as a dictionary
 
         Returns:
             The augmented configuration with our function definitions added
@@ -190,18 +190,36 @@ class FunctionCallingService:
             logger.debug("No 'think' key found in agent configuration, adding one")
             augmented_config["agent"]["think"] = {}
 
+        # Initialize think.functions for V1 API
+        if "functions" not in augmented_config["agent"]["think"]:
+            augmented_config["agent"]["think"]["functions"] = {}
+
         # Get existing functions if any
         existing_functions = []
         if "functions" in augmented_config["agent"]["think"]:
-            existing_functions = augmented_config["agent"]["think"]["functions"]
-            if not isinstance(existing_functions, list):
+            # Handle the functions format
+            if isinstance(augmented_config["agent"]["think"]["functions"], list):
+                existing_functions = augmented_config["agent"]["think"]["functions"]
+            elif isinstance(augmented_config["agent"]["think"]["functions"], dict):
+                # Convert dict to list format for V1 API
+                logger.debug("Converting functions dict to list format for V1 API")
+                try:
+                    function_dict = augmented_config["agent"]["think"]["functions"]
+                    existing_functions = [
+                        {"name": k, **v} for k, v in function_dict.items()
+                    ]
+                except Exception as e:
+                    logger.warning(f"Error converting functions dict: {e}")
+                    existing_functions = []
+            else:
                 logger.warning(
-                    "'functions' in agent.think is not a list, converting to empty list"
+                    "'functions' in agent.think is not a list or dict, converting to empty list"
                 )
                 existing_functions = []
-            logger.debug(
-                f"Found {len(existing_functions)} existing functions in agent config"
-            )
+
+        logger.debug(
+            f"Found {len(existing_functions)} existing functions in agent config"
+        )
 
         # Merge our functions with existing ones
         if "functions" in gnosis_functions:
