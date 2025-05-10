@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 import time
 import asyncio
 from typing import Any, Dict, List, Union
@@ -23,7 +23,7 @@ from app.services.tools.registry import get_tool_implementation, execute_tool
 from app.services.function_calling import FunctionCallingService
 
 # Get a logger for this module
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 OPENAI_CHAT_COMPLETIONS_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
@@ -112,7 +112,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
     start_time_total = time.time()
 
     # Log the proxy destination
-    logger.info(f"Proxying request to: {OPENAI_CHAT_COMPLETIONS_ENDPOINT}")
+    log.info(f"Proxying request to: {OPENAI_CHAT_COMPLETIONS_ENDPOINT}")
 
     headers = {
         "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
@@ -130,7 +130,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
                 )
             )
         except Exception as e:
-            logger.debug(f"Failed to convert data to ChatCompletionRequest: {e}")
+            log.debug(f"Failed to convert data to ChatCompletionRequest: {e}")
 
     # Convert data to JSON-serializable dict
     json_data = (
@@ -147,7 +147,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
         query = extract_query_from_messages(messages)
 
         # log the query
-        logger.info(f"Query: {query}")
+        log.info(f"Query: {query}")
 
         # Check if this is a continuation of an existing conversation
         is_continuation = is_conversation_continuation(messages)
@@ -156,7 +156,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
         if query and not is_continuation:
             try:
                 # 📋 RAG PROCESSING START - Explicit log marker for RAG operations
-                logger.info(
+                log.info(
                     "📋 RAG PROCESSING START - Retrieving augmented context for query"
                 )
 
@@ -179,7 +179,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
                 rag_duration_ms = (time.time() - rag_start_time) * 1000
 
                 # Log RAG details without modifying the search_documentation function
-                logger.info(
+                log.info(
                     f"📋 RAG results received: {len(search_results.get('data', []))} items found for query: '{query}'"
                 )
 
@@ -249,16 +249,14 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
                     # Update messages in the request
                     json_data["messages"] = enhanced_messages
-                    logger.info(
+                    log.info(
                         f"📋 RAG PROCESSING COMPLETE - Added {len(data_items)} context items as system messages"
                     )
                 else:
-                    logger.info(
-                        "📋 RAG PROCESSING COMPLETE - No relevant results found"
-                    )
+                    log.info("📋 RAG PROCESSING COMPLETE - No relevant results found")
 
             except Exception as e:
-                logger.warning(f"📋 RAG PROCESSING ERROR - {str(e)}")
+                log.warning(f"📋 RAG PROCESSING ERROR - {str(e)}")
                 # Continue without RAG if search fails
                 # Record the failed operation
                 gnosis_operations.append(
@@ -274,14 +272,14 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     )
                 )
         elif is_continuation:
-            logger.info(
+            log.info(
                 "📋 RAG PROCESSING SKIPPED - Conversation is a continuation of a previous thread"
             )
 
         # Augment the chat completion request with tool calling configuration
         json_data = FunctionCallingService.augment_openai_request(json_data)
 
-        logger.debug(f"Augmented request:\n{json.dumps(json_data, indent=2)}")
+        log.debug(f"Augmented request:\n{json.dumps(json_data, indent=2)}")
 
         # Augment the chat completion request with additional metadata
         # json_data['messages'].append(ChatMessage(
@@ -291,7 +289,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
         # Debug log the tools being requested
         if "tools" in json_data:
-            logger.debug(f"Request contains {len(json_data['tools'])} tools")
+            log.debug(f"Request contains {len(json_data['tools'])} tools")
             for tool in json_data["tools"]:
                 if tool.get("type") == "function" and tool.get("function", {}).get(
                     "name"
@@ -300,11 +298,11 @@ async def chat_completion(request: Request, data: Any) -> Response:
                     is_internal = function_name.startswith(
                         FunctionCallingService.FUNCTION_PREFIX
                     )
-                    logger.debug(f"Tool: {function_name} (Internal: {is_internal})")
+                    log.debug(f"Tool: {function_name} (Internal: {is_internal})")
 
         # For streaming responses
         if getattr(data, "stream", False) or json_data.get("stream", False):
-            logger.info("Streaming response enabled")
+            log.info("Streaming response enabled")
             return await handle_streaming_response(
                 OPENAI_CHAT_COMPLETIONS_ENDPOINT, headers, json_data
             )
@@ -319,7 +317,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
             )
 
             # Log the status code
-            logger.info(f"Received response with status code: {response.status_code}")
+            log.info(f"Received response with status code: {response.status_code}")
 
             # Parse the response
             response_data = response.json()
@@ -330,7 +328,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
                 if "message" in choice and "tool_calls" in choice["message"]:
                     tool_calls = choice["message"]["tool_calls"]
-                    logger.debug(f"Received {len(tool_calls)} tool calls from LLM")
+                    log.debug(f"Received {len(tool_calls)} tool calls from LLM")
 
                     # Separate built-in and user-defined tool calls
                     built_in_calls = []
@@ -346,26 +344,24 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
                         if is_internal:
                             built_in_calls.append(tool_call)
-                            logger.debug(
-                                f"Identified built-in tool call: {function_name}"
-                            )
+                            log.debug(f"Identified built-in tool call: {function_name}")
                         else:
                             user_calls.append(tool_call)
-                            logger.debug(
+                            log.debug(
                                 f"Identified user-defined tool call: {function_name}"
                             )
 
                     # Log debug information about the parallel tool calls
                     if len(built_in_calls) > 0 and len(user_calls) > 0:
-                        logger.info(
+                        log.info(
                             f"🔄 PARALLEL TOOL CALLS - Processing {len(built_in_calls)} built-in calls first, then will return {len(user_calls)} user-defined calls"
                         )
                     elif len(built_in_calls) > 1:
-                        logger.info(
+                        log.info(
                             f"🔄 PARALLEL TOOL CALLS - Processing {len(built_in_calls)} built-in calls in parallel"
                         )
                     else:
-                        logger.info(
+                        log.info(
                             f"Separated tool calls: {len(built_in_calls)} built-in, {len(user_calls)} user-defined"
                         )
 
@@ -378,7 +374,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
                         # Log the parallel execution
                         if len(tasks) > 1:
-                            logger.info(
+                            log.info(
                                 f"🔄 Executing {len(tasks)} built-in tool calls in parallel"
                             )
 
@@ -389,7 +385,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
 
                         # Log the completion of parallel execution
                         if len(tasks) > 1:
-                            logger.info(
+                            log.info(
                                 f"🔄 Completed {len(tasks)} parallel tool calls in {tool_duration_ms:.2f}ms"
                             )
 
@@ -483,7 +479,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
                         )
 
                         # If there were only user-defined tool calls, we're done
-                        logger.info(
+                        log.info(
                             f"Returning response with {len(user_calls)} user-defined tool calls"
                         )
                         return Response(
@@ -516,9 +512,7 @@ async def chat_completion(request: Request, data: Any) -> Response:
                         new_json_data["messages"] = next_messages
 
                         # 4. Send the follow-up request
-                        logger.info(
-                            "Sending follow-up request with built-in tool results"
-                        )
+                        log.info("Sending follow-up request with built-in tool results")
                         follow_up_response = await client.post(
                             OPENAI_CHAT_COMPLETIONS_ENDPOINT,
                             headers=headers,
@@ -592,20 +586,20 @@ async def chat_completion(request: Request, data: Any) -> Response:
             )
 
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
+        log.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
         raise HTTPException(
             status_code=e.response.status_code,
             detail=e.response.text,
         )
     except TypeError as e:
         # This is likely a JSON serialization error
-        logger.error(f"TypeError (likely JSON serialization error): {str(e)}")
+        log.error(f"TypeError (likely JSON serialization error): {str(e)}")
         raise HTTPException(
             status_code=HTTP_502_BAD_GATEWAY,
             detail=f"JSON serialization error: {str(e)}",
         )
     except Exception as e:
-        logger.error(f"Error proxying request: {str(e)}")
+        log.error(f"Error proxying request: {str(e)}")
 
         # Check if this is a vector store error and provide more specific information
         error_msg = str(e)
@@ -653,21 +647,19 @@ async def stream_chat_completion_response(target_url, headers, json_data):
                 json=json_data,
                 timeout=60.0,
             ) as response:
-                logger.info(
-                    f"Streaming response with status code: {response.status_code}"
-                )
+                log.info(f"Streaming response with status code: {response.status_code}")
 
                 async for chunk in response.aiter_lines():
                     if chunk:
                         yield chunk
 
     except httpx.HTTPStatusError as e:
-        logger.error(
+        log.error(
             f"HTTP error (streaming): {e.response.status_code} - {e.response.text}"
         )
         yield f'data: {{"error":{{"message":"{e.response.text}"}}}}\n\n'
     except Exception as e:
-        logger.error(f"Error streaming: {str(e)}")
+        log.error(f"Error streaming: {str(e)}")
         yield f'data: {{"error":{{"message":"{str(e)}"}}}}\n\n'
 
 
@@ -690,14 +682,14 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
     try:
         # Extract function details
         if not tool_call.get("function"):
-            logger.debug("Tool call missing function details")
+            log.debug("Tool call missing function details")
             raise ValueError("Tool call missing function details")
 
         function = tool_call["function"]
         function_name = function.get("name")
 
         if not function_name:
-            logger.debug("Tool call missing function name")
+            log.debug("Tool call missing function name")
             raise ValueError("Tool call missing function name")
 
         # Check if the function name has the internal prefix and remove it if it does
@@ -706,11 +698,11 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
 
         if is_internal:
             original_name = function_name[len(FunctionCallingService.FUNCTION_PREFIX) :]
-            logger.debug(
+            log.debug(
                 f"Internal tool call detected: {function_name}, using registry name: {original_name}"
             )
         else:
-            logger.debug(f"External tool call detected: {function_name}")
+            log.debug(f"External tool call detected: {function_name}")
 
         # Parse arguments
         arguments_str = function.get("arguments", "{}")
@@ -718,42 +710,42 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
         # Ensure arguments is a string (not a dict)
         if isinstance(arguments_str, dict):
             arguments = arguments_str
-            logger.debug(
+            log.debug(
                 f"Tool arguments already in dict format: {len(str(arguments))} chars"
             )
         else:
             try:
                 arguments = json.loads(arguments_str)
-                logger.debug(
+                log.debug(
                     f"Parsed tool arguments from JSON: {len(arguments_str)} chars"
                 )
             except json.JSONDecodeError:
                 # If it's not valid JSON, use an empty dict
-                logger.warning(f"Invalid JSON in tool arguments: {arguments_str}")
+                log.warning(f"Invalid JSON in tool arguments: {arguments_str}")
                 arguments = {}
 
         # Check if the tool exists
         if not get_tool_implementation(original_name):
-            logger.debug(f"Tool '{original_name}' not found in registry")
+            log.debug(f"Tool '{original_name}' not found in registry")
             raise ValueError(f"Tool '{original_name}' not found")
 
         # 🔧 FUNCTION CALL START - Explicit log marker for function calls
         tool_call_id = tool_call.get("id", "unknown")
-        logger.info(
+        log.info(
             f"🔧 FUNCTION CALL START - Executing {original_name} with ID {tool_call_id}"
         )
 
         # Call the tool function using execute_tool helper
         execution_start_time = time.time()
-        logger.info(f"Calling tool: {original_name} with arguments: {arguments}")
+        log.info(f"Calling tool: {original_name} with arguments: {arguments}")
         result = await execute_tool(original_name, arguments)
         execution_duration_ms = (time.time() - execution_start_time) * 1000
 
         # 🔧 FUNCTION CALL COMPLETE - Explicit log marker for function calls
-        logger.info(
+        log.info(
             f"🔧 FUNCTION CALL COMPLETE - {original_name} executed in {execution_duration_ms:.2f}ms"
         )
-        logger.debug(
+        log.debug(
             f"Tool call completed: {original_name}, result type: {type(result).__name__}, duration: {execution_duration_ms:.2f}ms"
         )
 
@@ -761,13 +753,13 @@ async def process_tool_call(tool_call: Dict[str, Any]) -> Any:
 
     except Exception as e:
         # Log with the function call marker
-        logger.error(f"🔧 FUNCTION CALL ERROR - {str(e)}")
+        log.error(f"🔧 FUNCTION CALL ERROR - {str(e)}")
         # Re-raise the exception to be handled by the caller
         raise
     finally:
         # Log total processing time
         total_duration_ms = (time.time() - start_time) * 1000
-        logger.debug(f"Total tool call processing time: {total_duration_ms:.2f}ms")
+        log.debug(f"Total tool call processing time: {total_duration_ms:.2f}ms")
 
 
 # Create the router with the handler function

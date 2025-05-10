@@ -1,10 +1,10 @@
 from typing import Any, Callable, Dict, Awaitable, List, Optional
-import logging
+import structlog
 
 from app.models.tools import ToolRegistry
 
 # Get a logger for this module
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 # Create the registry using the Pydantic model
 registry = ToolRegistry()
@@ -61,7 +61,7 @@ def register_tool(
 
         # Register the implementation
         tool_registry[name]["implementation"] = func
-        logger.debug(f"Registered tool implementation: {name}")
+        log.debug(f"Registered tool implementation: {name}")
 
         # If description and parameters provided, register the definition
         if description and parameters:
@@ -74,7 +74,7 @@ def register_tool(
                 },
             }
             tool_registry[name]["definition"] = definition
-            logger.debug(f"Registered tool definition: {name}")
+            log.debug(f"Registered tool definition: {name}")
 
         return func
 
@@ -106,7 +106,7 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Any:
     """Execute a tool by name with the given arguments."""
     implementation = get_tool_implementation(name)
     if implementation:
-        logger.debug(f"Executing tool: {name}")
+        log.debug(f"Executing tool: {name}")
         return await implementation(arguments)
-    logger.warning(f"Tool implementation not found: {name}")
+    log.warning(f"Tool implementation not found: {name}")
     return {"error": f"Tool '{name}' not found"}

@@ -1,4 +1,4 @@
-import logging
+import structlog
 import httpx
 from typing import Dict, Any
 
@@ -6,7 +6,7 @@ from app.config import settings
 from app.services.tools.registry import register_tool
 
 # Get a logger for this module
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 
 @register_tool(
@@ -85,12 +85,12 @@ async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
             if response.status_code == 200:
                 # Parse the response JSON directly
                 response_json = response.json()
-                logger.debug(
+                log.debug(
                     f"Raw search response: {len(response_json.get('data', []))} items"
                 )
 
                 # Return the response directly - it's already in the correct format
-                logger.info(
+                log.info(
                     f"Search response contains {len(response_json.get('data', []))} items"
                 )
                 return response_json
@@ -109,7 +109,7 @@ async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 except Exception as e:
                     error_message = f"Failed to parse error response: {str(e)}"
 
-                logger.error(f"Vector store API error: {error_message}")
+                log.error(f"Vector store API error: {error_message}")
                 # Return an empty response with error in the object field
                 return {
                     "object": f"error: {error_message}",
@@ -119,7 +119,7 @@ async def search_documentation(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "next_page": None,
                 }
     except Exception as e:
-        logger.error(f"Vector search error: {str(e)}")
+        log.error(f"Vector search error: {str(e)}")
         # Return an empty response with error in the object field
         return {
             "object": f"error: {str(e)}",
