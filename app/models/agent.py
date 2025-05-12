@@ -7,7 +7,6 @@ No backward compatibility with early access API is provided.
 
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Literal, Union
-from app.models.chat import GnosisMetadataItem
 
 
 class BaseAgentMessage(BaseModel):
@@ -22,8 +21,7 @@ class AudioInputConfig(BaseModel):
     encoding: str = "linear16"
     sample_rate: int = 24000
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class AudioOutputConfig(BaseModel):
@@ -34,8 +32,7 @@ class AudioOutputConfig(BaseModel):
     container: str = "none"
     bitrate: Optional[int] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class AudioConfig(BaseModel):
@@ -44,8 +41,7 @@ class AudioConfig(BaseModel):
     input: Optional[AudioInputConfig] = None
     output: Optional[AudioOutputConfig] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class ListenProviderConfig(BaseModel):
@@ -55,8 +51,7 @@ class ListenProviderConfig(BaseModel):
     model: str = "nova-3"
     keyterms: Optional[List[str]] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class ListenConfig(BaseModel):
@@ -64,8 +59,7 @@ class ListenConfig(BaseModel):
 
     provider: ListenProviderConfig = ListenProviderConfig()
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class ThinkProviderConfig(BaseModel):
@@ -76,8 +70,7 @@ class ThinkProviderConfig(BaseModel):
     temperature: float = 0.7
     endpoint: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class ThinkConfig(BaseModel):
@@ -88,8 +81,7 @@ class ThinkConfig(BaseModel):
     functions: Optional[Dict[str, Dict[str, Any]]] = None
     endpoint: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class SpeakProviderConfig(BaseModel):
@@ -102,8 +94,7 @@ class SpeakProviderConfig(BaseModel):
     language: Optional[str] = None
     language_code: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class SpeakConfig(BaseModel):
@@ -112,8 +103,7 @@ class SpeakConfig(BaseModel):
     provider: SpeakProviderConfig = SpeakProviderConfig()
     endpoint: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class AgentConfig(BaseModel):
@@ -125,8 +115,7 @@ class AgentConfig(BaseModel):
     speak: Optional[SpeakConfig] = None
     greeting: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class ContextConfig(BaseModel):
@@ -135,8 +124,7 @@ class ContextConfig(BaseModel):
     messages: List[Dict[str, Any]] = []
     replay: bool = False
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class Settings(BaseAgentMessage):
@@ -149,8 +137,7 @@ class Settings(BaseAgentMessage):
     agent: AgentConfig
     context: Optional[ContextConfig] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class UpdateSpeak(BaseAgentMessage):
@@ -159,8 +146,7 @@ class UpdateSpeak(BaseAgentMessage):
     type: Literal["UpdateSpeak"] = "UpdateSpeak"
     speak: SpeakConfig
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class InjectAgentMessage(BaseAgentMessage):
@@ -170,8 +156,7 @@ class InjectAgentMessage(BaseAgentMessage):
     content: str
     role: str = "user"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class AgentKeepAlive(BaseAgentMessage):
@@ -179,8 +164,7 @@ class AgentKeepAlive(BaseAgentMessage):
 
     type: Literal["AgentKeepAlive"] = "AgentKeepAlive"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class FunctionCall(BaseAgentMessage):
@@ -191,8 +175,7 @@ class FunctionCall(BaseAgentMessage):
     function_call_id: str
     arguments: Union[str, Dict[str, Any]]
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class FunctionCallFunction(BaseModel):
@@ -203,8 +186,7 @@ class FunctionCallFunction(BaseModel):
     arguments: str
     client_side: bool
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class FunctionCallRequest(BaseAgentMessage):
@@ -213,8 +195,7 @@ class FunctionCallRequest(BaseAgentMessage):
     type: Literal["FunctionCallRequest"] = "FunctionCallRequest"
     functions: List[FunctionCallFunction]
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class FunctionCallResponse(BaseAgentMessage):
@@ -225,8 +206,7 @@ class FunctionCallResponse(BaseAgentMessage):
     name: str
     content: str
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class WelcomeMessage(BaseAgentMessage):
@@ -235,8 +215,7 @@ class WelcomeMessage(BaseAgentMessage):
     type: Literal["Welcome"] = "Welcome"
     request_id: str
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class SettingsApplied(BaseAgentMessage):
@@ -244,8 +223,7 @@ class SettingsApplied(BaseAgentMessage):
 
     type: Literal["SettingsApplied"] = "SettingsApplied"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class UserStartedSpeaking(BaseAgentMessage):
@@ -253,8 +231,7 @@ class UserStartedSpeaking(BaseAgentMessage):
 
     type: Literal["UserStartedSpeaking"] = "UserStartedSpeaking"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class ConversationText(BaseAgentMessage):
@@ -264,8 +241,7 @@ class ConversationText(BaseAgentMessage):
     role: str
     content: str
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class AgentThinking(BaseAgentMessage):
@@ -273,8 +249,7 @@ class AgentThinking(BaseAgentMessage):
 
     type: Literal["AgentThinking"] = "AgentThinking"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class PromptUpdated(BaseAgentMessage):
@@ -282,8 +257,7 @@ class PromptUpdated(BaseAgentMessage):
 
     type: Literal["PromptUpdated"] = "PromptUpdated"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class SpeakUpdated(BaseAgentMessage):
@@ -291,8 +265,7 @@ class SpeakUpdated(BaseAgentMessage):
 
     type: Literal["SpeakUpdated"] = "SpeakUpdated"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class AgentAudioDone(BaseAgentMessage):
@@ -300,8 +273,7 @@ class AgentAudioDone(BaseAgentMessage):
 
     type: Literal["AgentAudioDone"] = "AgentAudioDone"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class KeepAlive(BaseAgentMessage):
@@ -309,8 +281,7 @@ class KeepAlive(BaseAgentMessage):
 
     type: Literal["KeepAlive"] = "KeepAlive"
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class Warning(BaseAgentMessage):
@@ -320,8 +291,7 @@ class Warning(BaseAgentMessage):
     description: str
     code: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class Error(BaseAgentMessage):
@@ -332,18 +302,4 @@ class Error(BaseAgentMessage):
     message: Optional[str] = None  # For backward compatibility with existing code
     code: Optional[str] = None
 
-    class Config:
-        extra = "allow"
-
-
-class GnosisMetadataMessage(BaseAgentMessage):
-    """Metadata about Gnosis operations during request processing."""
-
-    type: Literal["GnosisMetadata"] = "GnosisMetadata"
-    operations: List[GnosisMetadataItem] = []
-    total_tokens: Optional[int] = None
-    total_latency_ms: Optional[float] = None
-    summary: Optional[str] = None
-
-    class Config:
-        extra = "allow"
+    model_config = {"extra": "allow"}

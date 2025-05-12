@@ -23,8 +23,6 @@ from app.models.agent import (
     Settings,
     Warning,
     Error,
-    GnosisMetadataMessage,
-    GnosisMetadataItem,
     AgentAudioDone,
     UpdateSpeak,
     InjectAgentMessage,
@@ -66,8 +64,6 @@ MESSAGE_TYPE_MAP: Dict[str, Type[BaseAgentMessage]] = {
     # Function calling messages (only new format)
     "FunctionCallRequest": FunctionCallRequest,
     "FunctionCallResponse": FunctionCallResponse,
-    # Internal Gnosis message
-    "GnosisMetadata": GnosisMetadataMessage,
 }
 
 
@@ -309,27 +305,6 @@ async def process_built_in_function_calls(
             # Also send response to client (marked as internal)
             await client_ws.send_text(response_json)
 
-            # Get values for metadata
-            duration_ms = result["duration_ms"]
-            arguments = result.get("arguments", {})
-            has_error = "error" in result
-
-            # Create metadata for this operation
-            metadata_item = GnosisMetadataItem(
-                operation_type="agent_tool_call",
-                name=original_name,
-                latency_ms=duration_ms,
-                details={
-                    "arguments": arguments,
-                    "status": "error" if has_error else "success",
-                },
-            )
-
-            # For now, we're just creating the metadata item but not using it
-            # In the future, this can be used to send metadata to the client
-            log.debug(
-                f"Created metadata for function call: {metadata_item.operation_type}"
-            )
         except Exception as e:
             log.error(f"Error sending function call response: {str(e)}")
 

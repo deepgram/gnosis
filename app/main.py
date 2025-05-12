@@ -1,21 +1,14 @@
 import os
 import uvicorn
-import structlog
 from litestar import Litestar
 from litestar.config.cors import CORSConfig
 from litestar.openapi import OpenAPIConfig
 from litestar.handlers import get
-from litestar.connection import Request
-from uuid import uuid4
-
+from litestar.logging import LoggingConfig
 from app.config import settings
 from app.routes.chat_completions import chat_completions_router
 from app.routes.agent import agent_router
-
-
-async def before_request_handler(request: Request) -> None:
-    request_id = str(uuid4())
-    structlog.contextvars.bind_contextvars(request_id=request_id)
+import logging
 
 
 @get("/health")
@@ -28,24 +21,6 @@ def create_app() -> Litestar:
     """
     Create and configure the Litestar application.
     """
-    # Log settings after structured logging is set up
-    log = structlog.get_logger()
-
-    # Convert sensitive fields to truncated versions
-    settings_dict = {}
-    for key, value in settings.model_dump().items():
-        if (
-            isinstance(value, str)
-            and any(
-                x in key.lower() for x in ["key", "secret", "password", "token", "url"]
-            )
-            and len(value) > 10
-        ):
-            settings_dict[key] = f"{value[:10]}..."
-        else:
-            settings_dict[key] = value
-
-    log.info("Application settings", **settings_dict)
 
     cors_config = CORSConfig(
         allow_origins=settings.CORS_ORIGINS,
@@ -63,13 +38,40 @@ def create_app() -> Litestar:
         ),
     )
 
+    # Define the formatter
+    log_formatter = logging.Formatter("%(levelname)s:\t  %(message)s")
+
+    # Create a StreamHandler and set the formatter
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+
+    # Define Litestar's logging configuration to use the *class* of the handler
+    # and then we will manually add the *instance* later.
+    logging_config = LoggingConfig(
+        root={
+            "level": settings.LOG_LEVEL.upper() or "DEBUG",
+            "handlers": ["shared_console"],
+        },
+        formatters={"standard": {"format": "%(levelname)s:\t  %(message)s"}},
+        handlers={
+            "shared_console": {
+                "class": "logging.StreamHandler",
+                "formatter": "standard",
+            }
+        },
+    )
+
+    # Configure standard Python logging to use the shared handler
+    root_logger = logging.getLogger()
+    root_logger.setLevel(settings.LOG_LEVEL.upper() or "DEBUG")
+    root_logger.addHandler(console_handler)
+
     return Litestar(
         route_handlers=[health_check, chat_completions_router, agent_router],
         cors_config=cors_config,
         openapi_config=openapi_config,
         debug=settings.DEBUG,
-        logging_config=None,  # Don't configure logging here
-        before_request=before_request_handler,
+        logging_config=logging_config,
     )
 
 
@@ -85,6 +87,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower(),
-        log_config=None,  # <-- disables Uvicorn's logging override
     )

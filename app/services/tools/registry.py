@@ -1,7 +1,10 @@
 from typing import Any, Callable, Dict, Awaitable, List, Optional
 import structlog
+import uuid
+import json
 
-from app.models.tools import ToolRegistry
+from app.models.registry import ToolRegistry, RegistryItem
+from app.models.chat import ToolCall, ToolCallFunction
 
 # Get a logger for this module
 log = structlog.get_logger()
@@ -53,27 +56,30 @@ def register_tool(
     ) -> Callable[[Dict[str, Any]], Awaitable[Any]]:
         # Create or update the tool entry in the registry
         if name not in tool_registry:
-            tool_registry[name] = {
-                "implementation": None,
-                "definition": None,
-                "scope": scope,
-            }
+            tool_registry[name] = RegistryItem(scope=scope)
 
         # Register the implementation
-        tool_registry[name]["implementation"] = func
+        tool_registry[name].implementation = func
         log.debug(f"Registered tool implementation: {name}")
 
         # If description and parameters provided, register the definition
         if description and parameters:
-            definition = {
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": description,
-                    "parameters": parameters,
-                },
+            # Create a ToolCall function with extra metadata in model_extra
+            function_data = {
+                "name": name,
+                "arguments": json.dumps(
+                    {"description": description, "parameters": parameters}
+                ),
             }
-            tool_registry[name]["definition"] = definition
+
+            tool_call = ToolCall(
+                id=f"def_{uuid.uuid4()}",
+                type="function",
+                function=ToolCallFunction(**function_data),
+            )
+
+            # Register the definition
+            tool_registry[name].definition = tool_call
             log.debug(f"Registered tool definition: {name}")
 
         return func
@@ -99,7 +105,7 @@ def get_tool_definition(name: str) -> Optional[Dict[str, Any]]:
 
 def get_all_tool_definitions() -> List[Dict[str, Any]]:
     """Get all tool definitions."""
-    return registry.get_all_definitions()
+    return [tool_def.model_dump() for tool_def in registry.get_all_definitions()]
 
 
 async def execute_tool(name: str, arguments: Dict[str, Any]) -> Any:
@@ -110,3 +116,12 @@ async def execute_tool(name: str, arguments: Dict[str, Any]) -> Any:
         return await implementation(arguments)
     log.warning(f"Tool implementation not found: {name}")
     return {"error": f"Tool '{name}' not found"}
+
+
+def create_tool_call(name: str, arguments: str) -> ToolCall:
+    """Create a ToolCall object for the given tool name and arguments."""
+    return ToolCall(
+        id=f"call_{uuid.uuid4()}",
+        type="function",
+        function=ToolCallFunction(name=name, arguments=arguments),
+    )

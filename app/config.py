@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # App Settings
     DEBUG: bool = Field(default=False)
     VERSION: str = Field(default="0.1.0")
-    LOG_LEVEL: str = Field(default="INFO")
+    LOG_LEVEL: str = Field(default="DEBUG")
     CORS_ORIGINS: List[str] = Field(default=["*"])
 
     # API Keys
@@ -33,6 +33,3 @@ class Settings(BaseSettings):
 
 # Initialize settings
 settings = Settings()
-
-# Log settings after structlog has been configured
-# This will be imported and used by main.py after logging is set up
