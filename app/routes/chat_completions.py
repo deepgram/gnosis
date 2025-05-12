@@ -13,7 +13,6 @@ from app.models.chat import (
     ChatCompletionResponse,
     ToolCall,
 )
-from app.services.rag import RequestAugmentedGenerationService
 from app.services.openai import OpenAIService
 from app.services.tools.registry import get_tool_implementation, execute_tool
 from app.services.function_calling import FunctionCallingService

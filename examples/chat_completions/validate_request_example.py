@@ -2,7 +2,6 @@
 """
 Example script demonstrating the validation of chat completion requests.
 """
-import json
 import sys
 from typing import cast
 from pathlib import Path

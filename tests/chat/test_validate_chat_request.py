@@ -2,10 +2,8 @@
 Tests for the chat request validation utility.
 """
 
-import json
-from typing import Dict, Any, cast
+from typing import cast
 
-import pytest
 from app.utils.validate_chat_request import (
     validate_chat_request,
     validate_chat_request_dict,

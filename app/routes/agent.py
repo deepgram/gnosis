@@ -281,7 +281,7 @@ async def process_built_in_function_calls(
             # Extract values from the result dictionary
             function_id = result["function_id"]
             function_name = result["function_name"]
-            original_name = result["name"]
+            result["name"]
             output_result = result.get("result", {})
 
             # Format the output as a string

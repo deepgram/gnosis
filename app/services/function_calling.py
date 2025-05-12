@@ -1,7 +1,6 @@
 from typing import Dict, List, Any, Optional
 import copy
 import logging
-from litestar import Request
 from app.services.tools.registry import (
     get_all_tool_definitions,
     get_tool_implementation,
@@ -221,7 +220,7 @@ class FunctionCallingService:
                     existing_functions = [
                         {"name": k, **v} for k, v in function_dict.items()
                     ]
-                except Exception as e:
+                except Exception:
                     existing_functions = []
             else:
                 existing_functions = []

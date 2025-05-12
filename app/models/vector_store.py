@@ -2,8 +2,8 @@
 Pydantic models for OpenAI Chat Completions API.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, model_validator
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel
 
 
 class VectorStoreSearchRequest(BaseModel):

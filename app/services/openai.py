@@ -15,7 +15,6 @@ from typing import (
 )
 
 import httpx
-import structlog
 from pydantic import BaseModel
 
 from app.config import settings

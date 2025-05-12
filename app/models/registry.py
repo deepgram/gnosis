@@ -2,7 +2,7 @@
 Pydantic models for tool definitions and tool responses.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from app.models.chat import (

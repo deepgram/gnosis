@@ -1,5 +1,4 @@
 import json
-import pytest
 from app.models.chat import ChatCompletionRequest
 
 
@@ -157,7 +156,7 @@ def test_parse_json_string_to_model():
         """Helper function to validate a JSON string."""
         try:
             data = json.loads(json_string)
-            model = ChatCompletionRequest(**data)
+            ChatCompletionRequest(**data)
             return True
         except Exception as e:
             print(f"Error parsing JSON: {e}")
