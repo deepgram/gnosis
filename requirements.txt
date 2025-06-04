@@ -48,7 +48,6 @@ multipart==1.2.1
 mypy_extensions==1.1.0
 nodeenv==1.9.1
 packaging==25.0
-picologging==0.9.3
 platformdirs==4.3.7
 pluggy==1.5.0
 polyfactory==2.21.0
