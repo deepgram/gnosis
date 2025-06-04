@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Before committing any code, run every example in the nest examples folder one by one, just to make sure we haven't broken anything.

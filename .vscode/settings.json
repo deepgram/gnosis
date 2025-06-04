@@ -1,0 +1,12 @@
+{
+  "python.REPL.enableREPLSmartSend": false,
+  "editor.formatOnSave": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    },
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "editor.formatOnSaveMode": "file",
+}

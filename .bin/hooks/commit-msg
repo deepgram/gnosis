@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# Git hook to validate conventional commit message format
+#
+# Installation: Copy to .git/hooks/commit-msg and make executable
+
+# Get the commit message (first argument is the file containing the message)
+commit_msg_file=$1
+commit_msg=$(cat "$commit_msg_file")
+
+# Define the conventional commit pattern
+# format: <type>(<scope>): <description>
+# example: feat(auth): add OAuth2 support
+conventional_pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9-]+\))?: .+'
+
+# Check if the commit message matches the pattern
+if ! echo "$commit_msg" | head -1 | grep -qE "$conventional_pattern"; then
+    echo "ERROR: Commit message does not follow conventional commit format."
+    echo "Your message: $(head -1 "$commit_msg_file")"
+    echo ""
+    echo "Conventional format: <type>(<scope>): <description>"
+    echo "Example: feat(auth): add login functionality"
+    echo ""
+    echo "Valid types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test"
+    echo ""
+    echo "See https://www.conventionalcommits.org/ for more details."
+    exit 1
+fi
+
+# Ensure commit message has a body when it has multiple lines (if beyond just the subject)
+if [ "$(wc -l < "$commit_msg_file")" -gt 1 ]; then
+    # Check for empty second line (required by convention)
+    second_line=$(sed '2q;d' "$commit_msg_file")
+    if [ -n "$second_line" ]; then
+        echo "ERROR: Second line of commit message must be blank."
+        echo "Please add an empty line between subject and body."
+        exit 1
+    fi
+    
+    # Check for non-empty body (after the blank line)
+    body_length=$(tail -n +3 "$commit_msg_file" | grep -v '^$' | wc -l)
+    if [ "$body_length" -eq 0 ]; then
+        echo "ERROR: Commit message has multiple lines but no body."
+        echo "Please add a descriptive body or use a single-line commit."
+        exit 1
+    fi
+fi
+
+# All checks passed
+exit 0 
