@@ -1,0 +1,40 @@
+# serializer version: 1
+# name: test_chat_completion
+  dict({
+    'choices': list([
+      dict({
+        'finish_reason': 'stop',
+        'index': 0,
+        'logprobs': None,
+        'message': dict({
+          'annotations': list([
+          ]),
+          'content': 'Hello! How can I assist you today?',
+          'refusal': None,
+          'role': 'assistant',
+        }),
+      }),
+    ]),
+    'created': 1749249864,
+    'id': 'chatcmpl-Bfa5QNLW5MCIbTYyulHpzwxnuE4gg',
+    'model': 'gpt-4-0613',
+    'object': 'chat.completion',
+    'service_tier': 'default',
+    'system_fingerprint': None,
+    'usage': dict({
+      'completion_tokens': 9,
+      'completion_tokens_details': dict({
+        'accepted_prediction_tokens': 0,
+        'audio_tokens': 0,
+        'reasoning_tokens': 0,
+        'rejected_prediction_tokens': 0,
+      }),
+      'prompt_tokens': 19,
+      'prompt_tokens_details': dict({
+        'audio_tokens': 0,
+        'cached_tokens': 0,
+      }),
+      'total_tokens': 28,
+    }),
+  })
+# ---

@@ -9,4 +9,5 @@
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
   "editor.formatOnSaveMode": "file",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
 }

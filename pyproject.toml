@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gnosis"
+version = "0.1.0"
+description = "An intelligence API proxy for LLMs and voice agents"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "litestar==2.15.2",
+    "uvicorn==0.34.2",
+    "deepgram-sdk==3.11.0",
+    "pydantic==2.11.3",
+    "pydantic-settings==2.9.1",
+    "websockets==14.2",
+    "aiohttp==3.11.18",
+    "structlog==25.3.0",
+    "python-dotenv==1.1.0",
+    "supabase>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock",
+    "pytest-cov",
+    "pytest-xdist",
+    "syrupy",
+    "httpx",
+    "respx",
+    "black",
+    "flake8",
+    "mypy",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "real_api: makes real API calls to regenerate snapshots",
+    "asyncio: marks tests as asyncio",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+''' 
