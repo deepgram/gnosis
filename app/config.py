@@ -2,7 +2,7 @@ from typing import List
 
 from dotenv import load_dotenv
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load environment variables before everything else
 load_dotenv()
@@ -26,9 +26,10 @@ class Settings(BaseSettings):
     # Legacy settings (for backward compatibility)
     MCP_ENABLED: bool = Field(default=False, description="Legacy setting")
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+    )
 
 
 # Initialize settings
